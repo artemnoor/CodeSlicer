@@ -355,7 +355,8 @@ def extract_project(path: str | Path, files: list[str] | None = None) -> GraphDo
             py_files.append(root_path)
     else:
         selected = {str(item).replace("\\", "/") for item in files or []}
-        for p in root_path.rglob("*.py"):
+        from impact_engine.scope import iter_project_files
+        for p in iter_project_files(root_path, {".py"}):
             parts = p.relative_to(root_path).parts
             if any(part.startswith(".") or part in _SKIP_DIRS for part in parts):
                 continue

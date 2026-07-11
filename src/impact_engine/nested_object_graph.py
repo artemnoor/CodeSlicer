@@ -177,7 +177,8 @@ def _collect_python_source_facts(graph: GraphDocument, class_ids: set[str]) -> d
         "aliases": [],
         "calls": [],
     }
-    for path in root.rglob("*.py"):
+    from impact_engine.scope import iter_project_files
+    for path in iter_project_files(root, {".py"}):
         try:
             rel_parts = path.relative_to(root).parts
         except ValueError:

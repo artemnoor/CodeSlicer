@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import List, Set
 from impact_engine.languages.registry import detect_languages, get_language_profile
 from impact_engine.inventory.models import ProjectInventory
+from impact_engine.scope import iter_project_files
 
 
 def parse_dependency_name(d: str) -> str:
@@ -289,7 +290,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
     loc = 0
 
     # Scan project files
-    for p in root.rglob("*"):
+    for p in iter_project_files(root):
         parts = p.relative_to(root).parts
         if _is_ignored_path(parts):
             continue
@@ -385,7 +386,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
         "tsconfig.json": ("typescript", lambda path: []),
     }
 
-    for m_path in root.rglob("*"):
+    for m_path in iter_project_files(root):
         if not m_path.is_file():
             continue
         parts = m_path.relative_to(root).parts

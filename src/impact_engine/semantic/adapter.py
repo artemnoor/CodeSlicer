@@ -70,7 +70,8 @@ def _iter_project_files(root: Path, suffixes: set[str]) -> Iterable[Path]:
         if root.suffix in suffixes:
             yield root
         return
-    for path in root.rglob("*"):
+    from impact_engine.scope import iter_project_files
+    for path in iter_project_files(root):
         if not path.is_file() or path.suffix not in suffixes:
             continue
         if any(part in _SKIP_DIRS or part.startswith(".") for part in path.relative_to(root).parts):

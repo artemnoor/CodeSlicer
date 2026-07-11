@@ -166,6 +166,11 @@ def main(argv: list[str] | None = None) -> None:
     analyze.add_argument("--local-registry", dest="remote_registry", action="store_true", help="Use the local SQLite registry")
     analyze.add_argument("--no-research-requests", action="store_true")
     analyze.add_argument("--graphify", default=None, help="Optional Graphify graph.json to normalize and merge")
+    analyze.add_argument("--use-scan-plan", action="store_true", help="Create/reuse .impact_engine/scan_plan.json before analysis")
+
+    scan_plan = sub.add_parser("scan-plan", help="Plan the files and directories that will be analyzed")
+    scan_plan.add_argument("path")
+    scan_plan.add_argument("--json", action="store_true", dest="local_json")
 
     visualize = sub.add_parser("visualize")
     visualize.add_argument("graph", help="Path to graph.json")
@@ -408,7 +413,18 @@ def main(argv: list[str] | None = None) -> None:
     elif getattr(args, "command", None) == "runtime-trace":
         args.test_command = []
 
-    if args.command in {"visualize", "visualize-compare"}:
+    if args.command == "scan-plan":
+        from impact_engine.scope import build_scan_plan, write_scan_plan
+        plan = build_scan_plan(args.path)
+        plan["plan_path"] = str(write_scan_plan(args.path, plan))
+        if args.json or getattr(args, "local_json", False):
+            _print_json(plan)
+        else:
+            print(f"Scan plan: {plan['plan_path']}")
+            print(f"  Included files: {plan['included_files']}")
+            print(f"  Excluded directories: {len(plan['excluded_directories'])}")
+
+    elif args.command in {"visualize", "visualize-compare"}:
         from impact_engine.visualization import render_graph_comparison_html, render_graph_html
 
         try:
@@ -565,6 +581,9 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "analyze":
         from impact_engine.analysis.pipeline import analyze_project_core
         from impact_engine.support_packs.detection import detect_unknown_libraries_core
+        if args.use_scan_plan:
+            from impact_engine.scope import build_scan_plan, write_scan_plan
+            write_scan_plan(args.path, build_scan_plan(args.path))
         def report_progress(event):
             stream = sys.stderr if args.json else sys.stdout
             print(

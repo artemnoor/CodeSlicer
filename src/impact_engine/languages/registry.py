@@ -95,7 +95,8 @@ def detect_languages(project_path: str | Path) -> List[str]:
         found_extensions.add(root.suffix.lower())
     else:
         # Walk directories, ignoring standard build/venv directories
-        for p in root.rglob("*"):
+        from impact_engine.scope import iter_project_files
+        for p in iter_project_files(root):
             parts = p.relative_to(root).parts
             if any(part.startswith(".") or part == "__pycache__" or part == "venv" or part == "env" or part == "node_modules" for part in parts):
                 continue

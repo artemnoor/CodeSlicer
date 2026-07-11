@@ -30,6 +30,15 @@ The registry status must report mode: sqlite.
 
 ## Analyze a project
 
+For a large workspace, inspect the deterministic scope first:
+
+    impact-engine scan-plan C:\path\to\project
+
+This prunes dependency trees, generated output, caches, and nested Git
+repositories before source extraction. Review the result, then analyze with:
+
+    impact-engine analyze C:\path\to\project --use-scan-plan --out .impact_engine\graph.json
+
     impact-engine analyze C:\path\to\project --out .impact_engine\graph.json
 
 The command writes a GraphDocument JSON artifact. It does not modify the

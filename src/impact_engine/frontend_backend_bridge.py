@@ -345,7 +345,8 @@ def _collect_fastapi_backend_routes_from_source(graph: GraphDocument) -> list[di
     route_defs: list[dict[str, Any]] = []
     reexports: dict[str, str] = {}
 
-    for path in root.rglob("*.py"):
+    from impact_engine.scope import iter_project_files
+    for path in iter_project_files(root, {".py"}):
         if any(part in _SKIP_DIRS or part.startswith(".") for part in path.relative_to(root).parts):
             continue
         module = _python_module_id(root, path)
@@ -777,7 +778,8 @@ def _join_paths(*parts: str) -> str:
 
 
 def _iter_frontend_files(root: Path):
-    for path in root.rglob("*"):
+    from impact_engine.scope import iter_project_files
+    for path in iter_project_files(root):
         if not path.is_file() or path.suffix.lower() not in _JS_TS_EXTENSIONS:
             continue
         try:

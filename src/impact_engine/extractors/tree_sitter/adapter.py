@@ -764,7 +764,8 @@ def extract_tree_sitter_project(project_path: str | Path, languages: List[str] |
     selected = {str(item).replace("\\", "/") for item in files or []}
 
     # Gather matching files
-    for p in root.rglob("*"):
+    from impact_engine.scope import iter_project_files
+    for p in iter_project_files(root):
         parts = p.relative_to(root).parts
         if any(part.startswith(".") or part in {
             "__pycache__", "venv", "env", "node_modules", "external_tools",
