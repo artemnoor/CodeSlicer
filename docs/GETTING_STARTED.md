@@ -174,6 +174,32 @@ When a third-party library is not known, the workflow is:
 The deterministic core does not call an LLM, directly write confirmed edges,
 or silently approve a draft pack.
 
+## Review a Diff Without Rebuilding the Project
+
+This distinction is important for large repositories:
+
+- `--diff-file` tells PR review which change to inspect;
+- `--graph` supplies the already-built project graph;
+- omitting `--graph` makes PR review analyze the whole project before it can
+  inspect the diff.
+
+Recommended workflow:
+
+```powershell
+impact-engine analyze C:\path\to\project `
+  --use-scan-plan `
+  --out C:\path\to\project\.impact_engine\graph.json
+
+impact-engine pr-review C:\path\to\project `
+  --diff-file C:\path\to\change.diff `
+  --graph C:\path\to\project\.impact_engine\graph.json
+```
+
+Without `--graph`, a large project can take a long time because the diff does
+not act as a parser scope. The command is working through a full analysis, not
+necessarily frozen. If source files changed after the graph was created,
+refresh it first or use the incremental analysis workflow.
+
 Useful commands:
 
 ```bash

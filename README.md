@@ -150,6 +150,33 @@ If the graph is stored elsewhere, load it with `POST /api/load-graph` and a
 `project_path` plus `graph_path`. See [Getting Started](docs/GETTING_STARTED.md)
 for the complete API list and troubleshooting steps.
 
+## Fast PR Review
+
+`--diff-file` describes the change being reviewed; it does **not** limit the
+initial source parsing. If `--graph` is omitted, `pr-review` may build a full
+project graph first and can appear to hang on a large repository.
+
+Build or refresh the graph once:
+
+```powershell
+impact-engine analyze C:\path\to\project `
+  --use-scan-plan `
+  --out C:\path\to\project\.impact_engine\graph.json
+```
+
+Then reuse it for review:
+
+```powershell
+impact-engine pr-review C:\path\to\project `
+  --diff-file C:\path\to\change.diff `
+  --graph C:\path\to\project\.impact_engine\graph.json
+```
+
+The same rule applies on Linux and macOS with their path and line-continuation
+syntax. Refresh the graph only when the project changed enough to make the
+existing artifact stale; use incremental analysis when a changed-file
+comparison is required.
+
 ## MCP
 
 CodeSlicer exposes a local JSON-RPC MCP server over stdio:

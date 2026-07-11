@@ -12,6 +12,7 @@ commit title.
 
 1. Check `git diff --name-status` and `git diff` without modifying the worktree.
 2. Ensure a current graph exists; analyze the project if it is missing or stale.
+   Always write it under `<project>/.impact_engine/graph.json` when possible.
 3. Run:
    `impact-engine --json pr-review <project> --diff-file <diff> --graph <graph.json>`
    or use the configured MCP PR-review operation.
@@ -22,6 +23,9 @@ commit title.
 ## Review discipline
 
 - Do not claim a file is affected solely because it shares a name.
+- Do not omit `--graph` for a large project. `--diff-file` selects the change
+  for review but does not restrict the initial parser scope; without
+  `--graph`, the command performs a full analysis and may take a long time.
 - Keep generated, test-only, and documentation-only changes separate.
 - Distinguish `must_change` from `should_review`.
 - Report missing graph evidence and unsupported language semantics explicitly.
