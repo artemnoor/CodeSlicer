@@ -25,6 +25,7 @@
 - [Визуальный интерфейс](#визуальный-интерфейс)
 - [MCP](#mcp)
 - [Неизвестные библиотеки](#неизвестные-библиотеки)
+- [Персонализация для проекта](#персонализация-для-проекта)
 - [PR-review](#pr-review)
 - [Формат графа](#формат-графа)
 - [Поддержка языков](#поддержка-языков)
@@ -203,6 +204,17 @@ GET /api/graph   -> непустые nodes и edges
 
 ![Визуализация графа CodeSlicer](docs/images/codeslicer-graph.png)
 
+Impact analysis ранжирует затронутые узлы и разделяет подтверждённые,
+вероятные и подозрительные цепочки, чтобы агент или разработчик видел не
+просто список файлов, а приоритет проверки:
+
+![Анализ влияния CodeSlicer](docs/images/codeslicer-impact.png)
+
+Диагностика не маскирует пробелы в знаниях: unresolved и ambiguous области
+остаются локализованными, вместе с рекомендуемым следующим действием:
+
+![Диагностика CodeSlicer](docs/images/codeslicer-diagnostics.png)
+
 ## MCP
 
 CodeSlicer предоставляет локальный JSON-RPC MCP-сервер через stdio:
@@ -264,6 +276,38 @@ impact-engine libraries research /path/to/project \
 проверяет его и не позволяет AI напрямую записывать подтверждённые рёбра.
 
 Полный регламент: [docs/SUPPORT_PACKS.md](docs/SUPPORT_PACKS.md).
+
+## Персонализация для проекта
+
+У проекта могут быть private SDK, внутренние HTTP-wrapper-ы и собственные
+DI-паттерны, которых нет в общем CodeSlicer registry. Для этого есть
+**project-local support packs**. Они сохраняются только рядом с проектом:
+
+```text
+<project>/.impact_engine/local_packs/<language>/<library>/support_pack.json
+```
+
+Локальный pack загружается раньше общего pack с тем же языком и библиотекой,
+но не меняет GitHub-репозиторий CodeSlicer, глобальный `support_packs/` и
+SQLite registry.
+
+```bash
+impact-engine project-packs init /path/to/project
+impact-engine project-packs install /path/to/project candidate_pack.json \
+  --trust-level experimental
+impact-engine project-packs list /path/to/project
+impact-engine analyze /path/to/project --out /path/to/project/.impact_engine/graph.json
+```
+
+Требования безопасности остаются прежними: schema validation, source
+provenance и `forbid_name_only=true` обязательны. Pack уровня `draft` или
+`staged` сохраняется, но не участвует в обычном анализе. Локальный pack не
+может получить глобальный уровень `trusted`: универсальное правило должно
+перейти в общий registry через отдельный review и benchmark workflow.
+
+Локальные packs поддерживают декларативные правила. Если проекту нужен новый
+исполняемый resolver, AI должен подготовить отдельный proposal, fixture и
+тесты для PR в CodeSlicer, а не произвольно переписывать ядро анализатора.
 
 ## PR-review
 

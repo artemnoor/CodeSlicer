@@ -100,6 +100,8 @@ class AnalysisPipeline:
                 "library": getattr(pack, "library", pack.get("library", "unknown") if isinstance(pack, dict) else "unknown"),
                 "language": getattr(pack, "language", pack.get("language", "") if isinstance(pack, dict) else ""),
                 "trust_level": getattr(pack, "trust_level", pack.get("trust_level", "") if isinstance(pack, dict) else ""),
+                "scope": getattr(pack, "scope", pack.get("scope", "global") if isinstance(pack, dict) else "global"),
+                "project_scope": getattr(pack, "project_scope", pack.get("project_scope", {}) if isinstance(pack, dict) else {}),
                 "available_phases": ["semantic_binding", "precision_resolver", "validation"],
             }
             for pack in support_packs
@@ -524,6 +526,20 @@ class AnalysisPipeline:
 
         try:
             loaded_keys: set[tuple[str, str]] = set()
+            # Project-local packs are explicit personalization. They are loaded
+            # before shared packs, so a validated project rule can refine a
+            # private SDK or custom wrapper without changing the global registry.
+            from impact_engine.project_packs import load_project_packs
+
+            project_packs, project_pack_errors = load_project_packs(self.project_path)
+            self.support_pack_load_errors.extend(project_pack_errors)
+            for pack in project_packs:
+                key = (pack.language.lower(), pack.library.lower())
+                if key in loaded_keys:
+                    continue
+                loaded_keys.add(key)
+                support_packs.append(pack)
+
             # A checked-in/project pack is the source of truth for the current
             # analysis. Registry and cache copies are fallbacks only; otherwise
             # a stale SQLite row can silently shadow a newer pack on disk.

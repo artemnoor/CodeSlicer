@@ -90,6 +90,8 @@ def _annotate_support_pack_edge(edge: Edge, pack, library: str, version_range: s
         "rule_id": rule_id,
         "rule_version": rule_version,
         "trust_level": effective,
+        "scope": _pack_value(pack, "scope", "global") or "global",
+        "project_scope": _pack_value(pack, "project_scope", {}) or {},
         "resolver_hook": resolver_hook,
         "matched_pattern": matched_pattern,
         "evidence": _evidence_to_dicts(edge),

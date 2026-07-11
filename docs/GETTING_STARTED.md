@@ -174,6 +174,23 @@ When a third-party library is not known, the workflow is:
 The deterministic core does not call an LLM, directly write confirmed edges,
 or silently approve a draft pack.
 
+### Personalize one project without changing CodeSlicer
+
+For a private wrapper or internal library, keep a validated pack inside the
+project instead of changing the shared CodeSlicer registry:
+
+```bash
+impact-engine project-packs init /path/to/project
+impact-engine project-packs install /path/to/project candidate_pack.json \
+  --trust-level experimental
+impact-engine analyze /path/to/project --out /path/to/project/.impact_engine/graph.json
+```
+
+The pack is stored in `.impact_engine/local_packs/` and only affects this
+project. It must declare evidence requirements that forbid name-only matching.
+Draft and staged packs remain inactive. Use a shared-registry PR when the rule
+is proven useful beyond one project.
+
 ## Review a Diff Without Rebuilding the Project
 
 This distinction is important for large repositories:

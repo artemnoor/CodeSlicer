@@ -281,6 +281,21 @@ def main(argv: list[str] | None = None) -> None:
     sp_adapt.add_argument("path")
     sp_adapt.add_argument("--out", default=None)
 
+    project_packs = sub.add_parser(
+        "project-packs",
+        help="Manage support packs scoped to one project under .impact_engine/local_packs",
+    )
+    project_packs_sub = project_packs.add_subparsers(dest="project_packs_command")
+    project_packs_init = project_packs_sub.add_parser("init")
+    project_packs_init.add_argument("project_path")
+    project_packs_list = project_packs_sub.add_parser("list")
+    project_packs_list.add_argument("project_path")
+    project_packs_install = project_packs_sub.add_parser("install")
+    project_packs_install.add_argument("project_path")
+    project_packs_install.add_argument("pack_path")
+    project_packs_install.add_argument("--trust-level", default="draft")
+    project_packs_install.add_argument("--overwrite", action="store_true")
+
     # db
     db_parser = sub.add_parser("db")
     db_sub = db_parser.add_subparsers(dest="db_command")
@@ -898,6 +913,29 @@ def main(argv: list[str] | None = None) -> None:
                 else:
                     print(f"Adaptation error: {e}")
                 sys.exit(1)
+
+    elif args.command == "project-packs":
+        from impact_engine.project_packs import initialize_project_packs, install_project_pack, list_project_packs
+
+        if args.project_packs_command == "init":
+            res = initialize_project_packs(args.project_path)
+        elif args.project_packs_command == "list":
+            res = {"status": "ok", "scope": "project_local", "packs": list_project_packs(args.project_path)}
+        elif args.project_packs_command == "install":
+            res = install_project_pack(
+                args.project_path,
+                args.pack_path,
+                trust_level=args.trust_level,
+                overwrite=args.overwrite,
+            )
+        else:
+            res = {"status": "error", "error": "project-packs subcommand is required"}
+        if args.json:
+            _print_json(res)
+        else:
+            print(json.dumps(res, indent=2, ensure_ascii=False))
+        if res.get("status") == "error":
+            sys.exit(1)
 
     elif args.command == "libraries":
         if args.libraries_command == "detect":

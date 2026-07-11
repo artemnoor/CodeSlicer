@@ -25,6 +25,40 @@ AI research produces a candidate pack, never direct graph edges.
 7. Re-analyze the project and compare graph/unknown-region metrics before and
    after. Keep the pack experimental when evidence is insufficient.
 
+## Project-Specific Personalization
+
+When the behavior is specific to one private SDK, wrapper or project
+convention, do not edit the CodeSlicer repository. Create a candidate pack and
+install it only under the target project:
+
+1. Run `impact-engine project-packs init <project>`.
+2. Create a candidate whose `evidence_requirements.forbid_name_only` is true.
+3. Include import, receiver, type, decorator, provider, module or file
+   evidence for call/binding rules.
+4. Install it as `draft` first. After validation and a before/after graph
+   comparison, use `--trust-level experimental` to activate it locally.
+5. Re-run analysis and confirm every new edge has `scope: project_local`
+   provenance.
+6. If the rule becomes reusable, prepare a separate CodeSlicer PR with
+   fixtures; never modify the shared registry automatically.
+
+## When a Declarative Pack Is Not Enough
+
+Project-local packs support declarative rules only. If the target behavior
+needs a new executable resolver, parser capability, or a new kind of semantic
+fact, the agent must stop before editing the CodeSlicer core and return a
+proposal containing:
+
+1. the unsupported pattern and concrete source locations;
+2. the evidence chain the new resolver would require;
+3. a minimal positive fixture, negative fixture, and mutation scenario;
+4. expected edges and forbidden edges;
+5. the proposed production module and test plan.
+
+The agent may implement and validate this work on a dedicated branch or PR
+only after the user authorizes a core change. It must never adapt the shared
+GitHub repository silently for one project's private pattern.
+
 ## Prohibitions
 
 - No name-only matching.

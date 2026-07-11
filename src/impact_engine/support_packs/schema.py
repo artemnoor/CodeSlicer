@@ -21,6 +21,8 @@ SUPPORT_PACK_CONFIDENCE_CAPS = {
 
 SUPPORT_PACK_INACTIVE_TRUST_LEVELS = {"draft", "staged"}
 
+SUPPORT_PACK_SCOPES = {"global", "project_local"}
+
 SUPPORT_PACK_STATUSES = {
     *SUPPORT_PACK_TRUST_LEVELS,
     # Legacy statuses kept for backward compatibility with existing packs.
@@ -79,6 +81,8 @@ class SupportPack:
     fixtures: List[Dict[str, Any]] = field(default_factory=list)
     negative_cases: List[Dict[str, Any]] = field(default_factory=list)
     mutation_scenarios: List[Dict[str, Any]] = field(default_factory=list)
+    scope: str = "global"
+    project_scope: Dict[str, Any] = field(default_factory=dict)
 
 
 def validate_support_pack_dict(data: dict) -> List[str]:
@@ -131,6 +135,14 @@ def validate_support_pack_dict(data: dict) -> List[str]:
     if "ecosystem" in data:
         if not isinstance(data["ecosystem"], str):
             errors.append("field 'ecosystem' must be a string")
+
+    scope = data.get("scope", "global")
+    if not isinstance(scope, str) or scope not in SUPPORT_PACK_SCOPES:
+        errors.append("scope must be one of: global, project_local")
+    if "project_scope" in data and not isinstance(data["project_scope"], dict):
+        errors.append("field 'project_scope' must be an object")
+    if scope == "project_local" and not data.get("project_scope"):
+        errors.append("project_local support pack requires a non-empty project_scope")
 
     if "coverage_limitations" in data:
         if not isinstance(data["coverage_limitations"], (list, dict)):
@@ -250,7 +262,9 @@ def support_pack_from_dict(data: dict) -> SupportPack:
         confidence_caps=data.get("confidence_caps", {}),
         fixtures=data.get("fixtures", []),
         negative_cases=data.get("negative_cases", []),
-        mutation_scenarios=data.get("mutation_scenarios", [])
+        mutation_scenarios=data.get("mutation_scenarios", []),
+        scope=data.get("scope", "global"),
+        project_scope=data.get("project_scope", {}),
     )
 
 
