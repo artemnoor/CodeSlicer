@@ -56,6 +56,39 @@ Expected registry mode:
 sqlite
 ```
 
+## One-message setup for an AI agent
+
+If an AI agent is already connected to the project, you can give it the whole
+initial setup task in one message. Copy and send this instruction:
+
+```text
+Установи CodeSlicer в текущий проект:
+https://github.com/artemnoor/CodeSlicer.git
+
+Подключи его через MCP или CLI, выполни первичный анализ кодовой базы и покажи:
+
+1. архитектурную карту проекта;
+2. ключевые frontend/backend цепочки;
+3. unresolved и suspicious области;
+4. пример impact-анализа для одной важной функции;
+5. связанные тесты.
+
+Не изменяй исходный код без моего подтверждения.
+
+Запусти локальный визуальный интерфейс CodeSlicer и в конце выдай ссылку на
+него, например http://127.0.0.1:8001/.
+
+Перед завершением проверь /api/health, /api/state и /api/graph. В ответе
+укажи путь к graph.json, количество узлов и рёбер, все предупреждения и
+ограничения анализа. Не заявляй, что граф готов, пока /api/state не вернёт
+has_analysis=true, а /api/graph не вернёт непустые nodes и edges.
+```
+
+Агенту можно разрешить установить зависимости, запустить локальный API и
+выполнить анализ, но изменение исходного кода проекта должно оставаться под
+подтверждением пользователя. Для корректной передачи результата CLI и API
+используйте путь `<project>/.impact_engine/graph.json`.
+
 ## Analyze a Project
 
 ### 1. Review the scan scope
