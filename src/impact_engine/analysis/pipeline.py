@@ -40,16 +40,46 @@ class AnalysisPipeline:
         self.stage_timings: dict[str, float] = {}
         self.incremental_cache_stats: dict[str, Any] = {}
         self.invalidated_node_ids: set[str] = set()
+        self.progress_events: list[dict[str, Any]] = []
+        self.progress_started = __import__("time").perf_counter()
+
+    def _progress(self, stage: str, processed: int, total: int, message: str) -> None:
+        weights = {
+            "inventory": 0.10, "preparation": 0.05, "extraction": 0.35,
+            "normalization": 0.10, "semantic": 0.15, "resolution": 0.15,
+            "final": 0.10,
+        }
+        stage_percent = 100.0 if total <= 0 else min(100.0, max(0.0, processed / total * 100.0))
+        ordered = list(weights)
+        overall = sum(weights[name] * (stage_percent / 100.0 if name == stage else (1.0 if ordered.index(name) < ordered.index(stage) else 0.0)) for name in ordered)
+        event = {
+            "stage": stage,
+            "message": message,
+            "processed": processed,
+            "total": total,
+            "stage_percent": round(stage_percent, 1),
+            "overall_percent": round(overall * 100.0, 1),
+            "elapsed_seconds": round(__import__("time").perf_counter() - self.progress_started, 3),
+        }
+        self.progress_events.append(event)
+        callback = self.options.progress_callback
+        if callback:
+            callback(event)
 
     def run(self) -> AnalysisResult:
         import time
+        self._progress("inventory", 0, 1, "Сканирование файлов и manifest-файлов")
         inventory_data = self._scan_inventory()
+        self._progress("inventory", 1, 1, f"Inventory завершён: {inventory_data.get('files_count', len(inventory_data.get('files', [])))} файлов")
         languages = self._detect_languages(inventory_data)
         pre_hygiene = self._build_pre_hygiene(inventory_data)
+        self._progress("preparation", 1, 1, "Языки, зависимости и pre-hygiene определены")
         language_capabilities = build_language_capability_diagnostics(languages)
         raw_graphs = self._extract_graphs(languages)
         self._extract_graphify(raw_graphs)
+        self._progress("normalization", 0, 1, "Нормализация фактов и структурного графа")
         graph = self._merge_and_normalize(raw_graphs)
+        self._progress("normalization", 1, 1, "Нормализация завершена")
         fact_document = FactDocument.from_graph(graph)
         graph.metadata["fact_document"] = fact_document.summary()
         if Path(self.project_path).is_dir():
@@ -75,14 +105,18 @@ class AnalysisPipeline:
             for pack in support_packs
         ]
         started = time.perf_counter()
+        self._progress("semantic", 0, 1, "Semantic binding и support-pack context")
         graph = self._apply_semantic_layer(graph)
         self.stage_timings["semantic_binding"] = round(time.perf_counter() - started, 4)
+        self._progress("semantic", 1, 1, "Semantic binding завершён")
         run_quality_gate(graph, "semantic_binding")
         local_registry_summary = self._sync_local_registry(inventory_data)
         started = time.perf_counter()
+        self._progress("resolution", 0, 1, "Precision и framework resolution")
         resolved = resolve_precision(graph, support_packs=support_packs)
         resolved = apply_limited_polyglot_semantics(resolved, self.project_path)
         self.stage_timings["resolution"] = round(time.perf_counter() - started, 4)
+        self._progress("resolution", 1, 1, "Resolution завершён")
         run_quality_gate(resolved, "generic_and_framework_resolution")
         if local_registry_summary:
             resolved.metadata["local_registry"] = local_registry_summary
@@ -103,7 +137,11 @@ class AnalysisPipeline:
             "accounting": resolved.metadata["resolution_coverage"].get("accounting", {}),
         }
         resolved.metadata["stage_timings_seconds"] = dict(self.stage_timings)
+        self._progress("final", 0, 1, "Quality guard, diagnostics и fingerprint")
         self._record_graph_metadata(resolved)
+        self._progress("final", 1, 1, "Анализ завершён")
+        progress = {"status": "completed", "events": self.progress_events, "current": self.progress_events[-1]}
+        resolved.metadata["analysis_progress"] = progress
         graph_path = self._write_graph(resolved)
 
         return AnalysisResult(
@@ -119,6 +157,7 @@ class AnalysisPipeline:
             nodes=len(resolved.nodes),
             edges=len(resolved.edges),
             graph=resolved.to_dict(),
+            progress=progress,
         )
 
     def _annotate_unknown_regions(self, graph: GraphDocument) -> None:
@@ -167,6 +206,7 @@ class AnalysisPipeline:
         started = time.perf_counter()
         try:
             result = asdict(scan_project_inventory(self.options.project_path))
+            self._inventory_files = result.get("files", [])
             self.stage_timings["inventory"] = round(time.perf_counter() - started, 4)
             return result
         except Exception as exc:
@@ -198,11 +238,14 @@ class AnalysisPipeline:
     def _extract_graphs(self, languages: list[str]) -> list[GraphDocument]:
         import time
         started = time.perf_counter()
+        total_files = len(getattr(self, "_inventory_files", []) or [])
+        self._progress("extraction", 0, max(1, total_files), "Извлечение исходных фактов")
         if self.options.changed_files is not None and self.options.raw_graph_cache_path:
             cached = self._load_raw_cache()
             if cached is not None:
                 result = self._refresh_changed_files(cached, languages)
                 self.stage_timings["extraction"] = round(time.perf_counter() - started, 4)
+                self._progress("extraction", total_files, max(1, total_files), "Извлечение из cache завершено")
                 return result
         raw_graphs: list[GraphDocument] = []
         if "python" in languages or not languages:
@@ -211,6 +254,7 @@ class AnalysisPipeline:
         if tree_sitter_languages:
             self._extract_tree_sitter(raw_graphs, tree_sitter_languages, self.options.changed_files)
         self.stage_timings["extraction"] = round(time.perf_counter() - started, 4)
+        self._progress("extraction", total_files, max(1, total_files), "Извлечение исходных фактов завершено")
         return raw_graphs
 
     def _extract_python(self, raw_graphs: list[GraphDocument], files: list[str] | None = None) -> None:
@@ -592,6 +636,7 @@ def analyze_project_core(
     graphify_path: str | None = None,
     changed_files: list[str] | None = None,
     raw_graph_cache_path: str | None = None,
+    progress_callback=None,
 ) -> dict[str, Any]:
     """Backward-compatible analysis entrypoint used by CLI, MCP, and tests."""
     options = AnalysisOptions(
@@ -604,5 +649,6 @@ def analyze_project_core(
         graphify_path=graphify_path,
         changed_files=changed_files,
         raw_graph_cache_path=raw_graph_cache_path,
+        progress_callback=progress_callback,
     )
     return AnalysisPipeline(options).run().to_dict()

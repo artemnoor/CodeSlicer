@@ -69,6 +69,7 @@ def analyze_project(
             "extractors_used": res.get("extractors_used", []),
             "diagnostics": res.get("diagnostics", {}),
             "support_pack_load_errors": res.get("support_pack_load_errors", []),
+            "progress": res.get("progress", {}),
             "graph": res.get("graph", {})
         }
     except Exception as e:

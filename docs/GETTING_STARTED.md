@@ -34,6 +34,9 @@ The registry status must report mode: sqlite.
 
 The command writes a GraphDocument JSON artifact. It does not modify the
 analyzed source tree. Runtime state and caches are stored below .impact_engine.
+During a human-readable CLI run, progress is printed as weighted stages with
+the current stage, processed units, total units, and overall percentage. JSON
+CLI output remains machine-readable; progress diagnostics are sent to stderr.
 
 Useful follow-up commands:
 
@@ -59,6 +62,7 @@ The UI uses the real local API:
 - POST /api/analyze
 - POST /api/impact
 - POST /api/query
+- GET /api/progress
 
 The UI has no mock graph or external database connection.
 

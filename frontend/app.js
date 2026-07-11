@@ -489,9 +489,10 @@ async function loadRealState(){
 async function analyzeFromBackend(){
  const path=$('#projectSelect').value.trim();if(!path){setBackendMessage('Укажите абсолютный путь к проекту.');backendGate.classList.remove('hidden');return}
  const button=$('#analyzeBtn');button.disabled=true;button.innerHTML='<span class="spinner" style="width:15px;height:15px;margin:0"></span><span>Анализируем</span>';setBackendMessage('Реальный анализ выполняется…');backendGate.classList.remove('hidden');
+ const progressTimer=setInterval(async()=>{try{const response=await fetch('/api/progress',{cache:'no-store'});const data=await response.json();const current=data.progress?.current;if(current)setBackendMessage(`${current.overall_percent}% · ${current.message} (${current.processed}/${current.total})`)}catch(error){/* analysis request owns the final error */}},500);
  try{const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_path:path})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Analysis failed');applyRealGraph(data);await runRealImpact();toast('Реальный анализ проекта завершён')}
  catch(error){setBackendMessage(String(error.message||error));setBackendStatus('Ошибка backend',false);console.error(error)}
- finally{button.disabled=false;button.innerHTML=`${icon('i-play')}<span>Анализировать</span>`}
+ finally{clearInterval(progressTimer);button.disabled=false;button.innerHTML=`${icon('i-play')}<span>Анализировать</span>`}
 }
 $('#analyzeBtn').onclick=analyzeFromBackend;
 

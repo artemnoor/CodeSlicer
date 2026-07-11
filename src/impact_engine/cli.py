@@ -17,7 +17,10 @@ def _print_json(data: object) -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     except (AttributeError, ValueError):
         pass
-    print(json.dumps(data, indent=2, ensure_ascii=False))
+    # Keep machine-readable stdout ASCII-safe on Windows; UTF-8 remains in
+    # graph artifacts and the visual API, while subprocess clients can decode
+    # JSON reliably under the active console code page.
+    print(json.dumps(data, indent=2, ensure_ascii=True))
 
 
 def _print_result(data: object, json_output: bool, human: str | None = None) -> None:
@@ -562,12 +565,21 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "analyze":
         from impact_engine.analysis.pipeline import analyze_project_core
         from impact_engine.support_packs.detection import detect_unknown_libraries_core
+        def report_progress(event):
+            stream = sys.stderr if args.json else sys.stdout
+            print(
+                f"[{event['overall_percent']:>5.1f}%] {event['message']} "
+                f"({event['processed']}/{event['total']})",
+                file=stream,
+                flush=True,
+            )
         summary = analyze_project_core(
             args.path,
             out_path=args.out,
             enable_remote_registry=args.remote_registry,
             create_research_requests=not args.no_research_requests,
             graphify_path=args.graphify,
+            progress_callback=report_progress,
         )
         
         try:

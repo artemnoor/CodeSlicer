@@ -29,6 +29,7 @@ class LocalApiState:
         self.analysis: dict[str, Any] | None = None
         self.last_error: str | None = None
         self.analyzed_at: float | None = None
+        self.progress: dict[str, Any] = {"status": "idle"}
         self.lock = threading.RLock()
 
     def snapshot(self, include_graph: bool = True) -> dict[str, Any]:
@@ -40,6 +41,7 @@ class LocalApiState:
                 "project_path": self.project_path,
                 "analyzed_at": self.analyzed_at,
                 "error": self.last_error,
+                "progress": self.progress,
                 "analysis": {key: value for key, value in analysis.items() if key != "graph"},
             }
             if include_graph:
@@ -51,18 +53,23 @@ class LocalApiState:
         if not path.exists() or not path.is_dir():
             raise FileNotFoundError(f"Project directory does not exist: {project_path}")
         out_path = path / ".impact_engine" / "graph.json"
+        def report_progress(event: dict[str, Any]) -> None:
+            with self.lock:
+                self.progress = {"status": "running", "current": event}
         result = analyze_project_core(
             str(path),
             out_path=str(out_path),
             support_pack_root=self.support_pack_root,
             enable_remote_registry=False,
             create_research_requests=True,
+            progress_callback=report_progress,
         )
         with self.lock:
             self.project_path = str(path)
             self.analysis = result
             self.last_error = None
             self.analyzed_at = time.time()
+            self.progress = result.get("progress", {"status": "completed"})
         return self.snapshot()
 
 
@@ -108,6 +115,8 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                 return self._send_json(200, {"status": "ok", "service": "impact-engine-local-api"})
             if parsed.path == "/api/state":
                 return self._send_json(200, self.state.snapshot(include_graph=False))
+            if parsed.path == "/api/progress":
+                return self._send_json(200, {"status": "ok", "progress": self.state.progress})
             if parsed.path == "/api/graph":
                 snapshot = self.state.snapshot()
                 if not snapshot.get("graph"):

@@ -1,8 +1,8 @@
 """Public contracts for the analysis orchestration layer."""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Callable
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,7 @@ class AnalysisOptions:
     graphify_path: str | None = None
     changed_files: list[str] | None = None
     raw_graph_cache_path: str | None = None
+    progress_callback: Callable[[dict[str, Any]], None] | None = None
 
 
 @dataclass
@@ -32,6 +33,7 @@ class AnalysisResult:
     nodes: int
     edges: int
     graph: dict[str, Any]
+    progress: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -47,4 +49,5 @@ class AnalysisResult:
             "nodes": self.nodes,
             "edges": self.edges,
             "graph": self.graph,
+            "progress": self.progress,
         }
