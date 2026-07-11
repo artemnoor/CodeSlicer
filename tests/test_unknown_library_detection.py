@@ -121,7 +121,7 @@ import pydantic
 
     unknowns = detect_unknown_libraries_core(str(tmp_path))
 
-    assert "unknown_custom_lib" in unknowns
+    assert "unknown-custom-lib" in unknowns
     assert "pydantic" not in unknowns
 
 
@@ -214,3 +214,12 @@ def test_go_indirect_requirements_are_not_research_candidates(tmp_path):
 
     assert "example.com/direct" in unknowns
     assert "example.com/indirect" not in unknowns
+
+
+def test_python_distribution_and_import_root_are_one_research_candidate(tmp_path):
+    (tmp_path / "requirements.txt").write_text("mystery-python==1.0\n", encoding="utf-8")
+    (tmp_path / "app.py").write_text("import mystery_python\n", encoding="utf-8")
+
+    unknowns = detect_unknown_libraries_core(str(tmp_path))
+
+    assert unknowns == ["mystery-python"]

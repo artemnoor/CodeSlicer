@@ -152,6 +152,14 @@ def _research_candidate_name(name: str, ecosystem: str, declared: set[str]) -> s
         for dep in sorted(declared, key=len, reverse=True):
             if name == dep or name.startswith(dep.rstrip("/") + "/"):
                 return dep
+    if ecosystem == "python":
+        # Distribution names and import roots commonly differ only by the
+        # hyphen/underscore convention (for example ``mystery-python`` vs
+        # ``mystery_python``). Keep one canonical research candidate.
+        normalized_name = name.replace("-", "_").lower()
+        for dep in sorted(declared):
+            if dep.replace("-", "_").lower() == normalized_name:
+                return dep
     if ecosystem in {"javascript", "typescript"}:
         for dep in declared:
             if name == dep or name.startswith(dep.rstrip("/") + "/"):
