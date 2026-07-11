@@ -1,122 +1,245 @@
 # Getting Started
 
-Impact Engine is a local static impact analyzer. The source project, graph,
-SQLite registry, support packs, MCP server, CLI, and visual interface can all
-run on the same machine. No hosted database is required.
+This guide takes CodeSlicer from a clean checkout to a real project graph,
+impact query, visual interface, and MCP connection.
 
-## Install
-
-Requirements:
+## Requirements
 
 - Python 3.10 or newer;
 - Git;
-- Node.js is optional and only needed for browser verification;
-- Docker Desktop is optional.
+- a writable local directory;
+- Node.js only for browser verification or the analyzed project's own tools;
+- Docker only for an optional container workflow.
 
-From the repository root:
+Windows 10/11, Linux, and macOS are supported. CodeSlicer itself uses local
+Python, SQLite, JSON, and HTTP APIs; it does not require Supabase or another
+hosted service.
 
-    py -3 -m venv .venv
-    .venv\Scripts\Activate.ps1
-    python -m pip install --upgrade pip
-    pip install -e .
+## Install
+
+Windows PowerShell:
+
+```powershell
+git clone https://github.com/artemnoor/CodeSlicer.git
+cd CodeSlicer
+py -3 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e .
+```
+
+Linux or macOS:
+
+```bash
+git clone https://github.com/artemnoor/CodeSlicer.git
+cd CodeSlicer
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -e .
+```
+
+If PowerShell blocks activation, run the command in a terminal with an
+appropriate execution policy or use the installed environment's Python
+directly. Activation is only a shell convenience.
 
 Verify the installation:
 
-    $env:PYTHONPATH = "src"
-    impact-engine doctor
-    impact-engine --json registry status
+```bash
+impact-engine doctor
+impact-engine --json registry status
+```
 
-The registry status must report mode: sqlite.
+Expected registry mode:
 
-## Analyze a project
+```text
+sqlite
+```
 
-For a large workspace, inspect the deterministic scope first:
+## Analyze a Project
 
-    impact-engine scan-plan C:\path\to\project
+### 1. Review the scan scope
 
-This prunes dependency trees, generated output, caches, and nested Git
-repositories before source extraction. Review the result, then analyze with:
+This is recommended for monorepos and workspaces containing dependencies or
+generated output:
 
-    impact-engine analyze C:\path\to\project --use-scan-plan --out .impact_engine\graph.json
+```bash
+impact-engine scan-plan /path/to/project
+```
 
-    impact-engine analyze C:\path\to\project --out .impact_engine\graph.json
+The plan excludes dependency trees, build output, caches, `.git`,
+`.impact_engine`, and nested Git repositories. Review the included files before
+continuing. It does not modify the source project.
 
-The command writes a GraphDocument JSON artifact. It does not modify the
-analyzed source tree. Runtime state and caches are stored below .impact_engine.
-During a human-readable CLI run, progress is printed as weighted stages with
-the current stage, processed units, total units, and overall percentage. JSON
-CLI output remains machine-readable; progress diagnostics are sent to stderr.
+### 2. Build the graph
 
-Useful follow-up commands:
+```bash
+impact-engine analyze /path/to/project \
+  --use-scan-plan \
+  --out /path/to/project/.impact_engine/graph.json
+```
 
-    impact-engine inventory C:\path\to\project
-    impact-engine detect-languages C:\path\to\project
-    impact-engine libraries detect C:\path\to\project
-    impact-engine impact .impact_engine\graph.json --symbol OrderService.create_order --direction both
-    impact-engine explain-edge .impact_engine\graph.json --from services.OrderService.create_order --to repositories.OrderRepository.save
+For a small project, `--use-scan-plan` can be omitted. The command reports
+progress in human-readable mode and keeps JSON output machine-readable when
+`--json` is used. The graph, facts, registry, and research tasks are written
+under `.impact_engine` in the analyzed project.
 
-## Start the visual interface
+### 3. Inspect the result
 
-    $env:PYTHONPATH = "src"
-    impact-engine-local-api --host 127.0.0.1 --port 8001 --default-project C:\path\to\project
+```bash
+impact-engine inventory /path/to/project
+impact-engine detect-languages /path/to/project
+impact-engine libraries detect /path/to/project
+impact-engine impact /path/to/project/.impact_engine/graph.json \
+  --symbol OrderService.create_order --direction both
+impact-engine explain-edge /path/to/project/.impact_engine/graph.json \
+  --from services.OrderService.create_order \
+  --to repositories.OrderRepository.save
+```
 
-Open http://127.0.0.1:8001/.
+For agent integrations, put `--json` before the command:
 
-The UI uses the real local API:
+```bash
+impact-engine --json analyze /path/to/project \
+  --out /path/to/project/.impact_engine/graph.json
+```
 
-- GET /api/health
-- GET /api/state
-- GET /api/graph
-- POST /api/load-graph (for an explicitly located CLI graph)
-- GET /api/inventory
-- POST /api/analyze
-- POST /api/impact
-- POST /api/query
-- GET /api/progress
+## Start the Visual Interface
 
-The UI has no mock graph or external database connection.
+```bash
+impact-engine-local-api \
+  --host 127.0.0.1 \
+  --port 8001 \
+  --default-project /path/to/project
+```
 
-Important process boundary: CLI analysis and the local API are separate
-processes. A successful CLI run alone does not populate an already-running
-browser process. Write the graph to
-`<project>/.impact_engine/graph.json` as shown above, then start the API with
-the same `--default-project`; it will hydrate the UI from that artifact. Verify
-both `GET /api/state` (`has_analysis: true`) and `GET /api/graph` before
-reporting that visualization is ready. For a graph stored elsewhere, call
-`POST /api/load-graph` with `{"project_path":"...","graph_path":"..."}`.
+Open <http://127.0.0.1:8001/>.
+
+The CLI and local API are separate processes. The API automatically hydrates
+its state from `/path/to/project/.impact_engine/graph.json`, so a successful
+CLI analysis is visible in the browser after the API starts. Verify the
+handoff when debugging an empty graph:
+
+```text
+GET /api/health  -> status: ok
+GET /api/state   -> has_analysis: true
+GET /api/graph   -> nodes and edges from GraphDocument
+```
+
+For a graph at another location, use:
+
+```json
+POST /api/load-graph
+{
+  "project_path": "/path/to/project",
+  "graph_path": "/path/to/graph.json"
+}
+```
+
+The UI uses the real local API. It has no mock graph and no hosted database
+connection.
 
 ## Start MCP
 
 MCP uses JSON-RPC 2.0 over stdio:
 
-    impact-engine-mcp
+```bash
+impact-engine-mcp
+```
 
-The authoritative tool list is returned by tools/list. The server exposes
-analysis, impact, explain, runtime, support-pack, research-queue, and local
-registry tools.
+Or:
 
-## Local registry
+```bash
+python -m impact_engine.mcp.server
+```
 
-SQLite is the only registry backend:
+Use `initialize` followed by `tools/list` to discover the exact current
+schemas. The tool groups cover project inventory, analysis, graph impact,
+edge explanations, PR review, runtime observations, support packs, research
+requests, and local registry operations.
 
-- database: .impact_engine/impact_registry.sqlite;
-- portable cache: .impact_engine/registry_cache;
-- support packs: support_packs/<ecosystem>/<library>/support_pack.json.
+## Unknown Libraries
 
-To create a local research request:
+When a third-party library is not known, the workflow is:
 
-    impact-engine registry create-research-request python unknown-library
-    impact-engine registry status
+1. Detect and classify the dependency.
+2. Create a research request with `impact-engine libraries research` or MCP.
+3. Give the request to an external AI agent or human researcher.
+4. Produce a candidate support pack with official-source provenance.
+5. Validate schema, version range, positive fixtures, negative fixtures,
+   mutations, determinism, and trust level.
+6. Install only the validated pack.
+7. Re-run analysis and compare the graph before and after.
 
-Research input is written locally and can be handed to an external AI agent.
-The deterministic engine validates the resulting support pack before it can
-be installed.
+The deterministic core does not call an LLM, directly write confirmed edges,
+or silently approve a draft pack.
 
-## Run tests
+Useful commands:
 
-    $env:PYTHONPATH = "src"
-    python -m pytest -q
+```bash
+impact-engine libraries research /path/to/project \
+  --library unknown_library \
+  --ecosystem python \
+  --build-input
 
-The suite covers CLI subprocesses, MCP stdio, parser diagnostics,
-support-pack trust/provenance, incremental analysis, real fixtures, and the
-local registry API.
+impact-engine support-packs validate path/to/support_pack.json
+impact-engine support-packs list
+```
+
+## Local Registry
+
+The registry is local SQLite state:
+
+```text
+/path/to/project/.impact_engine/impact_registry.sqlite
+/path/to/project/.impact_engine/registry_cache/
+support_packs/<ecosystem>/<library>/support_pack.json
+```
+
+Check it with:
+
+```bash
+impact-engine registry status
+```
+
+## Run Tests
+
+From the repository root:
+
+```bash
+python -m pytest -q
+```
+
+The suite includes parser and resolver tests, support-pack trust and
+provenance checks, CLI subprocess tests, MCP stdio tests, incremental analysis,
+real fixtures, and local API regression tests.
+
+## Troubleshooting
+
+### The browser shows an empty graph
+
+1. Confirm the CLI wrote the graph to
+   `<project>/.impact_engine/graph.json`.
+2. Restart the API with the same `--default-project`.
+3. Check `/api/state` and confirm `has_analysis: true`.
+4. Check `/api/graph` and confirm that `nodes` and `edges` are non-empty.
+5. Ensure the browser is connected to the same API port shown in the terminal.
+
+### Analysis is unexpectedly slow
+
+Run `scan-plan` first. Avoid analyzing `node_modules`, virtual environments,
+build output, coverage directories, generated assets, and nested repositories.
+The progress output identifies the stage that is taking time.
+
+### A library is detected as unknown
+
+This is expected when no trusted support pack covers its semantics. Create a
+research request and validate a candidate pack; do not solve it by adding
+name-only matching.
+
+## Next Reading
+
+- [Architecture](ARCHITECTURE.md)
+- [MCP](MCP.md)
+- [Support Packs](SUPPORT_PACKS.md)
+- [Limitations](LIMITATIONS.md)
