@@ -20,6 +20,8 @@
 ## Содержание
 
 - [Возможности](#возможности)
+- [Как строятся связи](#как-строятся-связи)
+- [Как агент работает с графом](#как-агент-работает-с-графом)
 - [Быстрый старт](#быстрый-старт)
 - [Анализ проекта](#анализ-проекта)
 - [Визуальный интерфейс](#визуальный-интерфейс)
@@ -35,22 +37,90 @@
 
 ## Как это работает
 
-```text
-проект
-  -> inventory и scan-plan
-  -> извлечение исходных фактов
-  -> нормализация
-  -> semantic binding
-  -> resolvers и support packs
-  -> quality guard
-  -> GraphDocument
-  -> impact query / PR-review / визуализация
+```mermaid
+flowchart LR
+  Project["Исходный проект"] --> Inventory["Inventory и scan-plan"]
+  Inventory --> Extract["Extractors\nPython AST / Tree-sitter"]
+  Extract --> Facts["Raw facts\nimports, calls, assignments, routes"]
+  Facts --> Normalize["Normalization\ncanonical IDs и merge"]
+  Normalize --> Bind["Semantic binding\nobject и endpoint flow"]
+  Packs["Support packs\nобщие и project-local"] --> Bind
+  Bind --> Resolve["Precision resolvers\nimports, DI, receivers, routes"]
+  Resolve --> Guard["Quality guard\nprovenance, confidence, conflicts"]
+  Guard --> Graph["GraphDocument\nузлы, рёбра, evidence"]
+  Graph --> Queries["Impact / explain-edge / PR-review / UI"]
 ```
 
 Экстракторы извлекают факты из исходного кода. Резолверы создают семантические
 рёбра только при наличии цепочки доказательств. Неоднозначные и неподдержанные
 случаи остаются в диагностике, а не превращаются в подтверждённые связи по
 одному совпадению имени.
+
+### Что хранится локально
+
+```text
+<project>/.impact_engine/
+  graph.json                 итоговый GraphDocument
+  facts.json                 кэш извлечённых фактов
+  impact_registry.sqlite     локальный registry и история
+  scan_plan.json             область анализа
+  local_packs/               персональные правила конкретного проекта
+  unknown_region_tasks.json  задачи на исследование пробелов
+```
+
+Исходный код и граф остаются на машине пользователя. Для базового анализа не
+нужны облачная база, Supabase или внешний API.
+
+## Как строятся связи
+
+CodeSlicer не считает одинаковые имена доказательством связи. Для каждого
+рёбра он стремится собрать воспроизводимую цепочку фактов.
+
+```text
+self.repository.save(order)
+  -> assignment: self.repository = repository
+  -> constructor parameter: repository: OrderRepository
+  -> declaration: OrderRepository.save
+  -> resolved CALLS edge с evidence и confidence
+```
+
+Типичные источники доказательств:
+
+- import и alias resolution;
+- assignment, field и parameter propagation;
+- constructor и provider/DI bindings;
+- return type и factory propagation;
+- receiver identity и method lookup;
+- HTTP method + canonical path для frontend/backend bridge;
+- versioned support-pack rule с provenance.
+
+Если доказательств недостаточно, результат помечается как `ambiguous`,
+`unresolved`, `unsupported` или `suspicious`. Такая область может стать
+задачей для AI research workflow, но AI не добавляет confirmed edge напрямую.
+
+## Как агент работает с графом
+
+```mermaid
+sequenceDiagram
+  participant Dev as "Разработчик или AI-агент"
+  participant Engine as "CodeSlicer"
+  participant Graph as "Локальный GraphDocument"
+  participant Tests as "Тесты проекта"
+
+  Dev->>Engine: "analyze project"
+  Engine->>Graph: "строит граф и diagnostics"
+  Dev->>Engine: "что затронет это изменение?"
+  Engine->>Graph: "impact query + evidence paths"
+  Engine-->>Dev: "must change / should review / uncertainty / tests"
+  Dev->>Tests: "запускает выбранные тесты"
+  Tests-->>Engine: "runtime observations (опционально)"
+  Engine->>Graph: "сохраняет observation без переоценки фактов"
+```
+
+Агенту не нужно передавать весь репозиторий в контекст для каждого вопроса.
+Он может запросить графовый срез: изменённый узел, кратчайшие evidence paths,
+затронутые routes, сервисы и тесты. Это уменьшает лишний контекст и делает
+его решения проверяемыми.
 
 ## Возможности
 
