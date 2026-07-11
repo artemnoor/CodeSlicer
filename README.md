@@ -49,9 +49,9 @@ silently promoted to confirmed edges.
 | Area | Current status |
 | --- | --- |
 | Python | strongest semantic baseline |
-| JavaScript / TypeScript | structural plus limited semantic and frontend endpoint resolution |
-| Go | structural plus limited semantic resolution |
-| Java | structural plus limited semantic resolution |
+| JavaScript / TypeScript | structural plus limited semantic and frontend endpoint resolution; fallback diagnostics remain possible |
+| Go | structural plus limited semantic resolution; fallback extraction is explicit when Tree-sitter is unavailable |
+| Java | structural plus limited semantic resolution; fallback extraction is explicit when Tree-sitter is unavailable |
 | FastAPI, React, dependency-injector, SQLAlchemy, Celery | versioned support-pack rules where the pack is installed and trusted |
 | Arbitrary frameworks and libraries | detected first; semantics require a validated support pack |
 
