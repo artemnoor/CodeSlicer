@@ -27,6 +27,10 @@ benchmarks/**/cli_*.json
 benchmarks/**/cli_stdout_stderr.txt
 benchmarks/**/baseline_graph.json
 benchmarks/**/impact_query_report.json
+benchmarks/*_report.json
+benchmarks/sprint*_*.json
+benchmarks/*_benchmark_summary.json
+benchmarks/*_breakdown.json
 benchmarks/sprint6_1/*.json
 benchmarks/sprint6/
 benchmarks/sprint6_real_projects/

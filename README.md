@@ -80,8 +80,8 @@ network access, or the researcher at analysis time.
 - [Getting started](docs/GETTING_STARTED.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [MCP](docs/MCP.md)
-- [Docker Compose](docs/DOCKER.md)
-- [Local registry API](docs/REGISTRY_API.md)
+- [Support packs](docs/SUPPORT_PACKS.md)
+- [Limitations](docs/LIMITATIONS.md)
 
 The local visual client is split into `frontend/index.html`, `frontend/styles.css`,
 `frontend/app.js`, `frontend/api-client.js`, `frontend/graph-2d.js`, and

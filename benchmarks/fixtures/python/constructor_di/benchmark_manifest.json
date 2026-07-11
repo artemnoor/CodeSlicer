@@ -5,7 +5,7 @@
   "language": "python",
   "resolver_rules": ["python.constructor_di", "python.self_attr"],
   "edge_kinds": ["CALLS"],
-  "project_path": "../../../examples/golden_cases/python_di_basic",
+  "project_path": "../../../../examples/golden_cases/python_di_basic",
   "expected_edges": "expected_edges.json",
   "forbidden_edges": "forbidden_edges.json",
   "mutations": [
@@ -17,3 +17,4 @@
     {"id": "change-receiver-type", "operation": "change_receiver_type", "file": "container.py", "old": "OrderRepository()", "new": "LegacyOrderRepository()", "checks": ["edge_removed", "expected_target", "forbidden_targets", "expected_resolution_status", "expected_confidence_range"], "expected_target": "repositories.LegacyOrderRepository.save", "forbidden_targets": ["repositories.OrderRepository.save", "repositories.UnknownRepository.save"], "expected_resolution_status": "resolved", "expected_confidence_range": [0.84, 0.86]}
   ]
 }
+

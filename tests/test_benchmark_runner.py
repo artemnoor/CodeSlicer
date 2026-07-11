@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_python_golden_benchmark_reports_precision_and_forbidden_edges():
-    result = run_benchmark_fixture(ROOT / "benchmarks/python/constructor_di/benchmark_manifest.json")
+    result = run_benchmark_fixture(ROOT / "benchmarks/fixtures/python/constructor_di/benchmark_manifest.json")
     assert result["status"] == "passed"
     assert result["true_positive"] == 1
     assert result["false_positive"] == 0

@@ -6,8 +6,8 @@ ROOT = Path(__file__).parent.parent
 
 
 def test_acceptance_status_true_requires_recorded_pytest_success():
-    status_path = ROOT / "docs" / "acceptance_status.json"
-    verification_path = ROOT / "docs" / "pytest_verification.json"
+    status_path = ROOT / "tests" / "fixtures" / "release" / "acceptance_status.json"
+    verification_path = ROOT / "tests" / "fixtures" / "release" / "pytest_verification.json"
 
     status = json.loads(status_path.read_text(encoding="utf-8"))
     if not status.get("tests_passed"):

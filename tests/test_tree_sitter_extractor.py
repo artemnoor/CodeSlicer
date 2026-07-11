@@ -204,7 +204,7 @@ def test_no_docs_claim_production_polyglot_when_status_is_fallback():
     readme_content = readme_path.read_text(encoding="utf-8")
     assert "experimental" in readme_content.lower() or "partial" in readme_content.lower() or "fallback" in readme_content.lower()
     
-    acceptance_path = Path(__file__).parent.parent / "docs" / "ACCEPTANCE_REPORT.md"
+    acceptance_path = Path(__file__).parent.parent / "docs" / "LIMITATIONS.md"
     acceptance_content = acceptance_path.read_text(encoding="utf-8")
     assert "partial" in acceptance_content.lower() or "fallback" in acceptance_content.lower()
 

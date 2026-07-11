@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_acceptance_status_matches_honest_capability_claims():
-    status = json.loads((ROOT / "docs" / "acceptance_status.json").read_text(encoding="utf-8"))
+    status = json.loads((ROOT / "tests" / "fixtures" / "release" / "acceptance_status.json").read_text(encoding="utf-8"))
 
     assert status["tests_passed"] is True
     assert status["blocking_issue"] is None
@@ -27,8 +27,8 @@ def test_acceptance_status_matches_honest_capability_claims():
 
 
 def test_pytest_verification_is_required_for_tests_passed_true():
-    status = json.loads((ROOT / "docs" / "acceptance_status.json").read_text(encoding="utf-8"))
-    verification = json.loads((ROOT / "docs" / "pytest_verification.json").read_text(encoding="utf-8"))
+    status = json.loads((ROOT / "tests" / "fixtures" / "release" / "acceptance_status.json").read_text(encoding="utf-8"))
+    verification = json.loads((ROOT / "tests" / "fixtures" / "release" / "pytest_verification.json").read_text(encoding="utf-8"))
 
     assert verification["command"] == status["full_pytest_command"]
     assert verification["completed"] is True

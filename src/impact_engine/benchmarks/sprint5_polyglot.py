@@ -56,7 +56,7 @@ def _semantic_edges(result: dict[str, Any]) -> list[dict[str, Any]]:
 
 def run_sprint5_benchmark(root: str | Path = ".") -> dict[str, Any]:
     root_path = Path(root).resolve()
-    fixture_root = root_path / "benchmarks" / "sprint5_fixtures"
+    fixture_root = root_path / "benchmarks" / "fixtures" / "polyglot"
     report_root = root_path / "benchmarks" / "sprint5"
     if fixture_root.exists():
         shutil.rmtree(fixture_root)
