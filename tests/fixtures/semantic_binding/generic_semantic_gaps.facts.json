@@ -1,0 +1,54 @@
+{
+  "exports": [
+    {"module": "app.api.admin", "name": "router", "target": "app.api.admin.router", "file": "backend/app/api/admin.py", "line": 4},
+    {"module": "pkg.routes.b", "name": "router", "target": "app.api.accounts.router", "file": "backend/pkg/routes/b.py", "line": 1},
+    {"module": "pkg.routes.a", "name": "router", "target": "pkg.routes.b.router", "file": "backend/pkg/routes/a.py", "line": 1}
+  ],
+  "imports": [
+    {"module": "app.api.admin", "name": "router", "alias": "adminLocal", "file": "backend/app/main.py", "line": 2},
+    {"module": "pkg.routes.a", "name": "router", "alias": "accountsReExported", "file": "backend/app/api/admin.py", "line": 2}
+  ],
+  "assignments": [
+    {"target": "root", "value": "Router", "value_kind": "construct", "kwargs": {"prefix": "/api"}, "file": "backend/app/main.py", "line": 5},
+    {"target": "app.api.admin.router", "value": "Router", "value_kind": "construct", "kwargs": {"prefix": "/admin"}, "file": "backend/app/api/admin.py", "line": 5},
+    {"target": "app.api.accounts.router", "value": "Router", "value_kind": "construct", "kwargs": {"prefix": "/accounts"}, "file": "backend/app/api/accounts.py", "line": 5},
+    {"target": "orders", "value": "Router", "value_kind": "construct", "kwargs": {"prefix": "/orders"}, "file": "backend/app/api/orders.py", "line": 5},
+    {"target": "localCreateOrder", "value": "useOrders()", "value_kind": "destructure", "key": "createOrder", "file": "frontend/components/Orders.tsx", "line": 8},
+    {"target": "container.service", "value": "Factory", "value_kind": "call", "args": ["Service"], "kwargs": {"repo": "Repository"}, "file": "backend/app/container.py", "line": 9},
+    {"target": "handler.service", "value": "getService", "value_kind": "provider_call", "file": "backend/app/routes.py", "line": 11}
+  ],
+  "functions": [
+    {"name": "fetch", "params": ["path", "options"]},
+    {"name": "postJson", "params": ["path", "payload"]},
+    {"name": "getJson", "params": ["path"]},
+    {"name": "createOrder", "params": ["payload"]},
+    {"name": "getOrder", "params": ["id"]},
+    {"name": "useOrders", "params": []},
+    {"name": "component", "params": []},
+    {"name": "getService", "params": []},
+    {"name": "getAccountHandler", "params": []},
+    {"name": "getOrderHandler", "params": []},
+    {"name": "createOrderHandler", "params": []}
+  ],
+  "returns": [
+    {"function": "useOrders", "value_kind": "object", "object_keys": {"createOrder": "createOrder", "getOrder": "getOrder"}, "file": "frontend/hooks/useOrders.ts", "line": 10},
+    {"function": "getService", "value": "container.service", "value_kind": "call", "file": "backend/app/container.py", "line": 13}
+  ],
+  "calls": [
+    {"receiver": "root", "method": "include", "args": ["adminLocal"], "file": "backend/app/main.py", "line": 10},
+    {"receiver": "app.api.admin.router", "method": "include", "args": ["accountsReExported"], "file": "backend/app/api/admin.py", "line": 8},
+    {"receiver": "root", "method": "include", "args": ["orders"], "file": "backend/app/main.py", "line": 11},
+    {"caller": "postJson", "function": "fetch", "args": ["path", {"method": "POST"}], "file": "frontend/api/client.ts", "line": 3},
+    {"caller": "getJson", "function": "fetch", "args": ["path", {"method": "GET"}], "file": "frontend/api/client.ts", "line": 7},
+    {"caller": "createOrder", "function": "postJson", "args": ["/api/orders/", "payload"], "file": "frontend/api/orders.ts", "line": 4},
+    {"caller": "getOrder", "function": "getJson", "args": ["`/api/orders/${id}`"], "file": "frontend/api/orders.ts", "line": 8},
+    {"caller": "OrderLink", "function": "fetch", "args": ["\"/api/orders/\" + id", {"method": "GET"}], "file": "frontend/components/OrderLink.tsx", "line": 3},
+    {"caller": "OrderBuilder", "function": "fetch", "args": ["buildUrl(\"/api/orders\", id)", {"method": "GET"}], "file": "frontend/components/OrderBuilder.tsx", "line": 3},
+    {"caller": "component", "function": "localCreateOrder", "args": ["payload"], "file": "frontend/components/Orders.tsx", "line": 11}
+  ],
+  "decorators": [
+    {"target": "getAccountHandler", "receiver": "app.api.accounts.router", "method": "get", "args": ["/{account_id}"], "file": "backend/app/api/accounts.py", "line": 12},
+    {"target": "getOrderHandler", "receiver": "orders", "method": "get", "args": ["/{order_id}"], "file": "backend/app/api/orders.py", "line": 12},
+    {"target": "createOrderHandler", "receiver": "orders", "method": "post", "args": ["/"], "file": "backend/app/api/orders.py", "line": 16}
+  ]
+}

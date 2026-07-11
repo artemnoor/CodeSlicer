@@ -1,0 +1,3 @@
+[
+  {"from": "service.Service.create", "to": "repositories.UserRepository.save", "kind": "CALLS"}
+]

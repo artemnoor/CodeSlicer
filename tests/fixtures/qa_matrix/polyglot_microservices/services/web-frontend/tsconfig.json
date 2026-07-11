@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "jsx": "react-jsx",
+    "strict": true,
+    "moduleResolution": "Node",
+    "baseUrl": "src",
+    "paths": {
+      "@api/*": ["api/*"],
+      "@hooks/*": ["hooks/*"],
+      "@components/*": ["components/*"]
+    }
+  },
+  "include": ["src"]
+}

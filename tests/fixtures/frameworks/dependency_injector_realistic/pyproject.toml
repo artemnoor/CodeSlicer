@@ -1,0 +1,4 @@
+[project]
+name = "di-realistic"
+version = "0.1.0"
+dependencies = []

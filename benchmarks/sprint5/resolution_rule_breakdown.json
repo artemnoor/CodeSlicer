@@ -1,0 +1,4 @@
+{
+  "go": "go_limited_receiver_provider",
+  "java": "java_limited_typed_receiver_provider"
+}

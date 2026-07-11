@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "command": "python -m pytest -ra",
+  "completed": true,
+  "exit_code": 0,
+  "tests_passed": true,
+  "summary": "320 passed"
+}

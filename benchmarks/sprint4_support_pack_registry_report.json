@@ -1,0 +1,149 @@
+{
+  "status": "ok",
+  "packs": [
+    {
+      "library": "example_library",
+      "language": "python",
+      "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\support_packs\\example_library\\support_pack.json",
+      "valid": true,
+      "trust_level": "experimental",
+      "resolver_hooks": [],
+      "fixtures": 0,
+      "negative_cases": 0,
+      "mutation_scenarios": 0
+    },
+    {
+      "library": "gin",
+      "language": "go",
+      "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\support_packs\\go\\gin\\support_pack.json",
+      "valid": true,
+      "trust_level": "verified_on_fixture",
+      "resolver_hooks": [
+        "gin_route_resolver"
+      ],
+      "fixtures": 2,
+      "negative_cases": 2,
+      "mutation_scenarios": 3
+    },
+    {
+      "library": "spring",
+      "language": "java",
+      "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\support_packs\\java\\spring\\support_pack.json",
+      "valid": true,
+      "trust_level": "verified_on_fixture",
+      "resolver_hooks": [
+        "spring_web_route_resolver",
+        "spring_di_resolver"
+      ],
+      "fixtures": 2,
+      "negative_cases": 2,
+      "mutation_scenarios": 3
+    },
+    {
+      "library": "axios",
+      "language": "javascript",
+      "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\support_packs\\javascript\\axios\\support_pack.json",
+      "valid": true,
+      "trust_level": "verified_on_fixture",
+      "resolver_hooks": [
+        "http_wrapper_recipe"
+      ],
+      "fixtures": 4,
+      "negative_cases": 2,
+      "mutation_scenarios": 3
+    },
+    {
+      "library": "express",
+      "language": "javascript",
+      "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\support_packs\\javascript\\express\\support_pack.json",
+      "valid": true,
+      "trust_level": "verified_on_fixture",
+      "resolver_hooks": [
+        "express_route_resolver"
+      ],
+      "fixtures": 4,
+      "negative_cases": 2,
+      "mutation_scenarios": 3
+    },
+    {
+      "library": "react",
+      "language": "javascript",
+      "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\support_packs\\javascript\\react\\support_pack.json",
+      "valid": true,
+      "trust_level": "verified_on_fixture",
+      "resolver_hooks": [
+        "react_component_hook_resolver",
+        "react_callback_propagation"
+      ],
+      "fixtures": 4,
+      "negative_cases": 2,
+      "mutation_scenarios": 3
+    },
+    {
+      "library": "celery",
+      "language": "python",
+      "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\support_packs\\python\\celery\\support_pack.json",
+      "valid": true,
+      "trust_level": "verified_on_fixture",
+      "resolver_hooks": [
+        "celery_task_registration",
+        "celery_task_invocation"
+      ],
+      "fixtures": 4,
+      "negative_cases": 2,
+      "mutation_scenarios": 3
+    },
+    {
+      "library": "dependency_injector",
+      "language": "python",
+      "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\support_packs\\python\\dependency_injector\\support_pack.json",
+      "valid": true,
+      "trust_level": "verified_on_fixture",
+      "resolver_hooks": [
+        "dependency_injector_resolver"
+      ],
+      "fixtures": 4,
+      "negative_cases": 2,
+      "mutation_scenarios": 3
+    },
+    {
+      "library": "fastapi",
+      "language": "python",
+      "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\support_packs\\python\\fastapi\\support_pack.json",
+      "valid": true,
+      "trust_level": "verified_on_fixture",
+      "resolver_hooks": [
+        "fastapi_router_resolver",
+        "fastapi_depends_resolver"
+      ],
+      "fixtures": 4,
+      "negative_cases": 2,
+      "mutation_scenarios": 3
+    },
+    {
+      "library": "httpx",
+      "language": "python",
+      "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\support_packs\\python\\httpx\\support_pack.json",
+      "valid": true,
+      "trust_level": "experimental",
+      "resolver_hooks": [],
+      "fixtures": 0,
+      "negative_cases": 0,
+      "mutation_scenarios": 0
+    },
+    {
+      "library": "sqlalchemy",
+      "language": "python",
+      "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\support_packs\\python\\sqlalchemy\\support_pack.json",
+      "valid": true,
+      "trust_level": "verified_on_fixture",
+      "resolver_hooks": [
+        "sqlalchemy_session",
+        "sqlalchemy_model_operations"
+      ],
+      "fixtures": 4,
+      "negative_cases": 2,
+      "mutation_scenarios": 3
+    }
+  ]
+}

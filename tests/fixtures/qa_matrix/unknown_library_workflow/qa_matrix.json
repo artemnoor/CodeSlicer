@@ -1,0 +1,37 @@
+{
+  "name": "Unknown Library Workflow",
+  "category": "unknown_library_workflow",
+  "checks": {
+    "required_edges": [
+      {
+        "from": "app.services.workflow.OrderWorkflow.create_order",
+        "to": "app.repositories.orders.OrderRepository.save",
+        "kind": "CALLS",
+        "description": "workflow service resolves repository save despite unknown external libraries"
+      }
+    ],
+    "required_node_contains": [
+      {
+        "contains": "strangebus",
+        "description": "strangebus imports/calls are visible"
+      },
+      {
+        "contains": "magicqueue",
+        "description": "magicqueue imports/calls are visible"
+      }
+    ],
+    "expected_unknown_libraries": [
+      "strangebus",
+      "strangebus-sdk",
+      "magicqueue",
+      "magicqueue-client"
+    ],
+    "forbidden_unknown_libraries": [
+      "json",
+      "os",
+      "pathlib",
+      "pytest",
+      "app"
+    ]
+  }
+}

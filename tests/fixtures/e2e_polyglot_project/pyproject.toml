@@ -1,0 +1,7 @@
+[project]
+name = "e2e_polyglot_project"
+version = "0.1.0"
+dependencies = [
+    "fastapi",
+    "dependency-injector"
+]

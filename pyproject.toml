@@ -1,0 +1,24 @@
+[project]
+name = "impact-engine"
+version = "0.4.0"
+description = "DI-aware impact analysis engine with MCP and AI-generated library support packs"
+requires-python = ">=3.10"
+dependencies = [
+    "tree-sitter",
+    "tree-sitter-language-pack",
+    "requests"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+impact-engine = "impact_engine.cli:main"
+impact-engine-mcp = "impact_engine.mcp.server:main"
+impact-engine-registry-api = "impact_engine.registry_api:main"
+impact-engine-local-api = "impact_engine.local_api:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+norecursedirs = ["fixtures", "tests/fixtures"]

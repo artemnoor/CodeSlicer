@@ -1,0 +1,4 @@
+interface:
+  display_name: "Explain Graph Evidence"
+  short_description: "Explain a node or edge provenance"
+  default_prompt: "Use -explain-graph to explain why this edge exists."

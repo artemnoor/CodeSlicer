@@ -1,0 +1,13 @@
+{
+  "fixture_id": "python_direct_local",
+  "name": "python_direct_local",
+  "category": "python",
+  "language": "python",
+  "resolver_rules": ["python.direct_call"],
+  "positive_support": true,
+  "edge_kinds": ["CALLS"],
+  "project_path": "project",
+  "expected_edges": "expected_edges.json",
+  "forbidden_edges": "forbidden_edges.json",
+  "mutations": [{"id":"direct-remove-function","operation":"rename_alias","file":"app.py","old":"return save(value)","new":"return missing(value)","checks":["edge_removed"]},{"id":"direct-remove-function-2","operation":"rename_alias","file":"app.py","old":"def save(value):","new":"def missing(value):","checks":["edge_removed"]}]
+}

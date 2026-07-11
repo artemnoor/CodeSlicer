@@ -1,0 +1,6 @@
+[project]
+name = "fastapi_realistic_project"
+version = "0.1.0"
+dependencies = [
+    "fastapi"
+]

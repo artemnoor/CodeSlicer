@@ -1,0 +1,22 @@
+{
+  "id": "axios",
+  "library": "axios",
+  "ecosystem": "javascript",
+  "version_range": ">=1.0,<2.0",
+  "language": "javascript",
+  "status": "verified_on_fixture",
+  "trust_level": "verified_on_fixture",
+  "supported_versions": ["1.x"],
+  "resolver_hooks": ["http_wrapper_recipe"],
+  "evidence_requirements": {"required": ["import", "callee", "url_argument"], "forbid_name_only": true},
+  "confidence_caps": {"verified_on_fixture": 0.8},
+  "rules": ["axios.get", "axios.post", "axios.request"],
+  "fixtures": [{"name": "get"}, {"name": "post"}, {"name": "request"}, {"name": "alias"}],
+  "negative_cases": [{"name": "unrelated_post"}, {"name": "wrong_method"}],
+  "mutation_scenarios": [{"id": "remove_import", "operation": "remove_import"}, {"id": "replace_wrapper", "operation": "replace_provider"}, {"id": "add_wrapper_candidate", "operation": "add_second_candidate"}],
+  "sources": [{"type": "official_docs", "url": "https://axios-http.com/docs/intro"}],
+  "patterns": [],
+  "edge_rules": [],
+  "confidence_rules": [],
+  "playground_cases": []
+}

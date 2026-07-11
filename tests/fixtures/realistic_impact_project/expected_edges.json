@@ -1,0 +1,28 @@
+{
+  "must_find": [
+    {
+      "from": "services.order_service.OrderService.place_order",
+      "to": "repositories.order_repository.OrderRepository.save",
+      "kind": "CALLS"
+    },
+    {
+      "from": "services.order_service.OrderService.place_order",
+      "to": "adapters.email_adapter.EmailAdapter.send_email",
+      "kind": "CALLS"
+    }
+  ],
+  "should_find": [
+    {
+      "from": "app.main.run",
+      "to": "services.order_service.OrderService.place_order",
+      "kind": "CALLS"
+    }
+  ],
+  "must_not_find": [
+    {
+      "from": "repositories.order_repository.OrderRepository.save",
+      "to": "adapters.email_adapter.EmailAdapter.send_email",
+      "kind": "CALLS"
+    }
+  ]
+}

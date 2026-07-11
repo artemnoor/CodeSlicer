@@ -1,0 +1,284 @@
+{
+  "status": "ok",
+  "edges": [
+    {
+      "library": "celery",
+      "rule_id": "celery-async-invocation",
+      "from": "api.create_order",
+      "to": "external:celery.delay",
+      "kind": "CALLS",
+      "expected": true,
+      "forbidden": false,
+      "provenance": {
+        "support_pack": "python/celery",
+        "rule_id": "celery-async-invocation",
+        "rule_version": "1.0.0",
+        "trust_level": "verified_on_fixture",
+        "resolver_hook": "method_call_alias",
+        "matched_pattern": "{\"imported_library\": \"celery\", \"method\": [\"delay\", \"apply_async\"]}",
+        "evidence": [
+          {
+            "description": "Method call alias: delay maps to external:celery.delay",
+            "file": "api.py",
+            "line": 28,
+            "source": null
+          }
+        ]
+      },
+      "confidence": 0.75,
+      "status": "resolved",
+      "provenance_complete": true,
+      "name_only_matching": false,
+      "mutation_checked": true,
+      "determinism_checked": true
+    },
+    {
+      "library": "celery",
+      "rule_id": "celery-shared-task",
+      "from": "api.unrelated_task",
+      "to": "external:celery.task:api.unrelated_task",
+      "kind": "DEPENDS_ON",
+      "expected": true,
+      "forbidden": false,
+      "provenance": {
+        "support_pack": "python/celery",
+        "rule_id": "celery-shared-task",
+        "rule_version": "1.0.0",
+        "trust_level": "verified_on_fixture",
+        "resolver_hook": "task_entrypoint",
+        "matched_pattern": "shared_task",
+        "evidence": [
+          {
+            "description": "celery task registration via shared_task",
+            "file": "api.py",
+            "line": 34,
+            "source": null
+          }
+        ]
+      },
+      "confidence": 0.78,
+      "status": "resolved",
+      "provenance_complete": true,
+      "name_only_matching": false,
+      "mutation_checked": true,
+      "determinism_checked": true
+    },
+    {
+      "library": "dependency_injector",
+      "rule_id": "dependency-injector-resolver-rule",
+      "from": "api.Container.repository",
+      "to": "api.Repository",
+      "kind": "DEPENDS_ON",
+      "expected": true,
+      "forbidden": false,
+      "provenance": {
+        "support_pack": "python/dependency_injector",
+        "rule_id": "dependency-injector-resolver-rule",
+        "rule_version": "1.0.0",
+        "trust_level": "verified_on_fixture",
+        "resolver_hook": "dependency_injector_resolver",
+        "matched_pattern": "{\"library\": \"dependency_injector\"}",
+        "evidence": [
+          {
+            "description": "Inferred DI binding: api.Container.repository Singleton/Factory provides class api.Repository",
+            "file": "api.py",
+            "line": 19,
+            "source": null
+          }
+        ]
+      },
+      "confidence": 0.8,
+      "status": "resolved",
+      "provenance_complete": true,
+      "name_only_matching": false,
+      "mutation_checked": true,
+      "determinism_checked": true
+    },
+    {
+      "library": "dependency_injector",
+      "rule_id": "dependency-injector-resolver-rule",
+      "from": "api.Container.service",
+      "to": "api.Service",
+      "kind": "DEPENDS_ON",
+      "expected": true,
+      "forbidden": false,
+      "provenance": {
+        "support_pack": "python/dependency_injector",
+        "rule_id": "dependency-injector-resolver-rule",
+        "rule_version": "1.0.0",
+        "trust_level": "verified_on_fixture",
+        "resolver_hook": "dependency_injector_resolver",
+        "matched_pattern": "{\"library\": \"dependency_injector\"}",
+        "evidence": [
+          {
+            "description": "Inferred DI binding: api.Container.service Singleton/Factory provides class api.Service",
+            "file": "api.py",
+            "line": 20,
+            "source": null
+          }
+        ]
+      },
+      "confidence": 0.8,
+      "status": "resolved",
+      "provenance_complete": true,
+      "name_only_matching": false,
+      "mutation_checked": true,
+      "determinism_checked": true
+    },
+    {
+      "library": "dependency_injector",
+      "rule_id": "dependency-injector-resolver-rule",
+      "from": "api.Service",
+      "to": "api.Repository",
+      "kind": "DEPENDS_ON",
+      "expected": true,
+      "forbidden": false,
+      "provenance": {
+        "support_pack": "python/dependency_injector",
+        "rule_id": "dependency-injector-resolver-rule",
+        "rule_version": "1.0.0",
+        "trust_level": "verified_on_fixture",
+        "resolver_hook": "dependency_injector_resolver",
+        "matched_pattern": "{\"library\": \"dependency_injector\"}",
+        "evidence": [
+          {
+            "description": "Inferred constructor dependency: api.Service requires api.Repository injected via repository",
+            "file": "api.py",
+            "line": 20,
+            "source": null
+          }
+        ]
+      },
+      "confidence": 0.8,
+      "status": "resolved",
+      "provenance_complete": true,
+      "name_only_matching": false,
+      "mutation_checked": true,
+      "determinism_checked": true
+    },
+    {
+      "library": "fastapi",
+      "rule_id": "fastapi-depends-resolver-rule",
+      "from": "api.create_order",
+      "to": "api.get_db",
+      "kind": "CALLS",
+      "expected": true,
+      "forbidden": false,
+      "provenance": {
+        "support_pack": "python/fastapi",
+        "rule_id": "fastapi-depends-resolver-rule",
+        "rule_version": "1.0.0",
+        "trust_level": "verified_on_fixture",
+        "resolver_hook": "fastapi_depends_resolver",
+        "matched_pattern": "{\"library\": \"fastapi\"}",
+        "evidence": [
+          {
+            "description": "FastAPI dependency injection: api.create_order handler Depends on provider api.get_db",
+            "file": "api.py",
+            "line": 25,
+            "source": null
+          }
+        ]
+      },
+      "confidence": 0.8,
+      "status": "resolved",
+      "provenance_complete": true,
+      "name_only_matching": false,
+      "mutation_checked": true,
+      "determinism_checked": true
+    },
+    {
+      "library": "fastapi",
+      "rule_id": "fastapi-router-post-route",
+      "from": "HTTP POST /api/v1/shop/orders",
+      "to": "api.create_order",
+      "kind": "ROUTE_HANDLES",
+      "expected": true,
+      "forbidden": false,
+      "provenance": {
+        "support_pack": "python/fastapi",
+        "rule_id": "fastapi-router-post-route",
+        "rule_version": "1.0.0",
+        "trust_level": "verified_on_fixture",
+        "resolver_hook": "decorator_entrypoint",
+        "matched_pattern": "@router.post",
+        "evidence": [
+          {
+            "description": "Resolved via support pack fastapi:fastapi-router-post-route (decorator matched)",
+            "file": "api.py",
+            "line": 25,
+            "source": null
+          }
+        ]
+      },
+      "confidence": 0.8,
+      "status": "resolved",
+      "provenance_complete": true,
+      "name_only_matching": false,
+      "mutation_checked": true,
+      "determinism_checked": true
+    },
+    {
+      "library": "sqlalchemy",
+      "rule_id": "sqlalchemy-session-methods",
+      "from": "api.create_order",
+      "to": "external:sqlalchemy.add",
+      "kind": "DEPENDS_ON",
+      "expected": true,
+      "forbidden": false,
+      "provenance": {
+        "support_pack": "python/sqlalchemy",
+        "rule_id": "sqlalchemy-session-methods",
+        "rule_version": "1.0.0",
+        "trust_level": "verified_on_fixture",
+        "resolver_hook": "method_call_alias",
+        "matched_pattern": "{\"imported_library\": \"sqlalchemy\", \"method\": [\"add\", \"add_all\", \"execute\", \"commit\", \"flush\", \"refresh\"], \"receiver_type\": \"sqlalchemy.orm.Session\"}",
+        "evidence": [
+          {
+            "description": "Method call alias: add maps to external:sqlalchemy.add",
+            "file": "api.py",
+            "line": 26,
+            "source": null
+          }
+        ]
+      },
+      "confidence": 0.78,
+      "status": "resolved",
+      "provenance_complete": true,
+      "name_only_matching": false,
+      "mutation_checked": true,
+      "determinism_checked": true
+    },
+    {
+      "library": "sqlalchemy",
+      "rule_id": "sqlalchemy-session-methods",
+      "from": "api.create_order",
+      "to": "external:sqlalchemy.commit",
+      "kind": "DEPENDS_ON",
+      "expected": true,
+      "forbidden": false,
+      "provenance": {
+        "support_pack": "python/sqlalchemy",
+        "rule_id": "sqlalchemy-session-methods",
+        "rule_version": "1.0.0",
+        "trust_level": "verified_on_fixture",
+        "resolver_hook": "method_call_alias",
+        "matched_pattern": "{\"imported_library\": \"sqlalchemy\", \"method\": [\"add\", \"add_all\", \"execute\", \"commit\", \"flush\", \"refresh\"], \"receiver_type\": \"sqlalchemy.orm.Session\"}",
+        "evidence": [
+          {
+            "description": "Method call alias: commit maps to external:sqlalchemy.commit",
+            "file": "api.py",
+            "line": 27,
+            "source": null
+          }
+        ]
+      },
+      "confidence": 0.78,
+      "status": "resolved",
+      "provenance_complete": true,
+      "name_only_matching": false,
+      "mutation_checked": true,
+      "determinism_checked": true
+    }
+  ]
+}

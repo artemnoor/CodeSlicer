@@ -1,0 +1,7 @@
+fastapi>=0.110
+pytest>=8.0
+strangebus-sdk>=0.1.0
+magicqueue-client>=0.1.0
+# Listed intentionally to test dev/internal dependency filtering.
+# Analyzer should not create a research request for this package when marked dev-only.
+internal-utils-dev>=0.1.0

@@ -1,0 +1,134 @@
+{
+  "library": "httpx",
+  "version_range": ">=0.24",
+  "language": "python",
+  "id": "httpx",
+  "ecosystem": "python",
+  "status": "experimental",
+  "trust_level": "experimental",
+  "coverage_limitations": [
+    "Covers static HTTP client construction and request method calls.",
+    "Does not infer runtime URLs, redirects, transports, or mounted ASGI/WSGI apps.",
+    "Does not claim that a request reaches a backend route without an endpoint bridge.",
+    "AsyncClient rules require static async call facts; runtime await behavior is not inferred."
+  ],
+  "examples": [],
+  "validation_requirements": {
+    "required_hooks": []
+  },
+  "sources": [
+    {
+      "type": "official_docs",
+      "url": "https://www.python-httpx.org/quickstart/"
+    },
+    {
+      "type": "official_docs",
+      "url": "https://www.python-httpx.org/advanced/clients/"
+    },
+    {
+      "type": "official_docs",
+      "url": "https://www.python-httpx.org/async/"
+    },
+    {
+      "type": "official_repository",
+      "url": "https://github.com/encode/httpx"
+    }
+  ],
+  "patterns": [
+    {
+      "id": "httpx.client",
+      "description": "httpx.Client creates a reusable synchronous HTTP client"
+    },
+    {
+      "id": "httpx.async_client",
+      "description": "httpx.AsyncClient provides asynchronous request methods"
+    }
+  ],
+  "edge_rules": [
+    {
+      "id": "httpx-client-request-method",
+      "type": "method_call_alias",
+      "match": {
+        "receiver_type": "httpx.Client",
+        "method": [
+          "get",
+          "options",
+          "head",
+          "post",
+          "put",
+          "patch",
+          "delete",
+          "request",
+          "send"
+        ]
+      },
+      "emit": {
+        "kind": "HTTP_CALLS",
+        "source": "SUPPORT_PACK",
+        "confidence": 0.65,
+        "description": "httpx.Client request method call",
+        "evidence_ref": "https://www.python-httpx.org/advanced/clients/"
+      }
+    },
+    {
+      "id": "httpx-async-client-request-method",
+      "type": "method_call_alias",
+      "match": {
+        "receiver_type": "httpx.AsyncClient",
+        "method": [
+          "get",
+          "options",
+          "head",
+          "post",
+          "put",
+          "patch",
+          "delete",
+          "request",
+          "send"
+        ]
+      },
+      "emit": {
+        "kind": "HTTP_CALLS",
+        "source": "SUPPORT_PACK",
+        "confidence": 0.65,
+        "description": "httpx.AsyncClient request method call",
+        "evidence_ref": "https://www.python-httpx.org/async/"
+      }
+    },
+    {
+      "id": "httpx-top-level-request-method",
+      "type": "method_call_alias",
+      "match": {
+        "receiver": "httpx",
+        "method": [
+          "get",
+          "options",
+          "head",
+          "post",
+          "put",
+          "patch",
+          "delete",
+          "request"
+        ]
+      },
+      "emit": {
+        "kind": "HTTP_CALLS",
+        "source": "SUPPORT_PACK",
+        "confidence": 0.65,
+        "description": "httpx top-level request helper",
+        "evidence_ref": "https://www.python-httpx.org/api/"
+      }
+    }
+  ],
+  "confidence_rules": [],
+  "playground_cases": [
+    {
+      "name": "sync_client_post",
+      "code": "with httpx.Client() as client: client.post('/orders')"
+    },
+    {
+      "name": "async_client_get",
+      "code": "async with httpx.AsyncClient() as client: await client.get('/orders')"
+    }
+  ]
+}

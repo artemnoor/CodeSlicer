@@ -1,0 +1,17 @@
+{
+  "fixture_id": "python_self_attr",
+  "name": "python_self_attr",
+  "category": "python",
+  "language": "python",
+  "resolver_rules": ["python.self_attr"],
+  "edge_kinds": ["CALLS"],
+  "project_path": "project",
+  "expected_edges": "expected_edges.json",
+  "forbidden_edges": "forbidden_edges.json",
+  "mutations": [
+    {"id": "self-attr-remove-binding", "operation": "remove_binding", "file": "service.py", "old": "        self.repository = Repository()", "new": "        self.repository = None", "checks": ["edge_removed"]},
+    {"id": "self-attr-rename-alias", "operation": "rename_alias", "file": "service.py", "old": "self.repository.save", "new": "self.other.save", "checks": ["edge_removed"]},
+    {"id": "self-attr-remove-import", "operation": "remove_import", "file": "service.py", "old": "from repository import Repository\n", "new": "", "edits": [{"file": "service.py", "old": "from repository import Repository\n", "new": ""}, {"file": "other.py", "old": "class Other:", "new": "class Repository:"}], "checks": ["edge_removed"]},
+    {"id": "self-attr-add-candidate", "operation": "add_second_candidate", "file": "other.py", "old": "class Other:", "new": "class Repository:", "edits": [{"file": "other.py", "old": "class Other:", "new": "class Repository:"}, {"file": "service.py", "old": "from repository import Repository\n", "new": ""}], "checks": ["edge_removed"]}
+  ]
+}

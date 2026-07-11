@@ -1,0 +1,70 @@
+{
+  "id": "dependency_injector",
+  "library": "dependency_injector",
+  "ecosystem": "python",
+  "version_range": ">=4.0.0",
+  "language": "python",
+  "status": "verified_on_fixture",
+  "trust_level": "verified_on_fixture",
+  "supported_versions": ["4.x"],
+  "resolver_hooks": ["dependency_injector_resolver"],
+  "evidence_requirements": {"required": ["provider", "constructor", "receiver_identity"], "forbid_name_only": true},
+  "confidence_caps": {"verified_on_fixture": 0.8},
+  "rules": ["Container", "Factory", "Singleton", "Provide", "inject"],
+  "fixtures": [{"name": "factory"}, {"name": "singleton"}, {"name": "provide"}, {"name": "inject"}],
+  "negative_cases": [{"name": "unregistered_provider"}, {"name": "wrong_provider"}],
+  "mutation_scenarios": [{"id": "remove_provider_binding", "operation": "remove_binding"}, {"id": "replace_provider_class", "operation": "replace_provider"}, {"id": "add_provider_candidate", "operation": "add_second_candidate"}],
+  "coverage_limitations": [
+    "Supports providers.Singleton and providers.Factory definitions",
+    "Infers provider constructor injection parameter matches",
+    "Resolves dynamic container provider invocations container.order_service()",
+    "Does not resolve custom provider configurations or resource providers"
+  ],
+  "examples": [
+    {
+      "code": "service = providers.Factory(MyService, repo=my_repo)"
+    }
+  ],
+  "validation_requirements": {
+    "required_hooks": ["dependency_injector_resolver"]
+  },
+  "sources": [
+    {
+      "type": "documentation",
+      "url": "https://python-dependency-injector.ets-labs.org/"
+    }
+  ],
+  "patterns": [],
+  "edge_rules": [
+    {
+      "id": "dependency_injector_provider",
+      "type": "constructor_injection",
+      "match": {
+        "parameter_type": "app.repositories.SqlRepository"
+      },
+      "emit": {
+        "to": "app.repositories.SqlRepository",
+        "kind": "DEPENDS_ON",
+        "confidence": 0.90,
+        "source": "SUPPORT_PACK",
+        "evidence_ref": "https://python-dependency-injector.ets-labs.org/"
+      }
+    },
+    {
+      "id": "dependency-injector-resolver-rule",
+      "type": "dependency_injector_resolver",
+      "match": {
+        "library": "dependency_injector"
+      },
+      "emit": {
+        "kind": "DEPENDS_ON",
+        "confidence": 0.85,
+        "source": "INFERRED",
+        "description": "dependency-injector container binding and client resolution",
+        "evidence_template": "Container Singleton/Factory declaration matches class initialization dependencies"
+      }
+    }
+  ],
+  "confidence_rules": [],
+  "playground_cases": []
+}

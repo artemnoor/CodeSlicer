@@ -1,0 +1,25 @@
+{
+  "recipes": [
+    {
+      "id": "generic-router-object-graph",
+      "type": "object_graph",
+      "constructor": "Router",
+      "prefix_kwarg": "prefix",
+      "include_method": "include",
+      "decorator_methods": ["get", "post"]
+    },
+    {
+      "id": "generic-http-sinks",
+      "type": "endpoint_sink",
+      "sink_functions": ["fetch"],
+      "wrapper_functions": ["postJson", "getJson"],
+      "method_by_wrapper": {"postJson": "POST", "getJson": "GET"},
+      "path_builder_functions": ["buildUrl", "route"]
+    },
+    {
+      "id": "factory-provider",
+      "type": "provider_factory",
+      "constructor": "Factory"
+    }
+  ]
+}

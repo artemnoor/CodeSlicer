@@ -1,0 +1,2 @@
+GET /api/admin/accounts/{account_id}
+GET `/api/admin/accounts/${id}`

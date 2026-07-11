@@ -1,0 +1,4 @@
+interface:
+  display_name: "Analyze Project"
+  short_description: "Build a project graph and diagnostics"
+  default_prompt: "Use -analyze-project to build a baseline graph for this repository."

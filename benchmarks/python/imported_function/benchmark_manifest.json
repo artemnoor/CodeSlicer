@@ -1,0 +1,13 @@
+{
+  "fixture_id": "python_imported_function",
+  "name": "python_imported_function",
+  "category": "python",
+  "language": "python",
+  "resolver_rules": ["python.import_resolution"],
+  "positive_support": true,
+  "edge_kinds": ["CALLS"],
+  "project_path": "project",
+  "expected_edges": "expected_edges.json",
+  "forbidden_edges": "forbidden_edges.json",
+  "mutations": [{"id":"imported-remove-import","operation":"remove_import","file":"service.py","old":"from helpers import save\n","new":"","checks":["edge_removed"]},{"id":"imported-rename-call","operation":"rename_alias","file":"service.py","old":"return save(value)","new":"return missing(value)","checks":["edge_removed"]}]
+}

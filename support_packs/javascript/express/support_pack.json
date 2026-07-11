@@ -1,0 +1,22 @@
+{
+  "id": "express",
+  "library": "express",
+  "ecosystem": "javascript",
+  "version_range": ">=4.0,<6.0",
+  "language": "javascript",
+  "status": "verified_on_fixture",
+  "trust_level": "verified_on_fixture",
+  "supported_versions": ["4.x", "5.x"],
+  "resolver_hooks": ["express_route_resolver"],
+  "evidence_requirements": {"required": ["import", "method", "path"], "forbid_name_only": true},
+  "confidence_caps": {"verified_on_fixture": 0.8},
+  "rules": ["app.get", "app.post", "router.use"],
+  "fixtures": [{"name": "get"}, {"name": "post"}, {"name": "router"}, {"name": "prefix"}],
+  "negative_cases": [{"name": "same_name_other_module"}, {"name": "wrong_http_method"}],
+  "mutation_scenarios": [{"id": "remove_route", "operation": "remove_binding"}, {"id": "replace_router", "operation": "replace_provider"}, {"id": "add_route_candidate", "operation": "add_second_candidate"}],
+  "sources": [{"type": "official_docs", "url": "https://expressjs.com/en/guide/routing.html"}],
+  "patterns": [],
+  "edge_rules": [],
+  "confidence_rules": [],
+  "playground_cases": []
+}

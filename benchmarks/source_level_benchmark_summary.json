@@ -1,0 +1,103 @@
+{
+  "status": "ok",
+  "fact_level_fixtures": 0,
+  "source_level_fixtures": 8,
+  "source_level_precision": 1.0,
+  "fact_level_precision": null,
+  "endpoint_bridge_precision": 1.0,
+  "forbidden_violations": 0,
+  "mutation_failures": 0,
+  "determinism": true,
+  "fixture_results": [
+    {
+      "fixture_id": "baseline_react_hook",
+      "source_level": true,
+      "chain_confirmed": true,
+      "bridge_status": "applied",
+      "status": "passed",
+      "edges": 73
+    },
+    {
+      "fixture_id": "destructuring_import",
+      "source_level": true,
+      "chain_confirmed": true,
+      "bridge_status": "applied",
+      "status": "passed",
+      "edges": 73
+    },
+    {
+      "fixture_id": "namespace_call",
+      "source_level": true,
+      "chain_confirmed": true,
+      "bridge_status": "applied",
+      "status": "passed",
+      "edges": 74
+    },
+    {
+      "fixture_id": "callback_propagation",
+      "source_level": true,
+      "chain_confirmed": true,
+      "bridge_status": "applied",
+      "status": "passed",
+      "edges": 74
+    },
+    {
+      "fixture_id": "custom_wrapper",
+      "source_level": true,
+      "chain_confirmed": true,
+      "bridge_status": "applied",
+      "status": "passed",
+      "edges": 73
+    },
+    {
+      "fixture_id": "barrel_export",
+      "source_level": true,
+      "chain_confirmed": true,
+      "bridge_status": "applied",
+      "status": "passed",
+      "edges": 73
+    },
+    {
+      "fixture_id": "template_dynamic_path",
+      "source_level": true,
+      "chain_confirmed": true,
+      "bridge_status": "applied",
+      "status": "passed",
+      "edges": 73
+    },
+    {
+      "fixture_id": "conflicting_wrappers",
+      "source_level": true,
+      "chain_confirmed": true,
+      "bridge_status": "applied",
+      "status": "passed",
+      "edges": 73
+    }
+  ],
+  "mutation_results": [
+    {
+      "mutation": "remove_wrapper",
+      "status": "passed",
+      "baseline_chain": true,
+      "mutated_chain": false,
+      "confirmed_route_edges": 0
+    },
+    {
+      "mutation": "add_second_candidate",
+      "status": "passed",
+      "baseline_chain": true,
+      "mutated_chain": true,
+      "confirmed_route_edges": 0
+    },
+    {
+      "mutation": "remove_hook",
+      "status": "passed",
+      "baseline_chain": true,
+      "mutated_chain": false,
+      "confirmed_route_edges": 1
+    }
+  ],
+  "known_limitations": [
+    "Tree-sitter supplies structural facts; source endpoint facts use the deterministic JS/TS adapter in the bridge."
+  ]
+}

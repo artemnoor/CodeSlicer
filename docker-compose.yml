@@ -1,0 +1,20 @@
+services:
+  impact-api:
+    build: .
+    command: ["impact-engine-local-api", "--host", "0.0.0.0", "--port", "8001", "--default-project", "/workspace/project"]
+    ports:
+      - "8001:8001"
+    volumes:
+      - impact_state:/app/.impact_engine
+      - ${IMPACT_PROJECT_PATH:-.}:/workspace/project:ro
+
+  registry-api:
+    build: .
+    command: ["impact-engine-registry-api"]
+    ports:
+      - "8787:8787"
+    volumes:
+      - impact_state:/app/.impact_engine
+
+volumes:
+  impact_state:

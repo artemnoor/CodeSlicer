@@ -1,0 +1,95 @@
+{
+  "status": "ok",
+  "mutations": [
+    {
+      "mutation": "remove_import",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "change_method",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "change_service",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "change_path",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "remove_wrapper",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "add_second_candidate",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": true
+    },
+    {
+      "mutation": "path_variant_6",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "path_variant_7",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "path_variant_8",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "path_variant_9",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "path_variant_10",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "path_variant_11",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "path_variant_12",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "path_variant_13",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    },
+    {
+      "mutation": "path_variant_14",
+      "status": "passed",
+      "baseline_match": true,
+      "mutated_match": false
+    }
+  ]
+}

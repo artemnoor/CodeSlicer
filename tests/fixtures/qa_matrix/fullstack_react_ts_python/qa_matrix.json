@@ -1,0 +1,48 @@
+{
+  "name": "Fullstack React TS Python",
+  "category": "fullstack_react_ts_python",
+  "checks": {
+    "required_edges": [
+      {
+        "from": "backend.app.services.orders.OrderService.create_order",
+        "to": "backend.app.repositories.orders.OrderRepository.save",
+        "kind": "CALLS",
+        "description": "backend service reaches repository"
+      },
+      {
+        "from": "components.OrderCreateForm.OrderCreateForm",
+        "to": "hooks.useOrders.useOrders",
+        "kind": "DEPENDS_ON",
+        "description": "React component uses hook"
+      },
+      {
+        "from": "HTTP POST /api/v1/shop/orders",
+        "to": "backend.app.api.shop.orders.create_order",
+        "kind": "MATCHES_ENDPOINT",
+        "description": "frontend/backend create order route is matched deterministically"
+      },
+      {
+        "from": "api.orders.createOrder",
+        "to": "HTTP POST /api/v1/shop/orders",
+        "kind": "HTTP_CALLS",
+        "description": "TypeScript API client createOrder resolves HTTP call"
+      }
+    ],
+    "required_node_contains": [
+      {
+        "contains": "__tests__.orderFlow.test",
+        "description": "frontend test relation should be visible in external fullstack fixture"
+      }
+    ],
+    "forbidden_edge_substrings": [
+      {
+        "contains": "backend.app.api.shop.users.create_user -> backend.app.repositories.orders.OrderRepository.save",
+        "description": "users route must not reach orders repository"
+      },
+      {
+        "contains": "saveOrderDraft -> backend.app.repositories.orders.OrderRepository.save",
+        "description": "draft save helper must not be confused with repository save"
+      }
+    ]
+  }
+}

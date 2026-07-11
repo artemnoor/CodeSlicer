@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d0d0d">
+<link rel="icon" href="data:,">
+<title>Impact Engine — локальный интерфейс</title>
+<style>
+:root{
+  --background:#141414;--hero-bg:#0d0d0d;--foreground:#fafafa;--card:#202020;
+  --card-2:#181818;--border:rgba(255,255,255,.1);--border-strong:rgba(255,255,255,.18);
+  --muted:#b0b0b0;--muted-2:#777;--primary:#5ed366;--primary-dark:#46bf4c;
+  --amber:#f59e0b;--rose:#e11d48;--cyan:#48a8f8;--sidebar:248px;--topbar:62px;--status:30px;
+  --shadow:0 18px 56px rgba(0,0,0,.28);--radius:12px;
+  font-family:Sora,Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--background);color:var(--foreground);overflow:hidden}
+button,input,select{font:inherit}button{color:inherit}a{color:inherit;text-decoration:none}
+::selection{background:rgba(94,211,102,.25)}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#353535;border:2px solid transparent;background-clip:padding-box;border-radius:999px}
+.app{height:100%;display:grid;grid-template-columns:var(--sidebar) 1fr;grid-template-rows:var(--topbar) 1fr var(--status);grid-template-areas:"top top" "side main" "status status"}
+.topbar{grid-area:top;display:flex;align-items:center;gap:14px;padding:0 18px;border-bottom:1px solid var(--border);background:rgba(13,13,13,.92);backdrop-filter:blur(18px);z-index:20}
+.brand{display:flex;align-items:center;gap:10px;min-width:230px}.brand-mark{width:32px;height:32px;border-radius:8px;background:var(--primary);color:#09220c;display:grid;place-items:center;box-shadow:0 0 28px rgba(94,211,102,.32)}
+.brand strong{font-size:14px;letter-spacing:.01em}.brand small{display:block;color:var(--muted-2);font:10px/1.3 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;margin-top:1px}
+.project-select{height:38px;border:1px solid var(--border);background:#191919;border-radius:6px;padding:0 34px 0 12px;min-width:210px;color:var(--foreground);outline:none}
+.search-global{position:relative;flex:1;max-width:560px}.search-global input{width:100%;height:38px;border:1px solid var(--border);background:#171717;border-radius:6px;padding:0 42px 0 38px;color:var(--foreground);outline:none}.search-global input:focus,.field input:focus,.field select:focus{border-color:rgba(94,211,102,.65);box-shadow:0 0 0 3px rgba(94,211,102,.08)}
+.search-global .search-ico{position:absolute;left:12px;top:10px;color:var(--muted-2)}.shortcut{position:absolute;right:9px;top:8px;border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--muted-2);font:10px ui-monospace,monospace}
+.top-actions{display:flex;align-items:center;gap:8px;margin-left:auto}.icon-btn,.btn{border:1px solid var(--border);background:#1b1b1b;border-radius:4px;cursor:pointer;transition:.18s ease;display:inline-flex;align-items:center;justify-content:center;gap:8px}.icon-btn{width:38px;height:38px}.btn{height:38px;padding:0 14px;font-size:13px}.btn:hover,.icon-btn:hover{border-color:rgba(94,211,102,.45);background:#222}.btn:active,.icon-btn:active{transform:scale(.97)}.btn.primary{background:var(--primary);color:#08210b;border-color:var(--primary);font-weight:700;box-shadow:0 0 28px -8px rgba(94,211,102,.7)}.btn.primary:hover{filter:brightness(1.08)}.btn.ghost{background:transparent}.btn.danger{color:#ff7d99}.btn.small{height:31px;padding:0 10px;font-size:12px}
+.sidebar{grid-area:side;border-right:1px solid var(--border);background:#111;display:flex;flex-direction:column;min-width:0;overflow:hidden;z-index:10}.nav{padding:14px 10px;display:flex;flex-direction:column;gap:4px}.nav-label{padding:8px 10px 5px;color:#606060;font:10px ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase}.nav button{width:100%;height:40px;padding:0 11px;border:0;border-radius:6px;background:transparent;color:#a7a7a7;display:flex;align-items:center;gap:11px;cursor:pointer;text-align:left;font-size:13px;transition:.16s}.nav button:hover{background:#1a1a1a;color:#fff}.nav button.active{background:rgba(94,211,102,.1);color:var(--primary);box-shadow:inset 2px 0 0 var(--primary)}.nav button .badge{margin-left:auto;background:#262626;color:#aaa;border-radius:999px;padding:2px 7px;font:10px ui-monospace,monospace}.nav button.active .badge{background:rgba(94,211,102,.14);color:var(--primary)}
+.sidebar-project{margin-top:auto;padding:12px;border-top:1px solid var(--border)}.project-health{padding:12px;border:1px solid var(--border);border-radius:9px;background:#181818}.project-health .row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}.project-health p{font-size:11px;color:var(--muted-2);line-height:1.5;margin:8px 0 0}.dot{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--primary);box-shadow:0 0 8px var(--primary);margin-right:6px}.statusbar{grid-area:status;border-top:1px solid var(--border);background:#0e0e0e;display:flex;align-items:center;gap:18px;padding:0 12px;color:#777;font:10px ui-monospace,monospace;white-space:nowrap;overflow:hidden}.statusbar span{display:inline-flex;align-items:center;gap:6px}.statusbar .spacer{flex:1}.status-good{color:var(--primary)}
+.main{grid-area:main;position:relative;overflow:auto;background:radial-gradient(circle at 70% -20%,rgba(94,211,102,.045),transparent 34%),var(--background)}.view{display:none;min-height:100%;padding:24px}.view.active{display:block}.view.graph-view{padding:0;overflow:hidden;height:100%}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:22px;margin-bottom:22px}.eyebrow{font:10px ui-monospace,monospace;letter-spacing:.25em;text-transform:uppercase;color:var(--primary)}h1{font-size:28px;letter-spacing:-.035em;margin:7px 0 5px}h2{font-size:16px;margin:0;letter-spacing:-.015em}h3{font-size:14px;margin:0}.page-head p,.muted{color:var(--muted);font-size:13px;line-height:1.55;margin:0}.head-actions{display:flex;gap:8px;flex-wrap:wrap}
+.metric-grid{display:grid;grid-template-columns:repeat(6,minmax(115px,1fr));gap:10px;margin-bottom:18px}.metric{border:1px solid var(--border);background:linear-gradient(150deg,#202020,#191919);border-radius:10px;padding:15px;min-height:92px}.metric label{display:block;color:#888;font-size:11px;margin-bottom:14px}.metric strong{font-size:25px;letter-spacing:-.04em}.metric strong.accent{color:var(--primary)}.metric small{color:#707070;font:10px ui-monospace,monospace;margin-left:5px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}.panel{border:1px solid var(--border);background:var(--card-2);border-radius:var(--radius);padding:17px;box-shadow:0 1px 0 rgba(255,255,255,.02)}.panel.span-8{grid-column:span 8}.panel.span-4{grid-column:span 4}.panel.span-6{grid-column:span 6}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.panel-head .sub{font-size:11px;color:#777;margin-top:4px}.panel-title{display:flex;align-items:center;gap:9px}.icon-wrap{width:31px;height:31px;border-radius:7px;background:rgba(94,211,102,.09);color:var(--primary);display:grid;place-items:center;border:1px solid rgba(94,211,102,.16)}
+.quality-list{display:flex;flex-direction:column;gap:14px}.quality-row{display:grid;grid-template-columns:1fr 55px;gap:9px;align-items:center}.quality-row span{font-size:12px}.quality-row b{text-align:right;font:11px ui-monospace,monospace}.bar{grid-column:1/-1;height:5px;background:#252525;border-radius:999px;overflow:hidden}.bar i{display:block;height:100%;background:var(--primary);border-radius:999px}.tag-list{display:flex;flex-wrap:wrap;gap:7px}.tag{border:1px solid var(--border);background:#222;border-radius:999px;padding:5px 8px;font:10px ui-monospace,monospace;color:#bbb}.tag.green{border-color:rgba(94,211,102,.28);color:var(--primary);background:rgba(94,211,102,.07)}.tag.amber{border-color:rgba(245,158,11,.3);color:var(--amber);background:rgba(245,158,11,.07)}.tag.rose{border-color:rgba(225,29,72,.32);color:#ff7896;background:rgba(225,29,72,.08)}
+.signal-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}.signal{border:1px solid var(--border);border-radius:8px;background:#1d1d1d;padding:12px;display:flex;align-items:center;gap:10px}.signal strong{margin-left:auto;color:var(--primary)}
+.notice{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid rgba(94,211,102,.22);background:rgba(94,211,102,.06);border-radius:8px;color:#c9efcc;font-size:12px;line-height:1.5;margin-top:14px}.notice.amber{border-color:rgba(245,158,11,.22);background:rgba(245,158,11,.06);color:#f5d49a}
+/* graph */
+.graph-shell{height:100%;display:grid;grid-template-columns:1fr 330px;grid-template-rows:auto 1fr}.graph-toolbar{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);background:#121212;z-index:5}.segmented{display:flex;border:1px solid var(--border);border-radius:5px;overflow:hidden}.segmented button{height:32px;padding:0 11px;border:0;border-right:1px solid var(--border);background:#191919;color:#888;cursor:pointer;font-size:12px}.segmented button:last-child{border-right:0}.segmented button.active{background:rgba(94,211,102,.12);color:var(--primary)}.graph-search{position:relative;width:260px}.graph-search input{width:100%;height:33px;background:#191919;border:1px solid var(--border);border-radius:5px;padding:0 10px 0 31px;color:#fff;outline:none}.graph-search .search-ico{position:absolute;left:9px;top:8px;color:#666}.toolbar-sep{width:1px;height:23px;background:var(--border);margin:0 2px}.toolbar-right{display:flex;gap:7px;margin-left:auto}.filter-pop{position:relative}.filter-menu{display:none;position:absolute;top:39px;right:0;width:280px;background:#171717;border:1px solid var(--border-strong);border-radius:9px;padding:14px;box-shadow:var(--shadow);z-index:50}.filter-pop.open .filter-menu{display:block}.filter-menu h4{margin:0 0 10px;font-size:12px}.filter-menu label{display:flex;align-items:center;gap:8px;font-size:11px;color:#aaa;margin:8px 0}.filter-menu input[type=range]{width:100%}.filter-menu select{width:100%;height:32px;background:#222;border:1px solid var(--border);color:#ddd;border-radius:5px;padding:0 8px}
+.graph-stage{position:relative;overflow:hidden;background:#020806;background-image:radial-gradient(circle at 50% 50%,rgba(80,255,180,.13),rgba(6,36,26,.07) 24%,transparent 58%),radial-gradient(rgba(129,255,203,.12) 1px,transparent 1px);background-size:auto,30px 30px}.graph-stage svg{display:none!important}.force-graph{position:absolute;inset:0;display:none}.force-graph.active{display:block}.force-graph canvas{display:block;outline:none;cursor:grab}.force-graph canvas:active{cursor:grabbing}.canvas-info{position:absolute;left:12px;bottom:12px;z-index:4;display:flex;gap:7px;flex-wrap:wrap;pointer-events:none}.legend{display:inline-flex;align-items:center;gap:6px;background:rgba(2,12,8,.76);border:1px solid rgba(152,255,211,.18);border-radius:999px;padding:5px 8px;color:#91a79b;font:9px ui-monospace,monospace;backdrop-filter:blur(10px)}.legend i{width:7px;height:7px;border-radius:50%;background:#72d3d0;box-shadow:0 0 7px currentColor}.legend i.green{background:#75ffbc;color:#75ffbc}.legend i.amber{background:#ffd766;color:#ffd766}.legend i.rose{background:#ff8396;color:#ff8396}.graph-empty{position:absolute;inset:0;display:none;place-items:center;text-align:center;background:rgba(2,8,6,.92);z-index:5}.graph-empty.show{display:grid}.graph-empty .box{max-width:400px;padding:28px}.graph-empty h3{font-size:18px;margin:8px 0}.graph-empty p{color:#9baea3;font-size:12px;line-height:1.6}
+.inspector{border-left:1px solid var(--border);background:#151515;overflow:auto}.inspector-empty{height:100%;display:grid;place-items:center;text-align:center;padding:26px;color:#777}.inspector-empty svg{margin-bottom:10px}.inspector-body{display:none}.inspector-body.show{display:block}.inspector-head{padding:18px;border-bottom:1px solid var(--border)}.inspector-head .kind{font:9px ui-monospace,monospace;color:var(--primary);letter-spacing:.16em;text-transform:uppercase}.inspector-head h2{font-size:18px;margin:7px 0 4px;overflow-wrap:anywhere}.inspector-head code{font:9px ui-monospace,monospace;color:#707070;overflow-wrap:anywhere}.inspector-section{padding:15px 18px;border-bottom:1px solid var(--border)}.kv{display:grid;grid-template-columns:92px 1fr;gap:8px;margin:8px 0;font-size:11px}.kv span{color:#6f6f6f}.kv b,.kv code{font-size:11px;overflow-wrap:anywhere}.relations{display:flex;flex-direction:column;gap:6px}.relation{padding:8px;border:1px solid var(--border);border-radius:6px;background:#1c1c1c;font-size:10px;cursor:pointer}.relation:hover{border-color:rgba(94,211,102,.35)}.inspector-actions{padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:7px}.inspector-actions .btn{padding:0 8px;font-size:11px}
+/* forms / impact */
+.controls-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:end}.field{display:flex;flex-direction:column;gap:6px}.field span{font-size:10px;color:#7f7f7f}.field input,.field select{height:38px;background:#1b1b1b;border:1px solid var(--border);border-radius:5px;color:#eee;padding:0 10px;outline:none;min-width:0}.checks{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px}.check{display:inline-flex;gap:8px;align-items:center;color:#999;font-size:11px}.check input{accent-color:var(--primary)}
+.impact-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.impact-card{padding:13px;border:1px solid var(--border);border-radius:8px;background:#191919}.impact-card label{font-size:10px;color:#777}.impact-card strong{display:block;font-size:23px;margin-top:6px}.impact-layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:12px}.chain-section{margin-bottom:12px}.chain-section-title{display:flex;align-items:center;justify-content:space-between;padding:0 2px 8px}.chain-section-title h2{display:flex;align-items:center;gap:8px}.chain-list{display:flex;flex-direction:column;gap:8px}.chain{border:1px solid var(--border);border-radius:9px;background:#181818;overflow:hidden}.chain-main{padding:13px;display:flex;align-items:center;gap:12px;cursor:pointer}.chain-main:hover{background:#1c1c1c}.chain-status{width:9px;height:9px;border-radius:50%;background:var(--primary);box-shadow:0 0 10px rgba(94,211,102,.5)}.chain.likely .chain-status{background:#79a982}.chain.suspicious .chain-status{background:var(--amber);box-shadow:none}.chain.unresolved .chain-status{background:var(--rose);box-shadow:none}.chain-text{min-width:0;flex:1}.chain-text strong{display:block;font-size:12px;margin-bottom:5px}.chain-path{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#858585;font:10px ui-monospace,monospace}.chain-score{text-align:right}.chain-score strong{display:block;font:14px ui-monospace,monospace}.chain-score small{font-size:9px;color:#666}.chain-details{display:none;border-top:1px solid var(--border);padding:13px;background:#151515}.chain.open .chain-details{display:block}.step-list{display:flex;align-items:center;gap:7px;overflow:auto;padding-bottom:4px}.step{flex:0 0 auto;border:1px solid var(--border);padding:7px 8px;border-radius:5px;background:#1d1d1d;font:9px ui-monospace,monospace}.arrow{color:#555}.calc{margin-top:10px;border-top:1px dashed var(--border);padding-top:10px;font-size:10px;color:#777;line-height:1.6}.ranking-list{display:flex;flex-direction:column;gap:7px}.rank{display:grid;grid-template-columns:25px 1fr 44px;gap:8px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:6px;background:#1b1b1b}.rank .num{font:10px ui-monospace,monospace;color:#666}.rank strong{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rank b{font:10px ui-monospace,monospace;color:var(--primary);text-align:right}
+/* table */
+.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:9px}.table{width:100%;border-collapse:collapse;min-width:900px}.table th{position:sticky;top:0;background:#171717;color:#666;font:9px ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;text-align:left;padding:11px;border-bottom:1px solid var(--border)}.table td{padding:11px;border-bottom:1px solid var(--border);font-size:11px;vertical-align:middle}.table tr:hover td{background:#191919}.table tr:last-child td{border-bottom:0}.status-pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 7px;border:1px solid var(--border);font:9px ui-monospace,monospace;white-space:nowrap}.status-pill.good{color:var(--primary);border-color:rgba(94,211,102,.25);background:rgba(94,211,102,.06)}.status-pill.warn{color:var(--amber);border-color:rgba(245,158,11,.25);background:rgba(245,158,11,.06)}.status-pill.bad{color:#ff7896;border-color:rgba(225,29,72,.28);background:rgba(225,29,72,.07)}
+.filters-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.filters-row select,.filters-row input[type=text]{height:34px;border:1px solid var(--border);background:#191919;color:#ddd;border-radius:5px;padding:0 9px;font-size:11px}.filters-row .spacer{flex:1}.diag-list{display:flex;flex-direction:column;gap:8px}.diag{display:grid;grid-template-columns:90px minmax(130px,1fr) 1.5fr 180px;gap:12px;align-items:center;border:1px solid var(--border);background:#181818;border-radius:8px;padding:12px}.diag h3{font-size:11px}.diag p{font-size:10px;color:#888;margin:4px 0 0;line-height:1.5}.diag code{font:9px ui-monospace,monospace;color:#8a8a8a}.diag-action{font-size:10px;color:#b8b8b8}.research-flow{display:flex;align-items:center;gap:6px;overflow:auto;padding:12px 0}.research-step{min-width:135px;border:1px solid var(--border);background:#1a1a1a;border-radius:7px;padding:10px;text-align:center;font-size:10px;color:#777}.research-step.active{border-color:rgba(94,211,102,.4);color:var(--primary);background:rgba(94,211,102,.07)}
+/* query workspace */
+.query-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.query-card{border:1px solid var(--border);background:#191919;border-radius:9px;padding:14px;text-align:left;cursor:pointer;transition:.18s}.query-card:hover{border-color:rgba(94,211,102,.35);transform:translateY(-1px)}.query-card .qicon{width:31px;height:31px;border-radius:7px;background:#222;display:grid;place-items:center;color:var(--primary);margin-bottom:12px}.query-card h3{margin-bottom:6px}.query-card p{font-size:10px;color:#777;line-height:1.5;margin:0 0 10px}.query-card code{font:9px ui-monospace,monospace;color:#5f5f5f}.query-result{margin-top:12px;min-height:180px}.api-json{white-space:pre-wrap;overflow-wrap:anywhere;background:#101010;border:1px solid var(--border);border-radius:7px;padding:13px;color:#9edda3;font:10px/1.7 ui-monospace,monospace;max-height:340px;overflow:auto}
+.diff-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.fingerprint{font:10px ui-monospace,monospace;color:#7f7f7f;overflow-wrap:anywhere}.diff-list{display:flex;flex-direction:column;gap:7px}.diff{border:1px solid var(--border);background:#1a1a1a;border-radius:6px;padding:9px;font:10px ui-monospace,monospace}.diff.add{border-left:2px solid var(--primary)}.diff.change{border-left:2px solid var(--amber)}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.68);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}.modal-backdrop.show{display:flex}.modal{width:min(680px,100%);max-height:85vh;overflow:auto;background:#171717;border:1px solid var(--border-strong);border-radius:12px;box-shadow:var(--shadow)}.modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)}.modal-body{padding:18px}.evidence-step{position:relative;padding:11px 12px 11px 32px;border-left:1px solid #3b3b3b;margin-left:6px}.evidence-step:before{content:"";position:absolute;left:-5px;top:16px;width:9px;height:9px;border-radius:50%;background:var(--primary)}.evidence-step strong{font-size:11px}.evidence-step p{font-size:10px;color:#777;line-height:1.5;margin:5px 0 0}.toast{position:fixed;right:18px;bottom:48px;background:#1d1d1d;border:1px solid var(--border-strong);border-radius:7px;padding:11px 14px;box-shadow:var(--shadow);font-size:11px;transform:translateY(30px);opacity:0;pointer-events:none;transition:.22s;z-index:120}.toast.show{transform:none;opacity:1}.mobile-menu{display:none}
+.loading{height:180px;display:grid;place-items:center;color:#777}.spinner{width:22px;height:22px;border-radius:50%;border:2px solid #333;border-top-color:var(--primary);animation:spin .7s linear infinite;margin:auto auto 9px}@keyframes spin{to{transform:rotate(360deg)}}
+svg.ico{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+@media(max-width:1180px){:root{--sidebar:210px}.metric-grid{grid-template-columns:repeat(3,1fr)}.query-grid{grid-template-columns:repeat(2,1fr)}.graph-shell{grid-template-columns:1fr 300px}.controls-grid{grid-template-columns:2fr 1fr 1fr}.controls-grid .btn{grid-column:auto}.impact-layout{grid-template-columns:1fr}.impact-layout>.panel{order:-1}.diag{grid-template-columns:80px 1fr 1fr}.diag-action{display:none}}
+@media(max-width:820px){:root{--topbar:58px;--status:27px}.app{grid-template-columns:1fr;grid-template-areas:"top" "main" "status"}.sidebar{position:fixed;left:0;top:var(--topbar);bottom:var(--status);width:270px;transform:translateX(-100%);transition:.22s;box-shadow:var(--shadow)}.sidebar.open{transform:none}.mobile-menu{display:inline-flex}.brand{min-width:0}.brand div:last-child{display:none}.project-select{display:none}.search-global{max-width:none}.topbar{padding:0 10px;gap:8px}.top-actions .btn span{display:none}.view{padding:16px}.metric-grid{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.panel.span-8,.panel.span-4,.panel.span-6{grid-column:auto}.graph-shell{grid-template-columns:1fr;grid-template-rows:auto minmax(360px,1fr) auto;height:auto;min-height:100%}.graph-toolbar{overflow:auto}.graph-search{min-width:210px}.inspector{border-left:0;border-top:1px solid var(--border);max-height:420px}.toolbar-right{margin-left:0}.impact-summary{grid-template-columns:repeat(2,1fr)}.controls-grid{grid-template-columns:1fr 1fr}.controls-grid .field:first-child{grid-column:1/-1}.query-grid{grid-template-columns:1fr}.diff-grid{grid-template-columns:1fr}.diag{grid-template-columns:1fr;gap:6px}.page-head{align-items:flex-start;flex-direction:column}.statusbar span:nth-child(2),.statusbar span:nth-child(3){display:none}}
+@media(max-width:520px){.search-global{display:none}.top-actions .icon-btn:nth-of-type(3){display:none}.metric-grid{grid-template-columns:1fr 1fr}.metric{min-height:78px;padding:12px}.metric strong{font-size:21px}.controls-grid{grid-template-columns:1fr}.controls-grid .field:first-child{grid-column:auto}.impact-summary{grid-template-columns:1fr 1fr}.graph-toolbar .toolbar-sep,.graph-toolbar>.btn:not(.primary){display:none}.inspector-actions{grid-template-columns:1fr}.signal-list{grid-template-columns:1fr}.view{padding:12px}}
+@media(max-width:820px){.graph-toolbar{flex-wrap:wrap;align-content:center}.graph-search{flex:1;min-width:180px}.graph-stage{min-height:360px}.graph-3d-hint{left:8px;right:8px;justify-content:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+@media(max-width:520px){.graph-toolbar>.btn.small{display:inline-flex;width:34px;padding:0;font-size:0}.graph-toolbar>.btn.small .ico{margin:0}.graph-search{min-width:0}.graph-3d-hint{font-size:8px;bottom:8px}.canvas-info{left:8px;bottom:8px;gap:4px}.legend{font-size:8px;padding:4px 6px}}
+
+
+/* Рабочие тёмная и светлая темы */
+html[data-theme="light"]{
+  --background:#f4f7f4;--hero-bg:#f7faf7;--foreground:#182019;--card:#ffffff;--card-2:#ffffff;
+  --border:rgba(24,32,25,.12);--border-strong:rgba(24,32,25,.22);
+  --muted:#5f6961;--muted-2:#7c867e;--primary:#46bf4c;--primary-dark:#3da347;
+  --shadow:0 18px 56px rgba(28,45,31,.12);color-scheme:light;
+}
+html[data-theme="light"] body{background:var(--background);color:var(--foreground)}
+html[data-theme="light"] ::-webkit-scrollbar-thumb{background:#cbd2cc}
+html[data-theme="light"] .topbar{background:rgba(250,252,250,.92)}
+html[data-theme="light"] .project-select,
+html[data-theme="light"] .search-global input,
+html[data-theme="light"] .icon-btn,
+html[data-theme="light"] .btn,
+html[data-theme="light"] .segmented button,
+html[data-theme="light"] .graph-search input,
+html[data-theme="light"] .field input,
+html[data-theme="light"] .field select,
+html[data-theme="light"] .filters-row select,
+html[data-theme="light"] .filters-row input[type=text],
+html[data-theme="light"] .filter-menu select{background:#fff;color:var(--foreground)}
+html[data-theme="light"] .sidebar{background:#f8faf8}
+html[data-theme="light"] .nav button:hover{background:#edf2ed;color:#182019}
+html[data-theme="light"] .nav button.active{background:rgba(70,191,76,.10)}
+html[data-theme="light"] .nav button .badge{background:#e9eeea;color:#657067}
+html[data-theme="light"] .sidebar-project,
+html[data-theme="light"] .statusbar{background:#f7faf7}
+html[data-theme="light"] .project-health,
+html[data-theme="light"] .metric,
+html[data-theme="light"] .signal,
+html[data-theme="light"] .relation,
+html[data-theme="light"] .impact-card,
+html[data-theme="light"] .chain,
+html[data-theme="light"] .step,
+html[data-theme="light"] .rank,
+html[data-theme="light"] .diag,
+html[data-theme="light"] .research-step,
+html[data-theme="light"] .query-card,
+html[data-theme="light"] .diff,
+html[data-theme="light"] .tag{background:#fff}
+html[data-theme="light"] .main{background:radial-gradient(circle at 70% -20%,rgba(70,191,76,.075),transparent 34%),var(--background)}
+html[data-theme="light"] .panel{box-shadow:0 1px 0 rgba(0,0,0,.02)}
+html[data-theme="light"] .bar{background:#e9eeea}
+html[data-theme="light"] .tag{color:#5e6860}
+html[data-theme="light"] .notice{color:#245d2a}
+html[data-theme="light"] .notice.amber{color:#8b5c08}
+html[data-theme="light"] .graph-toolbar{background:#f8faf8}
+html[data-theme="light"] .filter-menu{background:#fff}
+html[data-theme="light"] .filter-menu label{color:#5f6961}
+html[data-theme="light"] .graph-stage{background:#f7faf8;background-image:radial-gradient(rgba(25,40,28,.10) 1px,transparent 1px)}
+html[data-theme="light"] .edge{stroke:#aab4ac}
+html[data-theme="light"] .edge.confirmed{stroke:#3da347}
+html[data-theme="light"] .edge.likely{stroke:#6d9c73}
+html[data-theme="light"] .edge.selected{stroke:#172019}
+html[data-theme="light"] .node .node-box{fill:#fff;stroke:#c6cec8}
+html[data-theme="light"] .node .node-title{fill:#172019}
+html[data-theme="light"] .node .node-meta{fill:#6e786f}
+html[data-theme="light"] .node .node-dot{fill:#7f8a81}
+html[data-theme="light"] .node.selected .node-box{fill:#ecf8ed;stroke:#3da347}
+html[data-theme="light"] .legend{background:rgba(255,255,255,.91);color:#667067}
+html[data-theme="light"] .graph-empty{background:rgba(247,250,248,.94)}
+html[data-theme="light"] .inspector{background:#fbfcfb}
+html[data-theme="light"] .inspector-head code,
+html[data-theme="light"] .kv span,
+html[data-theme="light"] .panel-head .sub,
+html[data-theme="light"] .field span{color:#717c73}
+html[data-theme="light"] .chain-main:hover,
+html[data-theme="light"] .table tr:hover td{background:#f5f8f5}
+html[data-theme="light"] .chain-details{background:#f8faf8}
+html[data-theme="light"] .table th{background:#f5f8f5;color:#687169}
+html[data-theme="light"] .query-card .qicon{background:#f0f5f0}
+html[data-theme="light"] .query-card p,
+html[data-theme="light"] .calc,
+html[data-theme="light"] .evidence-step p{color:#657067}
+html[data-theme="light"] .api-json{background:#f6faf6;color:#286a30}
+html[data-theme="light"] .modal{background:#fff}
+html[data-theme="light"] .toast{background:#fff}
+html[data-theme="light"] .spinner{border-color:#cfd7d0}
+html[data-theme="light"] .shortcut{background:#f4f7f4}
+html[data-theme="light"] option{background:#fff;color:#172019}
+.graph-3d-hint{display:none;position:absolute;right:14px;bottom:14px;z-index:4;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--border);border-radius:999px;background:rgba(10,20,18,.78);backdrop-filter:blur(10px);color:#9db0a5;font:10px ui-monospace,monospace;pointer-events:none}
+#graph3d.active~.graph-3d-hint{display:flex}
+html[data-theme="light"] .graph-3d-hint{background:rgba(255,255,255,.86);color:#5d6a61}
+.backend-gate{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:#0d0d0d;color:#fafafa}
+.backend-gate.hidden{display:none}.backend-gate .box{width:min(560px,calc(100vw - 36px));padding:28px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:#171717;box-shadow:0 18px 56px rgba(0,0,0,.4)}
+.backend-gate h2{margin:0 0 9px;font-size:20px}.backend-gate p{margin:0;color:#aaa;line-height:1.55}.backend-gate code{color:#5ed366}
+
+</style>
+<script>(function(){try{var t=localStorage.getItem('impact-theme');if(!t)t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='dark'}})();</script>
+</head>
+<body>
+<div class="backend-gate" id="backendGate"><div class="box"><h2>Подключение к локальному Impact Engine</h2><p id="backendGateMessage">Ожидание реального backend API…</p></div></div>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon-btn mobile-menu" id="menuBtn" aria-label="Открыть меню"><svg class="ico"><use href="#i-menu"/></svg></button>
+    <div class="brand"><span class="brand-mark"><svg class="ico" style="width:19px;height:19px"><use href="#i-activity"/></svg></span><div><strong>Impact Engine</strong><small>Локальное рабочее пространство</small></div></div>
+    <input class="project-select" id="projectSelect" type="text" placeholder="Путь к проекту" aria-label="Путь к проекту">
+    <div class="top-actions">
+      <button class="btn primary" id="analyzeBtn"><svg class="ico"><use href="#i-play"/></svg><span>Анализировать</span></button>
+      <button class="icon-btn" id="themeBtn" title="Переключить тему"><svg class="ico"><use href="#i-sun"/></svg></button>
+    </div>
+  </header>
+
+  <aside class="sidebar" id="sidebar">
+    <nav class="nav">
+      <div class="nav-label">Рабочая область</div>
+      <button class="active" data-view="overview"><svg class="ico"><use href="#i-overview"/></svg>Обзор</button>
+      <button data-view="graph"><svg class="ico"><use href="#i-graph"/></svg>Граф проекта<span class="badge">52</span></button>
+      <button data-view="impact"><svg class="ico"><use href="#i-impact"/></svg>Анализ влияния</button>
+      <div class="nav-label">Качество</div>
+      <button data-view="diagnostics"><svg class="ico"><use href="#i-warning"/></svg>Диагностика<span class="badge">8</span></button>
+      <button data-view="queries"><svg class="ico"><use href="#i-terminal"/></svg>Рабочая область запросов</button>
+    </nav>
+    <div class="sidebar-project"><div class="project-health"><div class="row"><span><i class="dot"></i>Граф готов</span><span class="status-pill good">доверенный</span></div><p>52 узла · 68 рёбер<br>2 языка · 4 фреймворка</p></div></div>
+  </aside>
+
+  <main class="main" id="main">
+    <section class="view active" id="view-overview">
+      <div class="page-head"><div><span class="eyebrow">// ОБЗОР ПРОЕКТА</span><h1>Проект не анализирован</h1><p>Укажите путь к проекту и запустите анализ через локальный backend.</p></div><div class="head-actions"><button class="btn" data-go="graph"><svg class="ico"><use href="#i-graph"/></svg>Открыть граф</button></div></div>
+      <div class="metric-grid">
+        <div class="metric"><label>Файлы</label><strong>—</strong></div><div class="metric"><label>Узлы</label><strong class="accent">—</strong></div><div class="metric"><label>Рёбра</label><strong>—</strong></div><div class="metric"><label>Маршруты</label><strong>—</strong></div><div class="metric"><label>Тесты</label><strong>—</strong></div><div class="metric"><label>Библиотеки</label><strong>—</strong></div>
+        <div class="metric"><label>Разрешено точно</label><strong class="accent">—</strong></div><div class="metric"><label>Разрешено логически</label><strong>—</strong></div><div class="metric"><label>Неоднозначно</label><strong>—</strong></div><div class="metric"><label>Требует решения</label><strong>—</strong></div><div class="metric"><label>Время анализа</label><strong>—</strong><small>с</small></div><div class="metric"><label>Качество графа</label><strong class="accent">—</strong></div>
+      </div>
+      <div class="grid">
+        <article class="panel span-8"><div class="panel-head"><div class="panel-title"><span class="icon-wrap"><svg class="ico"><use href="#i-activity"/></svg></span><div><h2>Качество графа</h2><div class="sub">Покрытие и воспроизводимость связей</div></div></div><span class="status-pill good">проверки качества пройдены</span></div><div class="quality-list"><div class="quality-row"><span>Точные и runtime-confirmed связи</span><b>92%</b><div class="bar"><i style="width:92%"></i></div></div><div class="quality-row"><span>Покрытие маршрутов и эндпоинтов</span><b>97.6%</b><div class="bar"><i style="width:97.6%"></i></div></div><div class="quality-row"><span>Разрешение типизированных получателей</span><b>88%</b><div class="bar"><i style="width:88%"></i></div></div><div class="quality-row"><span>Неизвестные области локализованы</span><b>96%</b><div class="bar"><i style="width:96%"></i></div></div></div><div class="notice"><svg class="ico"><use href="#i-check"/></svg><span>Проверки качества пройдены. Неизвестные области не маскируются под подтверждённые связи.</span></div></article>
+        <article class="panel span-4"><div class="panel-head"><div class="panel-title"><span class="icon-wrap"><svg class="ico"><use href="#i-stack"/></svg></span><div><h2>Обнаружено в проекте</h2><div class="sub">Языки и библиотеки текущего анализа</div></div></div></div><div class="tag-list" id="detectedStack"><span class="tag">нет данных</span></div></article>
+        <article class="panel span-6"><div class="panel-head"><div class="panel-title"><span class="icon-wrap"><svg class="ico"><use href="#i-pulse"/></svg></span><div><h2>Состав проекта</h2><div class="sub">Факты текущего анализа</div></div></div></div><div class="signal-list"><div class="signal"><svg class="ico"><use href="#i-route"/></svg><span>Публичные маршруты</span><strong>—</strong></div><div class="signal"><svg class="ico"><use href="#i-test"/></svg><span>Связанные тесты</span><strong>—</strong></div><div class="signal"><svg class="ico"><use href="#i-package"/></svg><span>Библиотеки</span><strong>—</strong></div><div class="signal"><svg class="ico"><use href="#i-clock"/></svg><span>Последний анализ</span><strong>—</strong></div></div></article>
+      </div>
+    </section>
+
+    <section class="view graph-view" id="view-graph">
+      <div class="graph-shell">
+        <div class="graph-toolbar">
+          <div class="segmented"><button class="active" data-mode="2d">2D</button><button data-mode="3d">3D</button></div>
+          <div class="graph-search"><svg class="ico search-ico"><use href="#i-search"/></svg><input id="graphSearch" placeholder="Поиск узлов…"></div>
+          <div class="toolbar-sep"></div>
+          <button class="btn small" id="fitBtn"><svg class="ico"><use href="#i-fit"/></svg>Вместить</button>
+          <button class="btn small" id="resetBtn"><svg class="ico"><use href="#i-refresh"/></svg>Сбросить</button>
+          <div class="filter-pop" id="filterPop"><button class="btn small" id="filterBtn"><svg class="ico"><use href="#i-filter"/></svg>Фильтры</button><div class="filter-menu"><h4>Фильтры графа</h4><label>Язык</label><select id="languageFilter"><option value="all">Все языки</option><option value="typescript">TypeScript</option><option value="python">Python</option><option value="sql">SQL</option></select><label>Источник</label><select id="sourceFilter"><option value="all">Все источники</option><option value="CONFIRMED">Подтверждено</option><option value="INFERRED">Выведено</option><option value="UNRESOLVED">Не разрешено</option></select><label>Минимальная уверенность <b id="confLabel">0.00</b></label><input id="confidenceFilter" type="range" min="0" max="1" step="0.05" value="0"><label><input id="hideTests" type="checkbox"> Скрыть тесты</label><label><input id="hideExternal" type="checkbox"> Скрыть внешние узлы</label></div></div>
+          <div class="toolbar-right"><button class="icon-btn" id="exportPng" title="Экспортировать PNG"><svg class="ico"><use href="#i-image"/></svg></button><button class="icon-btn" id="exportJson" title="Экспортировать JSON"><svg class="ico"><use href="#i-download"/></svg></button></div>
+        </div>
+        <div class="graph-stage" id="graphStage">
+          <div class="force-graph active" id="graph2d" aria-label="Двумерный граф проекта"></div>
+          <div class="force-graph" id="graph3d" aria-label="Трёхмерный граф проекта"></div>
+          <svg class="mode-2d" id="graphSvg" viewBox="0 0 1100 760" preserveAspectRatio="xMidYMid meet">
+            <defs><filter id="nodeShadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000" flood-opacity=".5"/></filter><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#555"/></marker></defs>
+            <g id="viewport"><g id="edgesLayer"></g><g id="nodesLayer"></g></g>
+          </svg>
+          <div class="graph-3d-hint">ЛКМ — вращение · ПКМ — сдвиг · колесо — масштаб · клик — выбрать · двойной клик — весь граф</div>
+          <div class="canvas-info"><span class="legend"><i class="green"></i>подтверждено</span><span class="legend"><i></i>вероятно</span><span class="legend"><i class="amber"></i>подозрительно</span><span class="legend"><i class="rose"></i>не разрешено</span></div>
+          <div class="graph-empty" id="graphEmpty"><div class="box"><svg class="ico" style="width:30px;height:30px;color:#666"><use href="#i-search"/></svg><h3>Узлы не найдены</h3><p>Измените поисковый запрос или сбросьте фильтры. Граф не скрывает отсутствие результатов.</p><button class="btn" id="clearFilters">Сбросить фильтры</button></div></div>
+        </div>
+        <aside class="inspector" id="inspector"><div class="inspector-empty" id="inspectorEmpty"><div><svg class="ico" style="width:28px;height:28px"><use href="#i-focus"/></svg><h3>Выберите узел</h3><p>Инспектор покажет идентичность, связи, доказательства и оценку влияния.</p></div></div><div class="inspector-body" id="inspectorBody"><div class="inspector-head"><div class="kind" id="nodeKind">METHOD</div><h2 id="nodeName">create_order</h2><code id="nodeCanonical"></code></div><div class="inspector-section" id="nodeKv"></div><div class="inspector-section"><div class="panel-head"><h3>Связи</h3><span class="status-pill good" id="nodeConnectionCount">0</span></div><div class="relations" id="nodeRelations"></div></div><div class="inspector-actions"><button class="btn primary" id="inspectImpact">Анализировать влияние</button><button class="btn" id="copyNode">Копировать ID</button><button class="btn" id="focusNode">Сфокусировать окружение</button></div></div></aside>
+      </div>
+    </section>
+
+    <section class="view" id="view-impact">
+      <div class="page-head"><div><span class="eyebrow">// АНАЛИЗ ВЛИЯНИЯ</span><h1>Что изменится вместе с кодом</h1><p>Подтверждённые, вероятные и подозрительные цепочки без маскировки неопределённости.</p></div></div>
+<div class="panel"><div class="controls-grid"><label class="field"><span>Целевой узел</span><select id="impactTarget"></select></label><label class="field"><span>Направление</span><select id="impactDirection"><option value="upstream">вверх по зависимостям</option><option value="downstream">вниз по зависимостям</option><option value="both" selected>в обе стороны</option></select></label><label class="field"><span>Максимальная глубина</span><input id="impactDepth" type="number" value="8" min="1" max="20"></label><label class="field"><span>Минимальная уверенность</span><input id="impactConfidence" type="number" value="0.6" min="0" max="1" step="0.05"></label><button class="btn primary" id="runImpact"><svg class="ico"><use href="#i-play"/></svg>Запустить анализ</button></div><div class="checks"><label class="check"><input type="checkbox" checked>Включить тесты</label><label class="check"><input type="checkbox">Включить внешние библиотеки</label><label class="check"><input type="checkbox" checked>Ранжировать по радиусу влияния</label></div></div>
+      <div class="impact-summary"><div class="impact-card"><label>Нужно изменить</label><strong style="color:var(--primary)">2</strong></div><div class="impact-card"><label>Стоит проверить</label><strong>5</strong></div><div class="impact-card"><label>Возможно связано</label><strong>7</strong></div><div class="impact-card"><label>Экономия контекста</label><strong style="color:var(--primary)">81%</strong></div></div>
+      <div class="impact-layout"><div id="impactChains"></div><aside class="panel"><div class="panel-head"><div><h2>Рейтинг влияния</h2><div class="sub">Оценка · расстояние · доказательства</div></div></div><div class="ranking-list" id="impactRanking"></div><div class="notice"><svg class="ico"><use href="#i-check"/></svg><span>Ожидание реального impact-запроса.</span></div></aside></div>
+    </section>
+
+    <section class="view" id="view-diagnostics">
+      <div class="page-head"><div><span class="eyebrow">// ДИАГНОСТИКА</span><h1>Неизвестные и неоднозначные области</h1><p>Каждая проблема локализована до файла, строки, области действия и связанной библиотеки.</p></div></div>
+      <div class="metric-grid" style="grid-template-columns:repeat(4,1fr)"><div class="metric"><label>Неизвестные области</label><strong>8</strong></div><div class="metric"><label>Неоднозначные получатели</label><strong>3</strong></div><div class="metric"><label>Неподдерживаемая семантика</label><strong>2</strong></div><div class="metric"><label>Ошибки проверок качества</label><strong class="accent">0</strong></div></div>
+      <div class="filters-row"><select><option>Все категории</option><option>Неразрешённый вызов</option><option>Динамический путь</option></select><select><option>Любая важность</option><option>Высокая</option><option>Средняя</option></select><input type="text" placeholder="Filter by file or library"><span class="spacer"></span><span class="status-pill warn">tree-sitter: partial_native</span></div>
+      <div class="diag-list" id="diagList"></div>
+    </section>
+
+    <section class="view" id="view-queries">
+      <div class="page-head"><div><span class="eyebrow">// РАБОЧАЯ ОБЛАСТЬ ЗАПРОСОВ</span><h1>Готовые типизированные запросы</h1><p>Каждая команда преобразуется в конкретный контракт API, а не отправляется как свободная строка.</p></div></div>
+      <div class="panel" style="margin-bottom:12px"><div class="controls-grid" style="grid-template-columns:1fr auto"><label class="field"><span>Текущий целевой узел</span><select id="queryTarget"></select></label><code class="fingerprint" id="typedTarget">типизированная цель</code></div></div>
+      <div class="query-grid" id="queryGrid"></div>
+      <div class="panel query-result"><div class="panel-head"><div><span class="eyebrow">// ОТВЕТ API</span><h2 id="queryResultTitle">Выберите запрос</h2></div><span class="status-pill good">типизировано</span></div><pre class="api-json" id="queryResult">{
+  "status": "ready",
+  "message": "Выберите типизированный запрос выше"
+}</pre></div>
+    </section>
+
+  </main>
+
+  <footer class="statusbar"><span class="status-good" id="backendStatus"><i class="dot"></i>Подключение к backend…</span><span id="graphFingerprint">graph: —</span><span id="analysisTiming">анализ: —</span><span>синхронизация: локальный API</span><span class="spacer"></span><span id="backendProject">проект: —</span><span id="visibleCount">видно 0 из 0</span></footer>
+</div>
+
+<div class="modal-backdrop" id="modal"><div class="modal"><div class="modal-head"><div><span class="eyebrow">// ОБЪЯСНЕНИЕ СВЯЗИ</span><h2 id="modalTitle">Доказательства связи</h2></div><button class="icon-btn" id="closeModal"><svg class="ico"><use href="#i-x"/></svg></button></div><div class="modal-body" id="modalBody"></div></div></div>
+<div class="toast" id="toast">Скопировано</div>
+
+<svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true"><defs>
+<symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.7 8.7 0 1 0 20.5 14.2Z"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol><symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.97 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.52-1H3v-4h.08A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88L4.2 7.06l2.83-2.83.06.06A1.7 1.7 0 0 0 8.97 4.6 1.7 1.7 0 0 0 10 3.08V3h4v.08a1.7 1.7 0 0 0 1.03 1.52 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.6.62 1.05 1.2 1.08H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></symbol>
+<symbol id="i-overview" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol><symbol id="i-graph" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="12" cy="19" r="2"/><path d="m6.5 10.5 4-4M13.5 6.5l4 4M17.5 13.5l-4 4M10.5 17.5l-4-4"/></symbol><symbol id="i-impact" viewBox="0 0 24 24"><path d="M4 12h5l3-8 3 16 3-8h2"/></symbol><symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19Z"/><path d="M12 9v4M12 17h.01"/></symbol><symbol id="i-package" viewBox="0 0 24 24"><path d="m12 2 9 5-9 5-9-5zM3 7v10l9 5 9-5V7M12 12v10"/></symbol><symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></symbol><symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 6v5h-5M4 18v-5h5"/><path d="M18.5 9A7 7 0 0 0 6 6.5L4 11M5.5 15A7 7 0 0 0 18 17.5l2-4.5"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol><symbol id="i-stack" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5"/></symbol><symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></symbol><symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h3a3 3 0 0 0 3-3V9a3 3 0 0 1 3-3"/></symbol><symbol id="i-test" viewBox="0 0 24 24"><path d="M9 3h6M10 3v5l-5 10a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3L14 8V3M8 15h8"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol><symbol id="i-code" viewBox="0 0 24 24"><path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14"/></symbol><symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></symbol><symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></symbol><symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m4 17 5-5 4 4 2-2 5 5"/></symbol><symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></symbol><symbol id="i-focus" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-6 10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2L14 9V3M7 15h10"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+</defs></svg>
+
+<script src="vendor/force-graph-1.51.4.min.js"></script>
+<script src="vendor/3d-force-graph-1.80.0.min.js"></script>
+<script>
+(function(){
+'use strict';
+const memoryStorage={};
+const storage={
+ getItem(k){try{return storage.getItem(k)}catch(e){return memoryStorage[k]??null}},
+ setItem(k,v){try{storage.setItem(k,v)}catch(e){memoryStorage[k]=String(v)}},
+ removeItem(k){try{storage.removeItem(k)}catch(e){delete memoryStorage[k]}}
+};
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const toast=(msg)=>{const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.classList.remove('show'),1800)};
+const escapeHtml=s=>String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const icon=(id)=>`<svg class="ico"><use href="#${id}"/></svg>`;
+
+/* Legacy design sample data is intentionally kept out of the runtime. The
+   browser state below is populated exclusively by /api/graph.
+const coreNodes=[
+['ui.OrderCreateForm','OrderCreateForm','COMPONENT','typescript','web/src/components/OrderCreateForm.tsx',18,80,90,'frontend'],
+['hook.useOrders','useOrders','HOOK','typescript','web/src/hooks/useOrders.ts',8,260,90,'frontend'],
+['client.orders.createOrder','createOrder','FUNCTION','typescript','web/src/api/ordersClient.ts',12,440,90,'api_client'],
+['http.postJson','postJson','FUNCTION','typescript','web/src/api/http.ts',21,620,90,'http_wrapper'],
+['endpoint.POST_orders','POST /api/v1/orders','ENDPOINT','http','contracts/openapi.yaml',44,800,90,'endpoint'],
+['route.orders.create_order','create_order','ROUTE','python','app/api/orders.py',42,980,90,'route'],
+['service.OrderService.create_order','OrderService.create_order','METHOD','python','app/services/order_service.py',31,980,230,'service'],
+['repository.OrderRepository.save','OrderRepository.save','METHOD','python','app/repositories/order_repository.py',54,800,230,'repository'],
+['orm.Session.add','Session.add','METHOD','python','site-packages/sqlalchemy/orm/session.py',3463,620,230,'external'],
+['model.Order','Order','MODEL','python','app/models/order.py',12,440,230,'model'],
+['db.orders','orders','TABLE','sql','db/schema.sql',25,260,230,'database'],
+['test.api.test_create_order','test_create_order','TEST','python','tests/api/test_orders.py',16,980,390,'test'],
+['test.web.order_form','OrderCreateForm.test','TEST','typescript','web/src/components/OrderCreateForm.test.tsx',20,800,390,'test']
+];
+const more=[];
+const kinds=['FUNCTION','METHOD','CLASS','ROUTE','TEST','CONFIG','MODEL','SERVICE'];
+for(let i=0;i<39;i++){
+  const lang=i%5===0?'typescript':i%7===0?'sql':'python';
+  const kind=kinds[i%kinds.length];
+  const col=i%6,row=Math.floor(i/6);
+  more.push([`aux.node.${i+1}`,['validate_payload','normalize_money','publish_event','load_customer','apply_discount','reserve_stock','calculate_tax','commit_transaction','retry_policy','serialize_order','audit_log','resolve_tenant'][i%12]+'_'+(i+1),kind,lang,`${lang==='typescript'?'web/src':'app'}/modules/${i%8}/node_${i+1}.${lang==='typescript'?'ts':lang==='sql'?'sql':'py'}`,10+i,95+col*175,520+row*115,kind==='TEST'?'test':kind==='ROUTE'?'route':'internal']);
+}
+const nodes=[...coreNodes,...more].map((n,i)=>({id:n[0],name:n[1],kind:n[2],language:n[3],file:n[4],line:n[5],x:n[6],y:n[7],role:n[8],confidence:i<13?[.98,.97,.96,.94,.99,.98,.96,.91,.9,.99,.99,.95,.92][i]:Math.max(.42,.96-(i%9)*.06),impact:Math.round(25+((i*17)%71)),canonical:`${n[3]}://${n[4]}#${n[1]}`}));
+const edges=[];let eid=1;
+const add=(from,to,kind='CALLS',status='confirmed',confidence=.92,source='CONFIRMED')=>edges.push({id:'edge-'+eid++,from,to,kind,status,confidence,source});
+add(coreNodes[0][0],coreNodes[1][0]);add(coreNodes[1][0],coreNodes[2][0]);add(coreNodes[2][0],coreNodes[3][0]);add(coreNodes[3][0],coreNodes[4][0],'HTTP_CALL','confirmed',.94);add(coreNodes[4][0],coreNodes[5][0],'ROUTE_DISPATCH','confirmed',.99);add(coreNodes[5][0],coreNodes[6][0],'CALLS','confirmed',.96);add(coreNodes[6][0],coreNodes[7][0],'CALLS','likely',.85,'INFERRED');add(coreNodes[7][0],coreNodes[8][0],'CALLS','likely',.89,'INFERRED');add(coreNodes[7][0],coreNodes[9][0],'WRITES','confirmed',.94);add(coreNodes[9][0],coreNodes[10][0],'MAPS_TO','confirmed',.99);add(coreNodes[11][0],coreNodes[5][0],'COVERS','confirmed',.95);add(coreNodes[12][0],coreNodes[0][0],'COVERS','confirmed',.92);
+for(let i=0;i<39;i++){
+ const a=more[i][0], target=i%5===0?coreNodes[6][0]:i%5===1?coreNodes[7][0]:i%5===2?more[Math.max(0,i-2)][0]:i%5===3?coreNodes[5][0]:coreNodes[9][0];
+ const st=i%13===0?'unresolved':i%9===0?'suspicious':i%4===0?'likely':'confirmed';
+ const conf=st==='unresolved'?.35:st==='suspicious'?.48:st==='likely'?.72:.9;
+ add(a,target,i%7===0?'IMPORTS':i%6===0?'READS':'CALLS',st,conf,st==='confirmed'?'CONFIRMED':st==='unresolved'?'UNRESOLVED':'INFERRED');
+ if(i>2 && i%3===0) add(more[i-1][0],a,'CALLS',i%10===0?'suspicious':'likely',i%10===0?.52:.76,'INFERRED');
+}
+while(edges.length<68){const i=edges.length%more.length;add(more[i][0],more[(i+7)%more.length][0],'RELATED',i%11===0?'suspicious':'likely',i%11===0?.51:.7,'INFERRED')}
+/*
+
+const diagnostics=[
+{sev:'high',category:'Неразрешённый вызов',scope:'EventPublisher.publish',file:'app/events/publisher.py:48',explanation:'Тип получателя поступает из динамического реестра плагинов.',action:'Исследовать шаблон провайдера acme-events',lib:'acme-events'},
+{sev:'medium',category:'Неоднозначный получатель',scope:'payment.charge',file:'app/services/checkout.py:77',explanation:'Две реализации соответствуют одному протоколу.',action:'Добавить доказательство привязки провайдера',lib:'payments-sdk'},
+{sev:'medium',category:'Динамический путь',scope:'API_BASE + route',file:'web/src/api/http.ts:19',explanation:'Базовый URL определяется переменной окружения во время выполнения.',action:'Указать профиль окружения',lib:'axios'},
+{sev:'low',category:'Отсутствующий символ',scope:'LegacyOrderDto',file:'app/legacy/adapter.py:12',explanation:'Символ импортируется только внутри TYPE_CHECKING.',action:'Индексировать импорты только для типов',lib:'stdlib'},
+{sev:'medium',category:'Неподдерживаемая семантика',scope:'@transactional',file:'app/repositories/order_repository.py:50',explanation:'Семантика декоратора не покрыта текущим пакетом.',action:'Расширить пакет поддержки SQLAlchemy',lib:'sqlalchemy'},
+{sev:'low',category:'Неразрешённый префикс маршрута',scope:'router.prefix',file:'app/api/router.py:8',explanation:'Префикс собирается из настроек при запуске.',action:'Зафиксировать конфигурационную константу',lib:'fastapi'},
+{sev:'medium',category:'Неразрешённый импорт',scope:'acme_events.kafka',file:'app/events/kafka.py:4',explanation:'Для сторонней библиотеки нет проверенного пакета поддержки.',action:'Запустить исследование библиотеки',lib:'acme-events'},
+{sev:'low',category:'Диагностика парсера',scope:'generated/client.ts',file:'web/src/generated/client.ts:1',explanation:'Сгенерированный файл пропущен согласно политике.',action:'Оставить пропуск или изменить фильтр generated',lib:'typescript'}
+];
+const libraries=[
+['fastapi','Python','0.115.0','активна','проверено на реальном проекте','0.98','маршруты, DI, зависимости','2 ч назад'],
+['sqlalchemy','Python','2.0.36','активна','доверенный','0.97','ORM, сессии, модели','1 д назад'],
+['react','TypeScript','19.0.0','активна','проверено на реальном проекте','0.95','компоненты, хуки','4 ч назад'],
+['axios','TypeScript','1.7.9','активна','проверено на тестовом проекте','0.90','HTTP-клиенты, перехватчики','5 д назад'],
+['pytest','Python','8.3.4','активна','доверенный','0.98','тесты, фикстуры','3 д назад'],
+['vitest','TypeScript','2.1.8','активна','проверено на тестовом проекте','0.91','тесты, моки','6 д назад'],
+['pydantic','Python','2.10.4','активна','доверенный','0.98','модели, валидаторы','1 д назад'],
+['acme-events','Python','0.4.2','неизвестна','черновик','0.40','только импорты','никогда'],
+['react-router','TypeScript','7.1.1','активна','проверено на тестовом проекте','0.88','маршруты, загрузчики','8 д назад'],
+['alembic','Python','1.14.0','требует проверки','подготовлен','0.72','миграции','32 д назад'],
+['zod','TypeScript','3.24.1','активна','проверено на тестовом проекте','0.89','схемы','4 д назад'],
+['tenacity','Python','9.0.0','активна','проверено на тестовом проекте','0.84','декораторы повторов','11 д назад']
+];
+
+*/
+const nodes=[];const edges=[];let eid=1;const diagnostics=[];const libraries=[];
+const nodeById=id=>nodes.find(n=>n.id===id);
+function switchView(name){
+ $$('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+name));
+ $$('.nav button[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
+ $('#sidebar').classList.remove('open');
+ storage.setItem('impact-view',name);
+ if(name==='graph'){requestAnimationFrame(()=>{fitGraph();resize3d()})}
+}
+$$('.nav button[data-view]').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
+$$('[data-go]').forEach(b=>b.onclick=()=>switchView(b.dataset.go));
+$('#menuBtn').onclick=()=>$('#sidebar').classList.toggle('open');
+const themeMeta=document.querySelector('meta[name="theme-color"]');
+function applyTheme(theme){
+  document.documentElement.dataset.theme=theme;
+  storage.setItem('impact-theme',theme);
+  const use=$('#themeBtn use');
+  use.setAttribute('href',theme==='dark'?'#i-sun':'#i-moon');
+  $('#themeBtn').title=theme==='dark'?'Включить светлую тему':'Включить тёмную тему';
+  if(themeMeta)themeMeta.setAttribute('content',theme==='dark'?'#0d0d0d':'#f4f7f4');
+  window.__redraw3d?.();
+}
+const initialTheme=storage.getItem('impact-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');
+applyTheme(initialTheme);
+$('#themeBtn').onclick=()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('#modal').classList.remove('show');$('#filterPop').classList.remove('open')}});
+
+// Graph render. Both views use the same real GraphDocument through force-graph.
+const graph2dEl=$('#graph2d'),graph3dEl=$('#graph3d');
+let graph2dEngine=null,graph3dEngine=null,selectedNode=null,selectedEdge=null,graphMode='2d',filteredNodes=nodes.slice();
+const statusColor=status=>({confirmed:'#79ffbc',resolved:'#79ffbc',likely:'#79d9da',suspicious:'#ffd76b',unresolved:'#ff8ca0',ambiguous:'#ff8ca0'}[status]||'#9eecc3');
+function nodeColor(node){
+ if(node.id===selectedNode)return '#effff4';
+ if(node.role==='repository'||node.role==='database')return '#c8a6ff';
+ if(node.role==='route'||node.role==='endpoint'||node.role==='api_client'||node.role==='http_wrapper')return '#7be0e2';
+ if(node.role==='test')return '#ffd76b';
+ if(node.role==='external')return '#ff8ca0';
+ return '#8dffc4';
+}
+function graphDegree(){const result=new Map(nodes.map(node=>[node.id,0]));edges.forEach(edge=>{result.set(edge.from,(result.get(edge.from)||0)+1);result.set(edge.to,(result.get(edge.to)||0)+1)});return result}
+function visibleEdges(){const ids=new Set(filteredNodes.map(node=>node.id));return edges.filter(edge=>ids.has(edge.from)&&ids.has(edge.to))}
+function circularGraphData(){
+ const degree=graphDegree(),ordered=[...filteredNodes].sort((a,b)=>(degree.get(b.id)||0)-(degree.get(a.id)||0)||a.id.localeCompare(b.id)),golden=Math.PI*(3-Math.sqrt(5));
+ const positions=new Map(ordered.map((node,index)=>{const radius=index===0?0:42+Math.sqrt(index)*22,angle=index*golden;return[node.id,{x:Math.cos(angle)*radius,y:Math.sin(angle)*radius}]}));
+ return{nodes:filteredNodes.map(node=>({...node,...positions.get(node.id),degree:degree.get(node.id)||0})),links:visibleEdges().map(edge=>({...edge,source:edge.from,target:edge.to}))};
+}
+function sphericalGraphData(){
+ const degree=graphDegree(),ordered=[...filteredNodes].sort((a,b)=>a.id.localeCompare(b.id)),golden=Math.PI*(3-Math.sqrt(5)),count=Math.max(1,ordered.length),positions=new Map();
+ ordered.forEach((node,index)=>{const y=1-(index/(count-1||1))*2,r=Math.sqrt(Math.max(0,1-y*y)),angle=index*golden,depth=Math.min(1,(degree.get(node.id)||0)/8),radius=180-depth*34;positions.set(node.id,{x:Math.cos(angle)*r*radius,y:y*radius,z:Math.sin(angle)*r*radius})});
+ return{nodes:filteredNodes.map(node=>{const point=positions.get(node.id);return {...node,...point,fx:point.x,fy:point.y,fz:point.z,degree:degree.get(node.id)||0}}),links:visibleEdges().map(edge=>({...edge,source:edge.from,target:edge.to}))};
+}
+const manual3d={target:{x:0,y:0,z:0},yaw:.38,pitch:.18,distance:620,drag:null};
+function apply3dCamera(duration=0){
+ if(!graph3dEngine)return;const c=Math.cos(manual3d.pitch),position={x:manual3d.target.x+manual3d.distance*c*Math.sin(manual3d.yaw),y:manual3d.target.y+manual3d.distance*Math.sin(manual3d.pitch),z:manual3d.target.z+manual3d.distance*c*Math.cos(manual3d.yaw)};
+ graph3dEngine.cameraPosition(position,manual3d.target,duration);
+}
+function reset3dCamera(){manual3d.target={x:0,y:0,z:0};manual3d.yaw=.38;manual3d.pitch=.18;manual3d.distance=620;apply3dCamera(320)}
+function install3dControls(){
+ const controls=graph3dEngine.controls();if(controls)controls.enabled=false;
+ graph3dEl.addEventListener('contextmenu',event=>event.preventDefault());
+ graph3dEl.addEventListener('pointerdown',event=>{if(event.button!==0&&event.button!==2)return;manual3d.drag={button:event.button,x:event.clientX,y:event.clientY};event.target.setPointerCapture?.(event.pointerId);if(event.button===2)event.preventDefault()});
+ graph3dEl.addEventListener('pointermove',event=>{const drag=manual3d.drag;if(!drag)return;const dx=event.clientX-drag.x,dy=event.clientY-drag.y;drag.x=event.clientX;drag.y=event.clientY;if(drag.button===0){manual3d.yaw+=dx*.006;manual3d.pitch=Math.max(-1.35,Math.min(1.35,manual3d.pitch+dy*.006))}else{const pan=manual3d.distance*.0018;manual3d.target.x-=dx*pan;manual3d.target.y+=dy*pan}apply3dCamera()});
+ graph3dEl.addEventListener('pointerup',event=>{manual3d.drag=null;event.target.releasePointerCapture?.(event.pointerId)});graph3dEl.addEventListener('pointercancel',()=>manual3d.drag=null);
+ graph3dEl.addEventListener('wheel',event=>{event.preventDefault();manual3d.distance=Math.max(260,Math.min(1800,manual3d.distance*(event.deltaY>0?1.12:.89)));apply3dCamera()},{passive:false});
+ graph3dEl.addEventListener('dblclick',event=>{if(graphMode==='3d'){event.preventDefault();reset3dCamera()}});
+}
+function draw2dNode(node,ctx,scale){
+ const linked=selectedNode&&visibleEdges().some(edge=>(edge.from===selectedNode&&edge.to===node.id)||(edge.to===selectedNode&&edge.from===node.id));
+ const dim=selectedNode&&node.id!==selectedNode&&!linked,selected=node.id===selectedNode;
+ const radius=(selected?5.8:2.1+Math.min(3.2,Math.sqrt(node.degree||0)*.74))/scale;
+ ctx.save();ctx.globalAlpha=dim?.14:1;ctx.shadowColor=nodeColor(node);ctx.shadowBlur=(selected?18:7)/scale;
+ ctx.fillStyle=nodeColor(node);ctx.beginPath();ctx.arc(node.x,node.y,radius,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+ if(selected||scale>2.1){ctx.fillStyle='#ecfff2';ctx.font=`${Math.max(4.5,10/scale)}px ui-monospace,monospace`;ctx.fillText(node.name,node.x+radius+3/scale,node.y-radius-2/scale)}
+ ctx.restore();
+}
+function linkColor(link){if(selectedEdge===link.id)return '#ffffff';if(selectedNode&&link.source?.id!==selectedNode&&link.target?.id!==selectedNode&&link.source!==selectedNode&&link.target!==selectedNode)return 'rgba(124,255,185,.08)';return statusColor(link.status)}
+function ensureForceGraphs(){
+ if(graph2dEngine&&graph3dEngine)return true;
+ if(typeof window.ForceGraph!=='function'||typeof window.ForceGraph3D!=='function'){console.error('Force graph libraries were not loaded');return false}
+ graph2dEngine=window.ForceGraph()(graph2dEl).nodeId('id').linkSource('source').linkTarget('target').nodeLabel(node=>`${node.name}\n${node.kind}`).nodeCanvasObjectMode(()=> 'replace').nodeCanvasObject(draw2dNode).linkColor(linkColor).linkWidth(link=>selectedEdge===link.id?2.1:link.status==='confirmed'?1.1:.72).linkDirectionalArrowLength(3.1).linkDirectionalArrowRelPos(.98).linkDirectionalArrowColor(linkColor).onNodeClick(node=>selectNode(node.id)).onLinkClick(link=>selectEdge(link.id)).onBackgroundClick(clearGraphSelection).onNodeHover(node=>graph2dEl.style.cursor=node?'pointer':'grab').backgroundColor('#020806').d3AlphaDecay(.075).d3VelocityDecay(.52).warmupTicks(0).cooldownTicks(90);
+ graph2dEngine.d3Force('charge').strength(-76);graph2dEngine.d3Force('link').distance(34).strength(.42);
+ graph3dEngine=window.ForceGraph3D()(graph3dEl).nodeId('id').linkSource('source').linkTarget('target').nodeLabel(node=>`${node.name}\n${node.kind}`).nodeColor(nodeColor).nodeVal(node=>node.id===selectedNode?6.5:1.7+Math.min(3.2,node.degree||0)).nodeRelSize(3.3).linkColor(linkColor).linkWidth(link=>selectedEdge===link.id?1.9:link.status==='confirmed'?.95:.56).linkOpacity(.74).linkDirectionalArrowLength(2.25).linkDirectionalArrowRelPos(.98).onNodeClick(node=>selectNode(node.id)).onLinkClick(link=>selectEdge(link.id)).onBackgroundClick(clearGraphSelection).onNodeHover(node=>graph3dEl.style.cursor=node?'pointer':'grab').showNavInfo(false).backgroundColor('#020806').d3AlphaDecay(.1).d3VelocityDecay(.7).warmupTicks(0).cooldownTicks(1);
+ install3dControls();
+ return true;
+}
+function resize3d(){
+ if(!ensureForceGraphs())return;const stage=$('#graphStage'),width=Math.max(1,stage.clientWidth),height=Math.max(1,stage.clientHeight);
+ graph2dEngine.width(width).height(height);graph3dEngine.width(width).height(height);
+}
+function draw3d(){refreshHighlights()}
+function renderGraph(){
+ const hasNodes=filteredNodes.length>0;$('#graphEmpty').classList.toggle('show',!hasNodes);if(!ensureForceGraphs())return;
+ resize3d();graph2dEngine.graphData(circularGraphData());graph3dEngine.graphData(sphericalGraphData());
+ requestAnimationFrame(()=>{if(hasNodes)fitGraph()});
+}
+function selectNode(id){selectedNode=id;selectedEdge=null;const node=nodeById(id);if(node)renderInspector(node);refreshHighlights();storage.setItem('impact-selected-node',id)}
+function selectEdge(id){selectedEdge=id;selectedNode=null;const edge=edges.find(item=>item.id===id);if(edge)showEdgeModal(edge);refreshHighlights()}
+function refreshHighlights(){
+ if(!graph2dEngine||!graph3dEngine)return;
+ graph2dEngine.nodeCanvasObject(draw2dNode).linkColor(linkColor).linkWidth(link=>selectedEdge===link.id?2.1:link.status==='confirmed'?1.1:.72).linkDirectionalArrowColor(linkColor);
+ graph3dEngine.nodeColor(nodeColor).nodeVal(node=>node.id===selectedNode?6.5:1.7+Math.min(3.2,node.degree||0)).linkColor(linkColor).linkWidth(link=>selectedEdge===link.id?1.9:link.status==='confirmed'?.95:.56);
+}
+function clearGraphSelection(){selectedNode=null;selectedEdge=null;$('#inspectorEmpty').style.display='grid';$('#inspectorBody').classList.remove('show');refreshHighlights()}
+function fitGraph(){
+ if(!graph2dEngine||!filteredNodes.length)return;resize3d();
+ if(graphMode==='3d')reset3dCamera();else graph2dEngine.zoomToFit(350,64);
+}
+function resetGraph(){selectedNode=null;selectedEdge=null;$('#inspectorEmpty').style.display='grid';$('#inspectorBody').classList.remove('show');refreshHighlights();fitGraph()}
+function focusGraphNode(node){
+ if(!node||!graph2dEngine)return;if(graphMode==='2d'){const rendered=graph2dEngine.graphData().nodes.find(item=>item.id===node.id);if(rendered){graph2dEngine.centerAt(rendered.x,rendered.y,350);graph2dEngine.zoom(3.1,350)}}else{const rendered=graph3dEngine.graphData().nodes.find(item=>item.id===node.id);if(!rendered)return;manual3d.target={x:rendered.x,y:rendered.y,z:rendered.z};manual3d.distance=280;apply3dCamera(480)}
+}
+window.__redraw3d=draw3d;
+$('#fitBtn').onclick=fitGraph;$('#resetBtn').onclick=resetGraph;
+$$('[data-mode]').forEach(button=>button.onclick=()=>{
+ graphMode=button.dataset.mode;$$('[data-mode]').forEach(item=>item.classList.toggle('active',item===button));
+ graph2dEl.classList.toggle('active',graphMode==='2d');graph3dEl.classList.toggle('active',graphMode==='3d');storage.setItem('impact-graph-mode',graphMode);
+ requestAnimationFrame(()=>{resize3d();fitGraph();draw3d()});
+});
+function renderInspector(n){
+ $('#inspectorEmpty').style.display='none';$('#inspectorBody').classList.add('show');
+ $('#nodeKind').textContent=n.kind+' · '+n.role;$('#nodeName').textContent=n.name;$('#nodeCanonical').textContent=n.canonical;
+ const rel=edges.filter(e=>e.from===n.id||e.to===n.id);
+ $('#nodeKv').innerHTML=`<div class="kv"><span>Файл</span><code>${escapeHtml(n.file)}:${n.line}</code></div><div class="kv"><span>Язык</span><b>${n.language}</b></div><div class="kv"><span>Уверенность</span><b>${Math.round(n.confidence*100)}%</b></div><div class="kv"><span>Оценка влияния</span><b>${n.impact}</b></div><div class="kv"><span>Доказательства</span><b>${Math.max(1,rel.length+1)} записей</b></div>`;
+ $('#nodeConnectionCount').textContent=rel.length;
+ $('#nodeRelations').innerHTML=rel.slice(0,8).map(e=>{const other=e.from===n.id?nodeById(e.to):nodeById(e.from);return `<div class="relation" data-rel="${escapeHtml(other.id)}"><b>${escapeHtml(other.name)}</b><br><span class="muted">${e.kind} · ${Math.round(e.confidence*100)}%</span></div>`}).join('')||'<span class="muted">Изолированный узел</span>';
+ $$('.relation').forEach(x=>x.onclick=()=>selectNode(x.dataset.rel));
+}
+function showEdgeModal(e){
+ const a=nodeById(e.from),b=nodeById(e.to);$('#modalTitle').textContent=`${a.name} → ${b.name}`;
+ const statusLabel={confirmed:'подтверждено',likely:'вероятно',suspicious:'подозрительно',unresolved:'не разрешено'}[e.status]||e.status;
+ $('#modalBody').innerHTML=`<div class="tag-list"><span class="status-pill ${e.status==='confirmed'?'good':e.status==='suspicious'?'warn':'bad'}">${statusLabel}</span><span class="tag">${e.kind}</span><span class="tag green">${Math.round(e.confidence*100)}% уверенности</span><span class="tag">${e.source}</span></div><div style="margin-top:18px"><div class="evidence-step"><strong>Тип получателя разрешён</strong><p>Статические данные о типах связывают получателя вызова с конкретной реализацией сервиса.</p></div><div class="evidence-step"><strong>Найдена привязка конструктора</strong><p>Назначение провайдера соединяет параметр конструктора с реализацией репозитория.</p></div><div class="evidence-step"><strong>Метод подтверждён</strong><p>Сигнатура целевого метода соответствует аргументам вызова и области видимости.</p></div></div><div class="notice"><svg class="ico"><use href="#i-check"/></svg><span>Резолвер: <code>constructor_binding_resolver</code>. Объяснение воспроизводится из фактов графа.</span></div>`;
+ $('#modal').classList.add('show');
+}
+$('#closeModal').onclick=()=>$('#modal').classList.remove('show');$('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('show')};
+$('#inspectImpact').onclick=async()=>{if(!selectedNode)return;$('#impactTarget').value=selectedNode;switchView('impact');await runRealImpact()};
+$('#copyNode').onclick=()=>{if(selectedNode)navigator.clipboard?.writeText(selectedNode).then(()=>toast('ID узла скопирован')).catch(()=>toast(selectedNode))};
+$('#focusNode').onclick=()=>{if(selectedNode)focusGraphNode(nodeById(selectedNode))};
+$('#filterBtn').onclick=e=>{e.stopPropagation();$('#filterPop').classList.toggle('open')};document.addEventListener('click',e=>{if(!e.target.closest('#filterPop'))$('#filterPop').classList.remove('open')});
+['graphSearch','languageFilter','sourceFilter','confidenceFilter','hideTests','hideExternal'].forEach(id=>$('#'+id).addEventListener(id==='graphSearch'?'input':'change',applyFilters));
+function applyFilters(){const q=$('#graphSearch').value.trim().toLowerCase(),lang=$('#languageFilter').value,source=$('#sourceFilter').value,min=+$('#confidenceFilter').value;$('#confLabel').textContent=min.toFixed(2);filteredNodes=nodes.filter(n=>(!q||(n.name+' '+n.id+' '+n.file).toLowerCase().includes(q))&&(lang==='all'||n.language===lang)&&(!$('#hideTests').checked||n.kind!=='TEST')&&(!$('#hideExternal').checked||n.role!=='external'));if(source!=='all'){const ids=new Set(edges.filter(e=>e.source===source&&e.confidence>=min).flatMap(e=>[e.from,e.to]));filteredNodes=filteredNodes.filter(n=>ids.has(n.id))}else if(min>0){const ids=new Set(edges.filter(e=>e.confidence>=min).flatMap(e=>[e.from,e.to]));filteredNodes=filteredNodes.filter(n=>ids.has(n.id))}$('#visibleCount').textContent=`видно ${filteredNodes.length} из ${nodes.length}`;renderGraph()}
+$('#clearFilters').onclick=()=>{$('#graphSearch').value='';$('#languageFilter').value='all';$('#sourceFilter').value='all';$('#confidenceFilter').value=0;$('#hideTests').checked=false;$('#hideExternal').checked=false;applyFilters()};
+$('#exportJson').onclick=()=>{const blob=new Blob([JSON.stringify({nodes,edges,metadata:realGraphMetadata},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='graph.json';a.click();URL.revokeObjectURL(a.href);toast('Реальный graph.json экспортирован')};
+$('#exportPng').onclick=()=>{const canvas=(graphMode==='3d'?graph3dEl:graph2dEl).querySelector('canvas');if(!canvas){toast('Граф ещё не готов к экспорту');return}const a=document.createElement('a');a.download=`impact-graph-${graphMode}.png`;a.href=canvas.toDataURL('image/png');a.click();toast('PNG экспортирован')};
+window.addEventListener('resize',resize3d);
+
+/* Legacy SVG/canvas renderer kept only as historical reference. It is not executed.
+function applyTransform(){viewport.setAttribute('transform',`translate(${transform.x} ${transform.y}) scale(${transform.k})`)}
+svg.addEventListener('wheel',e=>{e.preventDefault();const rect=svg.getBoundingClientRect(),mx=(e.clientX-rect.left)/rect.width*1100,my=(e.clientY-rect.top)/rect.height*760;const old=transform.k,next=Math.min(3.5,Math.max(.3,old*(e.deltaY>0?.9:1.1)));transform.x=mx-(mx-transform.x)*(next/old);transform.y=my-(my-transform.y)*(next/old);transform.k=next;applyTransform()},{passive:false});
+svg.addEventListener('pointerdown',e=>{if(e.target.closest('.node')||e.target.closest('.edge'))return;drag={x:e.clientX,y:e.clientY,tx:transform.x,ty:transform.y};svg.setPointerCapture(e.pointerId)});svg.addEventListener('pointermove',e=>{if(!drag)return;const r=svg.getBoundingClientRect();transform.x=drag.tx+(e.clientX-drag.x)/r.width*1100;transform.y=drag.ty+(e.clientY-drag.y)/r.height*760;applyTransform()});svg.addEventListener('pointerup',()=>drag=null);svg.onclick=e=>{if(e.target===svg){selectedNode=null;selectedEdge=null;$('#inspectorEmpty').style.display='grid';$('#inspectorBody').classList.remove('show');refreshHighlights()}};
+function fitGraph(){transform={x:20,y:20,k:.84};applyTransform()}function resetGraph(){transform={x:0,y:0,k:1};applyTransform();selectedNode=null;selectedEdge=null;refreshHighlights()}
+$('#fitBtn').onclick=fitGraph;$('#resetBtn').onclick=resetGraph;
+$('#filterBtn').onclick=e=>{e.stopPropagation();$('#filterPop').classList.toggle('open')};document.addEventListener('click',e=>{if(!e.target.closest('#filterPop'))$('#filterPop').classList.remove('open')});
+['graphSearch','languageFilter','sourceFilter','confidenceFilter','hideTests','hideExternal'].forEach(id=>$('#'+id).addEventListener(id==='graphSearch'?'input':'change',applyFilters));
+function applyFilters(){const q=$('#graphSearch').value.trim().toLowerCase(),lang=$('#languageFilter').value,source=$('#sourceFilter').value,min=+$('#confidenceFilter').value;$('#confLabel').textContent=min.toFixed(2);filteredNodes=nodes.filter(n=>(!q||(n.name+' '+n.id+' '+n.file).toLowerCase().includes(q))&&(lang==='all'||n.language===lang)&&(!$('#hideTests').checked||n.kind!=='TEST')&&(!$('#hideExternal').checked||n.role!=='external'));if(source!=='all'){const ids=new Set(edges.filter(e=>e.source===source&&e.confidence>=min).flatMap(e=>[e.from,e.to]));filteredNodes=filteredNodes.filter(n=>ids.has(n.id))}else if(min>0){const ids=new Set(edges.filter(e=>e.confidence>=min).flatMap(e=>[e.from,e.to]));filteredNodes=filteredNodes.filter(n=>ids.has(n.id))}renderGraph();draw3d()}
+$('#clearFilters').onclick=()=>{$('#graphSearch').value='';$('#languageFilter').value='all';$('#sourceFilter').value='all';$('#confidenceFilter').value=0;$('#hideTests').checked=false;$('#hideExternal').checked=false;applyFilters()};
+$('#exportJson').onclick=()=>{const blob=new Blob([JSON.stringify({nodes,edges,metadata:realGraphMetadata},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='graph.json';a.click();URL.revokeObjectURL(a.href);toast('Реальный graph.json экспортирован')};
+$('#exportPng').onclick=()=>{const clone=svg.cloneNode(true);clone.setAttribute('xmlns','http://www.w3.org/2000/svg');const data=new XMLSerializer().serializeToString(clone),img=new Image(),c=document.createElement('canvas');c.width=1400;c.height=900;img.onload=()=>{const ctx=c.getContext('2d');ctx.fillStyle='#0f0f0f';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);const a=document.createElement('a');a.download='impact-graph.png';a.href=c.toDataURL('image/png');a.click();toast('PNG экспортирован')};img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(data)};
+
+// Интерактивный 3D-режим: тот же GraphDocument, что и в 2D
+// Здесь нет декоративных узлов или случайных рёбер: соответствие nodes/edges строго 1:1.
+const canvas=$('#canvas3d'),ctx=canvas.getContext('2d');
+let rotX=-.22,rotY=.38,camZoom=1,drag3d=null,dragMoved=false,raf3d=0,lastFrame=0;
+const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function hash01(text){let h=2166136261;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619)}return((h>>>0)%10000)/10000}
+function colorForNode(n){
+ if(n.role==='frontend')return 'mint';
+ if(['service','route','api_client','http_wrapper','endpoint'].includes(n.role))return 'cyan';
+ if(['repository','database','model'].includes(n.role))return 'violet';
+ if(n.role==='test')return 'amber';
+ if(n.role==='external')return 'rose';
+ return 'ice';
+}
+// X/Y наследуются из стабильного 2D-layout. Z вычисляется детерминированно по ID.
+// Поэтому переход 2D ↔ 3D не меняет топологию графа и не создаёт новые сущности.
+let actual3d=[],visual3dNodes=[],visualIndex=new Map(),visual3dEdges=[];
+function rebuild3dData(){
+ actual3d=nodes.map((n,i)=>({id:n.id,node:n,actual:true,x:(n.x-520)*.62,y:(n.y-360)*.62,z:(hash01(n.id)-.5)*360+((i%5)-2)*12,size:2.4+Math.min(3.2,n.impact/38),color:colorForNode(n)}));
+ visual3dNodes=actual3d;visualIndex=new Map(actual3d.map((n,i)=>[n.id,i]));
+ visual3dEdges=edges.map(e=>({a:visualIndex.get(e.from),b:visualIndex.get(e.to),id:e.id,edge:e,status:e.status,actual:true})).filter(e=>e.a!=null&&e.b!=null);
+}
+const stars=Array.from({length:90},(_,i)=>({x:hash01('star-x-'+i),y:hash01('star-y-'+i),r:.25+hash01('star-r-'+i)*.65,a:.06+hash01('star-a-'+i)*.18}));
+function resize3d(){
+ const r=canvas.getBoundingClientRect(),d=Math.min(2,window.devicePixelRatio||1);
+ canvas.width=Math.max(1,Math.floor(r.width*d));canvas.height=Math.max(1,Math.floor(r.height*d));
+ ctx.setTransform(d,0,0,d,0,0);draw3d()
+}
+function rotate3d(v){
+ const cy=Math.cos(rotY),sy=Math.sin(rotY),cx=Math.cos(rotX),sx=Math.sin(rotX);
+ const x1=v.x*cy-v.z*sy,z1=v.x*sy+v.z*cy,y1=v.y*cx-z1*sx,z2=v.y*sx+z1*cx;
+ return{x:x1,y:y1,z:z2}
+}
+function projectVisual(v,w,h){
+ const q=rotate3d(v),f=720/(760+q.z),scale=Math.min(w,h)/650*camZoom;
+ return{x:w/2+q.x*f*scale,y:h/2+q.y*f*scale,z:q.z,p:f,scale}
+}
+function theme3d(){
+ const light=document.documentElement.dataset.theme==='light';
+ return light?{
+   bg:'#f5f9f6',star:'38,72,48',text:'#182019',
+   mint:'47,158,62',cyan:'38,137,141',violet:'112,91,170',amber:'201,131,20',rose:'205,64,91',ice:'70,118,156',
+   line:'75,115,84',muted:'102,127,109'
+ }:{
+   bg:'#061214',star:'133,217,191',text:'#f5fff9',
+   mint:'100,239,181',cyan:'111,212,217',violet:'188,173,255',amber:'248,205,83',rose:'255,133,145',ice:'164,205,255',
+   line:'98,208,171',muted:'128,178,161'
+ };
+}
+function rgba(rgb,a){return `rgba(${rgb},${a})`}
+function visible3dState(){
+ const ids=new Set(filteredNodes.map(n=>n.id));
+ const visibleEdges=visual3dEdges.filter(e=>ids.has(actual3d[e.a].id)&&ids.has(actual3d[e.b].id));
+ return{ids,visibleEdges};
+}
+function draw3d(){
+ if(graphMode!=='3d')return;
+ const r=canvas.getBoundingClientRect(),w=r.width,h=r.height,pal=theme3d(),state=visible3dState();
+ ctx.clearRect(0,0,w,h);ctx.fillStyle=pal.bg;ctx.fillRect(0,0,w,h);
+ stars.forEach(s=>{ctx.globalAlpha=s.a;ctx.fillStyle=rgba(pal.star,1);ctx.beginPath();ctx.arc(s.x*w,s.y*h,s.r,0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;
+ const projected=actual3d.map(v=>projectVisual(v,w,h));
+ const neighborIds=new Set();
+ if(selectedNode){edges.forEach(e=>{if(e.from===selectedNode)neighborIds.add(e.to);if(e.to===selectedNode)neighborIds.add(e.from)})}
+ state.visibleEdges.map(e=>({e,z:(projected[e.a].z+projected[e.b].z)/2})).sort((a,b)=>a.z-b.z).forEach(({e})=>{
+   const a=projected[e.a],b=projected[e.b],edge=e.edge;
+   const linked=edge.from===selectedNode||edge.to===selectedNode;
+   const selected=edge.id===selectedEdge;
+   let col=pal.line,alpha=.24,width=.72;
+   if(edge.status==='confirmed'){col=pal.mint;alpha=.31}
+   else if(edge.status==='likely'){col=pal.cyan;alpha=.27}
+   else if(edge.status==='suspicious'){col=pal.amber;alpha=.40}
+   else if(edge.status==='unresolved'){col=pal.rose;alpha=.42}
+   if(selected||linked){alpha=.92;width=1.55}
+   else if(selectedNode){alpha*=.16}
+   const depth=Math.max(.25,Math.min(1,(a.p+b.p)/2));
+   ctx.strokeStyle=rgba(col,alpha*depth);ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()
+ });
+ actual3d.map((v,i)=>({v,i,p:projected[i]})).filter(x=>state.ids.has(x.v.id)).sort((a,b)=>a.p.z-b.p.z).forEach(({v,p})=>{
+   const selected=v.id===selectedNode,neighbor=neighborIds.has(v.id),dim=!!selectedNode&&!selected&&!neighbor;
+   const rad=Math.max(1.15,v.size*p.p*p.scale*(selected?1.55:neighbor?1.18:1));
+   const rgb=pal[v.color]||pal.mint,depth=Math.max(.28,Math.min(1.2,p.p));
+   ctx.shadowBlur=selected?19:neighbor?10:6;ctx.shadowColor=rgba(rgb,selected?.95:.45);
+   ctx.globalAlpha=dim?.18:Math.min(1,.60+depth*.32);
+   ctx.fillStyle=rgba(rgb,1);ctx.beginPath();ctx.arc(p.x,p.y,rad,0,Math.PI*2);ctx.fill();
+   ctx.shadowBlur=0;ctx.globalAlpha=1;
+   if(selected){
+     ctx.font='600 11px system-ui';
+     const label=v.node.name,tw=Math.min(250,ctx.measureText(label).width+20),lx=Math.min(w-tw-10,p.x+12),ly=Math.max(26,p.y-18);
+     ctx.fillStyle=document.documentElement.dataset.theme==='light'?'rgba(255,255,255,.96)':'rgba(7,18,16,.94)';
+     ctx.strokeStyle=rgba(pal.mint,.72);ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(lx,ly-17,tw,25,6);ctx.fill();ctx.stroke();
+     ctx.fillStyle=pal.text;ctx.fillText(label,lx+10,ly)
+   }
+ });
+ // Счётчик подтверждает, что 3D отображает тот же отфильтрованный граф, что и 2D.
+ const visibleEdgeCount=state.visibleEdges.length;
+ ctx.font='500 10px ui-monospace,monospace';
+ const badge=`${state.ids.size} узлов · ${visibleEdgeCount} связей · 1:1 с 2D`;
+ const bw=ctx.measureText(badge).width+20;
+ ctx.fillStyle=document.documentElement.dataset.theme==='light'?'rgba(255,255,255,.88)':'rgba(6,18,20,.78)';
+ ctx.strokeStyle=rgba(pal.line,.35);ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(12,12,bw,25,7);ctx.fill();ctx.stroke();
+ ctx.fillStyle=rgba(pal.muted,1);ctx.fillText(badge,22,29);
+}
+function animate3d(ts){
+ if(graphMode!=='3d'){raf3d=0;return}
+ if(!lastFrame)lastFrame=ts;const dt=Math.min(32,ts-lastFrame);lastFrame=ts;
+ if(!drag3d&&!reducedMotion)rotY+=dt*.000045;
+ draw3d();raf3d=requestAnimationFrame(animate3d)
+}
+function start3d(){if(!raf3d){lastFrame=0;raf3d=requestAnimationFrame(animate3d)}}
+canvas.addEventListener('pointerdown',e=>{drag3d={x:e.clientX,y:e.clientY,rx:rotX,ry:rotY};dragMoved=false;canvas.setPointerCapture(e.pointerId)});
+canvas.addEventListener('pointermove',e=>{if(!drag3d)return;const dx=e.clientX-drag3d.x,dy=e.clientY-drag3d.y;if(Math.hypot(dx,dy)>3)dragMoved=true;rotY=drag3d.ry+dx*.006;rotX=Math.max(-1.25,Math.min(1.25,drag3d.rx+dy*.006));draw3d()});
+canvas.addEventListener('pointerup',()=>{drag3d=null});
+canvas.addEventListener('pointercancel',()=>{drag3d=null});
+canvas.addEventListener('wheel',e=>{e.preventDefault();camZoom=Math.max(.42,Math.min(2.8,camZoom*(e.deltaY>0?.91:1.1)));draw3d()},{passive:false});
+canvas.addEventListener('dblclick',()=>{rotX=-.22;rotY=.38;camZoom=1;draw3d()});
+canvas.addEventListener('click',e=>{
+ if(dragMoved)return;const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+ const state=visible3dState();let bestNode=null,nodeDist=18;
+ actual3d.forEach(v=>{if(!state.ids.has(v.id))return;const p=projectVisual(v,r.width,r.height),d=Math.hypot(p.x-mx,p.y-my);if(d<nodeDist){nodeDist=d;bestNode=v.node}});
+ if(bestNode){selectNode(bestNode.id);draw3d();return}
+ // Выбор ребра в 3D использует тот же edge ID, что и в 2D.
+ let bestEdge=null,edgeDist=7;
+ state.visibleEdges.forEach(e3=>{
+   const a=projectVisual(actual3d[e3.a],r.width,r.height),b=projectVisual(actual3d[e3.b],r.width,r.height);
+   const vx=b.x-a.x,vy=b.y-a.y,den=vx*vx+vy*vy||1,t=Math.max(0,Math.min(1,((mx-a.x)*vx+(my-a.y)*vy)/den));
+   const d=Math.hypot(mx-(a.x+vx*t),my-(a.y+vy*t));if(d<edgeDist){edgeDist=d;bestEdge=e3.edge}
+ });
+ if(bestEdge){selectEdge(bestEdge.id);draw3d()}
+});
+window.addEventListener('resize',resize3d);window.__redraw3d=draw3d;
+$$('[data-mode]').forEach(b=>b.onclick=()=>{
+ graphMode=b.dataset.mode;$$('[data-mode]').forEach(x=>x.classList.toggle('active',x===b));
+ svg.classList.toggle('hidden',graphMode==='3d');canvas.classList.toggle('active',graphMode==='3d');
+ storage.setItem('impact-graph-mode',graphMode);
+ if(graphMode==='3d'){resize3d();start3d();if(filteredNodes.length>1500)toast('3D отключён для слишком большого графа')}
+});
+
+
+*/
+
+// Impact
+const importantNodes=nodes.filter(n=>['METHOD','ROUTE','FUNCTION','COMPONENT','HOOK','TEST'].includes(n.kind));['impactTarget','queryTarget'].forEach(id=>$('#'+id).innerHTML=importantNodes.map(n=>`<option value="${escapeHtml(n.id)}">${escapeHtml(n.name)} · ${n.kind}</option>`).join(''));
+$('#impactTarget').value='repository.OrderRepository.save';$('#queryTarget').value='repository.OrderRepository.save';
+ const chains=[];
+function renderImpact(){
+ const groups=[['Подтверждено','confirmed'],['Вероятно','likely'],['Подозрительно','suspicious'],['Не разрешено','unresolved']];
+ $('#impactChains').innerHTML=groups.map(([title,status])=>`<section class="chain-section"><div class="chain-section-title"><h2><span class="status-pill ${status==='confirmed'?'good':status==='likely'?'good':status==='suspicious'?'warn':'bad'}">${title}</span></h2><span class="muted">${chains.filter(c=>c.status===status).length} цепочек</span></div><div class="chain-list">${chains.filter(c=>c.status===status).map(c=>`<article class="chain ${status}"><div class="chain-main"><i class="chain-status"></i><div class="chain-text"><strong>${c.label}</strong><div class="chain-path">${c.path.join(' → ')}</div></div><div class="chain-score"><strong>${Math.round(c.score*100)}%</strong><small>расстояние ${c.distance}</small></div></div><div class="chain-details"><div class="step-list">${c.path.map((x,j)=>`${j?'<span class="arrow">→</span>':''}<span class="step">${escapeHtml(x)}</span>`).join('')}</div><div class="calc"><b>${c.category}</b><br>Уверенность цепочки определяется самым слабым воспроизводимым ребром, классом доказательств, штрафом за расстояние и пределом неоднозначности. Альтернативных путей: ${status==='confirmed'?2:status==='likely'?1:0}.</div></div></article>`).join('')}</div></section>`).join('');
+ $$('.chain-main').forEach(x=>x.onclick=()=>x.parentElement.classList.toggle('open'));
+  const rank=[];
+ $('#impactRanking').innerHTML=rank.map((r,i)=>`<div class="rank"><span class="num">${i+1}</span><strong>${r[0]}</strong><b>${r[1]}</b></div>`).join('')
+}
+
+// Diagnostics
+$('#diagList').innerHTML=diagnostics.map(d=>`<article class="diag"><span class="status-pill ${d.sev==='high'?'bad':d.sev==='medium'?'warn':'good'}">${({high:'высокая',medium:'средняя',low:'низкая'}[d.sev]||d.sev)}</span><div><h3>${escapeHtml(d.category)} · ${escapeHtml(d.scope)}</h3><code>${escapeHtml(d.file)}</code></div><p>${escapeHtml(d.explanation)}</p><div class="diag-action"><b>Рекомендуемое действие</b><br>${escapeHtml(d.action)}<br><span class="tag" style="margin-top:5px">${escapeHtml(d.lib)}</span></div></article>`).join('');
+
+// Queries
+const queries=[
+['Что сломается при изменении?','Восходящее влияние с тестами и ранжированием доказательств.','impact','i-impact'],
+['Кто вызывает эту функцию?','Прямые и транзитивные вызывающие узлы.','impact.callers','i-graph'],
+['Какие маршруты используют этот сервис?','Пути от сервиса к публичным эндпоинтам.','impact.routes','i-route'],
+['Показать DI-цепочку','Привязки конструктора и провайдеров.','explain.di','i-stack'],
+['Показать цепочку frontend → backend','React → HTTP → FastAPI.','impact.fe_be','i-activity'],
+['Показать путь к базе данных','Нисходящий путь к ORM и таблице.','impact.database','i-code'],
+['Почему эти узлы связаны?','Воспроизводимая цепочка доказательств.','explain.edge','i-check'],
+['Показать подозрительные рёбра','Связи с низкой уверенностью и предупреждения.','diagnostics.suspicious','i-warning'],
+['Какие тесты нужно запустить?','Связанные тесты, ранжированные по влиянию.','impact.tests','i-test'],
+['Показать неразрешённые области','Типизированный диагностический запрос.','diagnostics.unknown','i-search']
+];
+$('#queryGrid').innerHTML=queries.map((q,i)=>`<button class="query-card" data-query="${i}"><span class="qicon">${icon(q[3])}</span><h3>${q[0]}</h3><p>${q[1]}</p><code>${q[2]}</code></button>`).join('');
+function runQuery(i){return null}
+$$('.query-card').forEach(b=>b.onclick=()=>runQuery(+b.dataset.query));$('#queryTarget').onchange=()=>$('#typedTarget').textContent='типизированная цель: '+$('#queryTarget').value;$('#queryTarget').onchange();
+
+// The browser is a real client of the local API. There is deliberately no
+// fallback graph: without a backend response the gate remains visible.
+const backendGate=$('#backendGate'), backendGateMessage=$('#backendGateMessage');
+let backendState=null,realGraphMetadata={};
+const setBackendMessage=(message)=>{backendGateMessage.textContent=message};
+const setBackendStatus=(message,good=true)=>{$('#backendStatus').innerHTML=`<i class="dot"></i>${escapeHtml(message)}`;$('#backendStatus').className=good?'status-good':'status-bad'};
+const humanStatus=(value)=>({confirmed:'подтверждено',resolved:'подтверждено',likely:'вероятно',suspicious:'подозрительно',unresolved:'не разрешено',ambiguous:'неоднозначно'}[value]||value||'не определено');
+const backendGraph=graph=>graph||{nodes:[],edges:[],metadata:{}};
+
+function refreshRealTargets(){
+ const candidates=nodes.filter(n=>['FUNCTION','METHOD','ROUTE','TEST','CLASS','CALL_EXPR'].includes(n.kind));
+ ['impactTarget','queryTarget'].forEach(id=>{
+  const el=$('#'+id);if(!el)return;
+  el.innerHTML=candidates.map(n=>`<option value="${escapeHtml(n.id)}">${escapeHtml(n.name)} · ${escapeHtml(n.kind)}</option>`).join('');
+  const defaultNode=candidates.find(n=>edges.some(edge=>edge.from===n.id||edge.to===n.id))||candidates[0];if(defaultNode)el.value=defaultNode.id;
+ });
+ $('#queryTarget').onchange=()=>$('#typedTarget').textContent='типизированная цель: '+($('#queryTarget').value||'—');
+ $('#queryTarget').onchange();
+}
+
+function renderRealDiagnostics(){
+ const report=(backendGraph(backendState?.graph).metadata||{}).unknown_regions||{};
+ const regions=report.regions||report.items||report.unknown_regions||[];
+ diagnostics.splice(0,diagnostics.length,...(Array.isArray(regions)?regions:[]).map((item,index)=>({
+  sev:item.severity||item.sev||'low',category:item.kind||item.category||'Неразрешённая область',scope:item.scope||item.subject||item.fingerprint||`region-${index+1}`,
+  file:item.file||item.location?.file||'—',explanation:item.reason||item.explanation||item.message||'Недостаточно доказательств для разрешения.',
+  action:item.action||'Добавить недостающий источник доказательств или support pack.',lib:item.library||item.lib||'—'
+ })));
+ $('#diagList').innerHTML=diagnostics.map(d=>`<article class="diag"><span class="status-pill ${d.sev==='high'?'bad':d.sev==='medium'?'warn':'good'}">${escapeHtml(humanStatus(d.sev))}</span><div><h3>${escapeHtml(d.category)} · ${escapeHtml(d.scope)}</h3><code>${escapeHtml(d.file)}</code></div><p>${escapeHtml(d.explanation)}</p><div class="diag-action"><b>Рекомендуемое действие</b><br>${escapeHtml(d.action)}<br><span class="tag" style="margin-top:5px">${escapeHtml(d.lib)}</span></div></article>`).join('');
+}
+
+function applyRealGraph(payload){
+ backendState=payload;const graph=backendGraph(payload.graph), metadata=graph.metadata||{}, rawNodes=graph.nodes||[], rawEdges=graph.edges||[];realGraphMetadata=metadata;
+  nodes.splice(0,nodes.length,...rawNodes.map((item,index)=>{const p=item.properties||{};const cols=Math.max(1,Math.ceil(Math.sqrt(rawNodes.length)));const rows=Math.max(1,Math.ceil(rawNodes.length/cols));return {id:item.id,name:item.name||item.id,kind:item.kind,language:p.language||'unknown',file:p.file||p.path||'—',line:p.line||0,x:40+(index%cols)*(1020/Math.max(1,cols-1)),y:35+Math.floor(index/cols)*(690/Math.max(1,rows-1)),role:p.semantic_role||p.role||item.kind.toLowerCase(),confidence:Number(p.confidence??1),impact:0,canonical:p.canonical_id||item.id}}));
+ edges.splice(0,edges.length,...rawEdges.map(item=>{const p=item.properties||{};const source=item.source||'EXTRACTED';const status=p.status||p.resolution_status||(source==='RUNTIME_CONFIRMED'?'confirmed':source==='AI_PROPOSED'?'unresolved':Number(item.confidence||0)>=.8?'likely':'suspicious');return {id:item.id,from:item.from,to:item.to,kind:item.kind,status,confidence:Number(item.confidence??0),source:source==='RUNTIME_CONFIRMED'?'CONFIRMED':source==='AI_PROPOSED'?'UNRESOLVED':source==='EXTRACTED'?'INFERRED':source}}));filteredNodes=nodes.slice();
+ chains.splice(0,chains.length);
+ diagnostics.splice(0,diagnostics.length);libraries.splice(0,libraries.length);const invForLibraries=payload.analysis?.inventory||{};const declaredByEco=invForLibraries.declared_dependencies_by_ecosystem||{};const externalByEco=invForLibraries.external_imports_by_ecosystem||{};const localByEco=invForLibraries.local_modules_by_ecosystem||{};const librarySeen=new Set();const ecosystems=new Set([...Object.keys(declaredByEco),...Object.keys(externalByEco)]);ecosystems.forEach(eco=>{const localRoots=localByEco[eco]||[];const candidates=new Set([...(declaredByEco[eco]||[]),...(externalByEco[eco]||[])]);candidates.forEach(name=>{const isLocal=String(name).startsWith('.')||localRoots.some(root=>name===root||String(name).startsWith(root+'/')||String(name).startsWith(root+'.'));if(isLocal)return;const key=`${eco}:${name}`;if(librarySeen.has(key))return;librarySeen.add(key);libraries.push([name,eco,'—','обнаружена','обнаружена','—','—','—'])})});
+ $('#projectSelect').value=payload.project_path||'';$('#backendProject').textContent='проект: '+(payload.project_path||'—');
+ const fp=metadata.graph_fingerprint||metadata.core_semantic_fingerprint||metadata.full_graph_fingerprint||'—';$('#graphFingerprint').textContent='graph: '+fp;
+ const timing=metadata.stage_timings_seconds||{};const seconds=Object.values(timing).reduce((a,b)=>a+Number(b||0),0);$('#analysisTiming').textContent='анализ: '+(seconds?seconds.toFixed(2)+' с':'—');
+ const inv=payload.analysis?.inventory||{};const metrics=document.querySelectorAll('#view-overview .metric strong');const routeCount=nodes.filter(n=>n.kind==='ROUTE').length;const testCount=nodes.filter(n=>n.kind==='TEST').length;const libs=(inv.declared_dependencies||[]).length+(inv.external_imports||[]).length;const totals=metadata.resolution_coverage?.totals||{};const exact=Number(totals.resolved_exact||0),inferred=Number(totals.resolved_inferred||0)+Number(totals.support_pack_resolved||0),ambiguous=Number(totals.ambiguous||0),actionable=Number(totals.actionable_unresolved||0);
+ [inv.files_count||0,nodes.length,edges.length,routeCount,testCount,libs,exact,inferred,ambiguous,actionable,seconds?seconds.toFixed(2):'—','—'].forEach((value,index)=>{if(metrics[index])metrics[index].textContent=String(value)});
+ const title=$('#view-overview h1');if(title)title.textContent=PathName(payload.project_path||'Проект');
+ const overviewPath=$('#view-overview .page-head p');if(overviewPath)overviewPath.textContent='Последний анализ: '+new Date((Number(payload.analyzed_at)||Date.now()/1000)*1000).toLocaleString('ru-RU')+' · '+(payload.project_path||'—');
+ const unknownCounts=metadata.unknown_regions?.counts||{};const diagMetrics=document.querySelectorAll('#view-diagnostics .metric strong');[Number(unknownCounts.unresolved||0),Number(unknownCounts.suspicious||0),Number(metadata.language_semantic_capabilities?Object.values(metadata.language_semantic_capabilities).filter(x=>x.capabilities?.framework_rules===false).length:0),Number((metadata.quality_gates||{}).errors||0)].forEach((value,index)=>{if(diagMetrics[index])diagMetrics[index].textContent=String(value)});
+ const navBadges=$$('.nav button .badge');[nodes.length,unknownCounts.unresolved||0,metadata.incremental_cache?.cache_hit_rate||'—'].forEach((value,index)=>{if(navBadges[index])navBadges[index].textContent=String(value)});
+ const signalLists=document.querySelectorAll('#view-overview .signal-list');if(signalLists[0]){const values=[routeCount,testCount,libraries.length,seconds?seconds.toFixed(2)+' с':'—'];signalLists[0].querySelectorAll('strong').forEach((el,index)=>{el.textContent=String(values[index]??'—')})}
+ const qualityRate=Number(totals.eligible_callsites||totals.eligible||0)?Math.round(((exact+inferred)/Number(totals.eligible_callsites||totals.eligible))*100):0;const qualityRows=$('#view-overview .quality-list')?.querySelectorAll('.quality-row');if(qualityRows?.[0]){qualityRows[0].querySelector('b').textContent=qualityRate+'%';qualityRows[0].querySelector('i').style.width=qualityRate+'%'}if(qualityRows?.[1]){qualityRows[1].querySelector('b').textContent=routeCount?'100%':'0%';qualityRows[1].querySelector('i').style.width=routeCount?'100%':'0%'}
+ const languages=payload.languages||payload.analysis?.languages||[];const health=$('.sidebar-project .project-health p');if(health)health.innerHTML=`${nodes.length} узлов · ${edges.length} рёбер<br>${languages.length} языков`;
+ const stack=$('#detectedStack');if(stack){const detectedLibraries=libraries.map(item=>item[0]);stack.innerHTML=languages.map(language=>`<span class="tag green">${escapeHtml(language)}</span>`).concat(detectedLibraries.map(library=>`<span class="tag">${escapeHtml(library)}</span>`)).join('')||'<span class="tag">нет данных</span>'}
+ const notices=$('#view-overview').querySelectorAll('.notice');if(notices[0])notices[0].textContent=`Quality guard: ${String((metadata.quality_gates||{}).status||'результат доступен в диагностике')}. Неизвестные области не маскируются под подтверждённые связи.`;
+ $('#visibleCount').textContent=`видно ${nodes.length} из ${nodes.length}`;setBackendStatus('Реальный backend подключён',true);backendGate.classList.add('hidden');
+ refreshRealTargets();renderRealDiagnostics();renderGraph();renderImpact();fitGraph();window.__redraw3d?.();
+}
+function PathName(value){return String(value).replace(/[\\/]+$/,'').split(/[\\/]/).pop()||'Проект'}
+
+function clearInitialView(){
+ document.querySelectorAll('.metric strong').forEach(el=>el.textContent='—');
+ document.querySelectorAll('.quality-list .quality-row b').forEach(el=>el.textContent='—');
+ document.querySelectorAll('.quality-list .bar i').forEach(el=>el.style.width='0%');
+ document.querySelectorAll('#view-overview .tag-list').forEach(el=>el.innerHTML='<span class="tag">нет данных</span>');
+ document.querySelectorAll('#view-overview .notice').forEach(el=>el.textContent='Ожидание данных реального анализа.');
+ const title=$('#view-overview h1');if(title)title.textContent='Проект не анализирован';
+ const subtitle=$('#view-overview .page-head p');if(subtitle)subtitle.textContent='Укажите путь к проекту и запустите анализ через локальный backend.';
+ const health=$('.sidebar-project .project-health p');if(health)health.textContent='Анализ ещё не запускался';
+ $$('.nav button .badge').forEach(b=>b.textContent='0');
+  const impactNotice=$('#view-impact .notice span');if(impactNotice)impactNotice.textContent='Ожидание реального impact-запроса.';
+  document.querySelectorAll('#view-impact .impact-summary strong').forEach(el=>el.textContent='—');
+  const status=$('#view-diagnostics .filters-row .status-pill');if(status)status.textContent='анализ ещё не запускался';
+}
+
+async function loadRealState(){
+ try{
+  const response=await fetch('/api/state',{cache:'no-store'});const state=await response.json();
+  if(state.has_analysis){const graphResponse=await fetch('/api/graph',{cache:'no-store'});const graphPayload=await graphResponse.json();if(!graphResponse.ok)throw new Error(graphPayload.error||'Graph request failed');applyRealGraph({...state,...graphPayload});await runRealImpact();return}
+  if(state.project_path)$('#projectSelect').value=state.project_path;
+  setBackendMessage('Backend доступен. Укажите путь к проекту и нажмите «Анализировать».');setBackendStatus('Backend готов, анализ не запущен',false);backendGate.classList.add('hidden');
+ }catch(error){setBackendMessage('Не удалось подключиться к /api/state. Запустите impact-engine-local-api на порту 8001.');setBackendStatus('Backend недоступен',false);console.error(error)}
+}
+
+async function analyzeFromBackend(){
+ const path=$('#projectSelect').value.trim();if(!path){setBackendMessage('Укажите абсолютный путь к проекту.');backendGate.classList.remove('hidden');return}
+ const button=$('#analyzeBtn');button.disabled=true;button.innerHTML='<span class="spinner" style="width:15px;height:15px;margin:0"></span><span>Анализируем</span>';setBackendMessage('Реальный анализ выполняется…');backendGate.classList.remove('hidden');
+ try{const response=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_path:path})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Analysis failed');applyRealGraph(data);await runRealImpact();toast('Реальный анализ проекта завершён')}
+ catch(error){setBackendMessage(String(error.message||error));setBackendStatus('Ошибка backend',false);console.error(error)}
+ finally{button.disabled=false;button.innerHTML=`${icon('i-play')}<span>Анализировать</span>`}
+}
+$('#analyzeBtn').onclick=analyzeFromBackend;
+
+async function runRealImpact(){
+ const target=$('#impactTarget').value;if(!target)return;
+  try{const response=await fetch('/api/impact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target,direction:$('#impactDirection').value,max_depth:Number($('#impactDepth').value||8),min_confidence:Number($('#impactConfidence').value||0)})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Impact query failed');const result=data.result||{};const edgeById=new Map((result.affected_edges||[]).map(e=>[e.id,e]));chains.splice(0,chains.length,...(result.impact_paths||[]).slice(0,80).map((path,index)=>{const names=[];(path.edges||[]).forEach(edgeId=>{const edge=edgeById.get(edgeId);if(edge){if(!names.length)names.push(edge.from);names.push(edge.to)}});if(!names.length)names.push(path.target);return {status:path.status||'likely',label:`Путь к ${path.target}`,score:Number(path.chain_confidence??path.confidence??0),distance:path.depth||0,path:names,category:path.chain_status||humanStatus(path.status)}}));renderImpact();const summary=document.querySelectorAll('.impact-card strong');if(summary.length>=4){summary[0].textContent=String((result.confirmed||[]).length);summary[1].textContent=String((result.likely||[]).length);summary[2].textContent=String((result.suspicious||[]).length+(result.not_resolved||[]).length);summary[3].textContent=result.context_efficiency?.context_saved_percent!=null?String(result.context_efficiency.context_saved_percent)+'%':'—'}const ranking=result.impact_ranking||[];$('#impactRanking').innerHTML=ranking.map((item,index)=>`<div class="rank"><span class="num">${index+1}</span><strong>${escapeHtml(item.node_id||item.target||'—')}</strong><b>${Math.round(Number(item.impact_score??item.score??0))}</b></div>`).join('');const efficiency=result.context_efficiency||{};const notice=document.querySelector('#view-impact .notice span');if(notice)notice.textContent=efficiency.context_saved_percent!=null?`Измеренная экономия контекста: ${efficiency.context_saved_percent}%.`:'Сокращение контекста не измерено.'}
+  catch(error){toast('Impact backend: '+error.message);console.error(error)}
+}
+$('#runImpact').onclick=async()=>{const b=$('#runImpact');b.disabled=true;b.textContent='Анализируем';await runRealImpact();b.disabled=false;b.innerHTML=`${icon('i-play')}Запустить анализ`};
+
+async function runQueryReal(i){const q=queries[i],target=$('#queryTarget').value;$('#queryResultTitle').textContent=q[0];$('#queryResult').textContent='Запрос к реальному backend…';try{const response=await fetch('/api/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:q[2],target})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Query failed');$('#queryResult').textContent=JSON.stringify(data.result,null,2)}catch(error){$('#queryResult').textContent=JSON.stringify({status:'error',error:error.message},null,2)}}
+ $$('.query-card').forEach(b=>b.onclick=()=>runQueryReal(+b.dataset.query));
+
+// No mock state is rendered: all arrays are cleared before the first render.
+nodes.splice(0,nodes.length);edges.splice(0,edges.length);diagnostics.splice(0,diagnostics.length);libraries.splice(0,libraries.length);chains.splice(0,chains.length);
+clearInitialView();
+renderGraph();renderImpact();fitGraph();
+loadRealState();
+const saved=storage.getItem('impact-view');if(saved&&$('#view-'+saved))switchView(saved);
+const savedNode=storage.getItem('impact-selected-node');if(savedNode&&nodeById(savedNode))selectNode(savedNode);
+const savedMode=storage.getItem('impact-graph-mode');if(savedMode==='3d')$$('[data-mode="3d"]')[0].click();
+})();
+</script>
+</body>
+</html>

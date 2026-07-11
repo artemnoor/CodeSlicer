@@ -1,0 +1,7 @@
+[
+  {
+    "from": "services.OrderService.create_order",
+    "to": "repositories.OrderRepository.save",
+    "kind": "CALLS"
+  }
+]

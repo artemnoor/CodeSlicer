@@ -1,0 +1,35 @@
+{
+  "status": "ok",
+  "precision": 1.0,
+  "cross_language": [
+    {
+      "fixture_id": "react_fastapi",
+      "route_match": true,
+      "status": "passed"
+    },
+    {
+      "fixture_id": "ts_gateway_fastapi",
+      "route_match": true,
+      "status": "passed"
+    },
+    {
+      "fixture_id": "two_services",
+      "route_match": true,
+      "status": "passed"
+    },
+    {
+      "fixture_id": "dynamic_params",
+      "route_match": true,
+      "status": "passed"
+    }
+  ],
+  "negative_cases": [
+    "get_post_same_path",
+    "same_path_other_service",
+    "orders_history",
+    "reexport_other_target",
+    "unresolved_dynamic_path",
+    "ambiguous_wrapper"
+  ],
+  "forbidden_violations": []
+}

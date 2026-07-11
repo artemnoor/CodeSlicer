@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.impact_engine
+output
+benchmarks/sprint6
+benchmarks/sprint6_real_projects
+benchmarks/sprint6_1
+frontend/.cache

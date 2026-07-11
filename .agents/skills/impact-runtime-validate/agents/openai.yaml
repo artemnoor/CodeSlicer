@@ -1,0 +1,4 @@
+interface:
+  display_name: "Runtime Validate"
+  short_description: "Validate static edges with tests"
+  default_prompt: "Use -runtime-validate to validate this static relationship with a test."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fullstack Impact Trace"
+  short_description: "Trace frontend to backend chains"
+  default_prompt: "Use -fullstack-trace to trace this frontend request to its backend route."

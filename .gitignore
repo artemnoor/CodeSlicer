@@ -1,0 +1,47 @@
+# Python and local tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Impact Engine runtime state and generated graphs
+.impact_engine/
+**/.impact_engine/
+output/
+graph.json
+graph_*.json
+*.runtime.json
+*.sqlite
+*.db
+
+# Browser and local UI artifacts
+.playwright-cli/
+frontend/.cache/
+
+# Generated benchmark reports and copied real-project outputs
+benchmarks/**/cli_*.json
+benchmarks/**/cli_stdout_stderr.txt
+benchmarks/**/baseline_graph.json
+benchmarks/**/impact_query_report.json
+benchmarks/sprint6_1/*.json
+benchmarks/sprint6/
+benchmarks/sprint6_real_projects/
+benchmarks/research_e2e/
+benchmarks/candidate_support_packs/
+benchmarks/promoted_support_packs/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editors and OS files
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Change Impact"
+  short_description: "Find affected nodes and evidence"
+  default_prompt: "Use -review-change to determine what this code change can affect."

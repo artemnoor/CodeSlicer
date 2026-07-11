@@ -1,0 +1,1 @@
+[{"from":"app.outer","to":"app.other.helper","kind":"CALLS"}]

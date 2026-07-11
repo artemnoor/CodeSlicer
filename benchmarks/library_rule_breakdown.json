@@ -1,0 +1,36 @@
+{
+  "fastapi": {
+    "support_pack_edges": 2,
+    "rules": [
+      "fastapi-depends-resolver-rule",
+      "fastapi-router-post-route"
+    ],
+    "provenance_complete": true,
+    "confidence_max": 0.8
+  },
+  "sqlalchemy": {
+    "support_pack_edges": 2,
+    "rules": [
+      "sqlalchemy-session-methods"
+    ],
+    "provenance_complete": true,
+    "confidence_max": 0.78
+  },
+  "dependency_injector": {
+    "support_pack_edges": 3,
+    "rules": [
+      "dependency-injector-resolver-rule"
+    ],
+    "provenance_complete": true,
+    "confidence_max": 0.8
+  },
+  "celery": {
+    "support_pack_edges": 2,
+    "rules": [
+      "celery-async-invocation",
+      "celery-shared-task"
+    ],
+    "provenance_complete": true,
+    "confidence_max": 0.78
+  }
+}

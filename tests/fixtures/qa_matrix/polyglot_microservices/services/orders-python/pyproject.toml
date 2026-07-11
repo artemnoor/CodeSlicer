@@ -1,0 +1,14 @@
+[project]
+name = "orders-python"
+version = "0.1.0"
+description = "FastAPI orders service fixture for polyglot impact-analysis tests"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.110",
+  "pytest>=8.0",
+  "httpx>=0.27"
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

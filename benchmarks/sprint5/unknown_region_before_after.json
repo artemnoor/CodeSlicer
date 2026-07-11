@@ -1,0 +1,3 @@
+{
+  "note": "limited provider closes typed receiver callsites; unsupported dynamic dispatch remains quarantined"
+}

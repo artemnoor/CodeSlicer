@@ -1,0 +1,48 @@
+{
+  "name": "Polyglot Microservices",
+  "category": "polyglot_microservices",
+  "checks": {
+    "required_edges": [
+      {
+        "from": "services.orders-python.app.service.OrderService.create_order",
+        "to": "services.orders-python.app.repository.OrderRepository.save",
+        "kind": "CALLS",
+        "description": "Python service semantic baseline remains strong inside polyglot repo"
+      },
+      {
+        "from": "api.orders.createOrder",
+        "to": "HTTP POST /api/orders",
+        "kind": "HTTP_CALLS",
+        "description": "TypeScript frontend structural endpoint call is extracted"
+      }
+    ],
+    "required_node_contains": [
+      {
+        "contains": "billing.CreateInvoiceHandler",
+        "description": "Go handler structural node exists"
+      },
+      {
+        "contains": "billing.BillingService.CreateInvoice",
+        "description": "Go service structural node exists"
+      },
+      {
+        "contains": "com.example.notifications.NotificationController",
+        "description": "Java controller structural node exists"
+      },
+      {
+        "contains": "com.example.notifications.NotificationService",
+        "description": "Java service structural node exists"
+      }
+    ],
+    "forbidden_edge_substrings": [
+      {
+        "contains": "SaveInvoice -> services.orders-python.app.repository.OrderRepository.save",
+        "description": "Go save must not be confused with Python repository save"
+      },
+      {
+        "contains": "NotificationService.send -> billing",
+        "description": "Java notification flow must not be linked to billing flow"
+      }
+    ]
+  }
+}

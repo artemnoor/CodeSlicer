@@ -1,0 +1,8 @@
+[
+  {
+    "from": "app.services.order_service.OrderService.create_order",
+    "to": "app.repositories.order_repository.OrderRepository.save",
+    "kind": "CALLS",
+    "source": "INFERRED"
+  }
+]

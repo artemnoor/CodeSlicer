@@ -1,0 +1,12 @@
+{
+  "fixture_id": "python_same_method_names",
+  "name": "python_same_method_names",
+  "category": "python",
+  "language": "python",
+  "resolver_rules": ["python.receiver_identity"],
+  "edge_kinds": ["CALLS"],
+  "project_path": "project",
+  "expected_edges": "expected_edges.json",
+  "forbidden_edges": "forbidden_edges.json",
+  "mutations": []
+}

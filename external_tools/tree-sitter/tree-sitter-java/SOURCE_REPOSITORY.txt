@@ -1,0 +1,2 @@
+Upstream: https://github.com/tree-sitter/tree-sitter-java
+Purpose: checked-in grammar source used by the polyglot parser tests.

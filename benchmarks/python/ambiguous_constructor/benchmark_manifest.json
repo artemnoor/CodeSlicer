@@ -1,0 +1,12 @@
+{
+  "fixture_id": "python_ambiguous_constructor",
+  "name": "python_ambiguous_constructor",
+  "category": "python",
+  "language": "python",
+  "resolver_rules": ["python.constructor_di"],
+  "edge_kinds": ["CALLS"],
+  "project_path": "project",
+  "expected_edges": "expected_edges.json",
+  "forbidden_edges": "forbidden_edges.json",
+  "mutations": []
+}

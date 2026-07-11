@@ -1,0 +1,23 @@
+{
+  "id": "spring",
+  "library": "spring",
+  "ecosystem": "java",
+  "language": "java",
+  "version_range": ">=5.0,<7.0",
+  "supported_versions": [">=5.0,<7.0"],
+  "status": "verified_on_fixture",
+  "trust_level": "verified_on_fixture",
+  "resolver_hooks": ["spring_web_route_resolver", "spring_di_resolver"],
+  "evidence_requirements": {"required": ["annotation", "method", "type"], "forbid_name_only": true},
+  "confidence_caps": {"verified_on_fixture": 0.8},
+  "rules": ["RestController", "GetMapping", "PostMapping", "Autowired", "Bean"],
+  "edge_rules": [
+    {"id": "spring-get-mapping", "type": "decorator_entrypoint", "match": {"decorator": "@GetMapping"}, "emit": {"from": "HTTP GET {path}", "to": "{scope}", "kind": "ROUTE_HANDLES", "source": "SUPPORT_PACK", "confidence": 0.84, "evidence_ref": "https://docs.spring.io/spring-framework/reference/web/webmvc.html"}},
+    {"id": "spring-post-mapping", "type": "decorator_entrypoint", "match": {"decorator": "@PostMapping"}, "emit": {"from": "HTTP POST {path}", "to": "{scope}", "kind": "ROUTE_HANDLES", "source": "SUPPORT_PACK", "confidence": 0.84, "evidence_ref": "https://docs.spring.io/spring-framework/reference/web/webmvc.html"}}
+  ],
+  "patterns": [], "confidence_rules": [], "playground_cases": [],
+  "fixtures": [{"name": "controller_service"}, {"name": "constructor_injection"}],
+  "negative_cases": [{"name": "wrong_mapping"}, {"name": "reflection"}],
+  "mutation_scenarios": [{"id": "remove_annotation", "operation": "remove_binding"}, {"id": "replace_service", "operation": "replace_provider"}, {"id": "second_candidate", "operation": "add_second_candidate"}],
+  "sources": [{"type": "documentation", "url": "https://docs.spring.io/spring-framework/reference/web/webmvc.html"}, {"type": "official_repository", "url": "https://github.com/spring-projects/spring-framework"}]
+}

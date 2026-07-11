@@ -1,0 +1,48 @@
+{
+  "name": "Python FastAPI UOW Backend",
+  "category": "python_fastapi_uow_backend",
+  "checks": {
+    "required_edges": [
+      {
+        "from": "app.services.orders.OrderService.complete_checkout",
+        "to": "app.uow.OrderUnitOfWork.commit",
+        "kind": "CALLS",
+        "description": "checkout service reaches UOW commit"
+      },
+      {
+        "from": "app.services.orders.OrderService.complete_checkout",
+        "to": "app.services.payments.PaymentService.charge_for_order",
+        "kind": "CALLS",
+        "description": "checkout service reaches payment service"
+      },
+      {
+        "from": "app.services.orders.OrderService.create_order",
+        "to": "app.repositories.orders.OrderRepository.save",
+        "kind": "CALLS",
+        "description": "dict-style repository alias resolves create_order -> repository.save"
+      },
+      {
+        "from": "app.services.orders.OrderService.complete_checkout",
+        "to": "app.repositories.orders.OrderRepository.find_by_id",
+        "kind": "CALLS",
+        "description": "UOW nested object graph resolves orders.find_by_id"
+      },
+      {
+        "from": "app.services.orders.OrderService.complete_checkout",
+        "to": "app.repositories.orders.OrderRepository.mark_paid",
+        "kind": "CALLS",
+        "description": "UOW nested object graph resolves orders.mark_paid"
+      }
+    ],
+    "forbidden_edge_substrings": [
+      {
+        "contains": "ROUTE_HANDLES HTTP POST /users -> app.api.v1.orders.create_order",
+        "description": "FastAPI router collision false positive must be eliminated before release"
+      },
+      {
+        "contains": "CALLS app.services.orders.OrderService.create_order -> app.repositories.orders.LegacyOrderRepository.save",
+        "description": "legacy repository must not be used by create_order"
+      }
+    ]
+  }
+}

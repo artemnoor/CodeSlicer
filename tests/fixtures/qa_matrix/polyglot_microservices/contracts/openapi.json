@@ -1,0 +1,42 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Polyglot Impact Fixture API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/orders": {
+      "post": {
+        "operationId": "createOrder",
+        "summary": "Create an order in the Python orders service",
+        "responses": {
+          "200": {
+            "description": "Order created"
+          }
+        }
+      }
+    },
+    "/api/billing/invoices": {
+      "post": {
+        "operationId": "createInvoice",
+        "summary": "Create an invoice in the Go billing service",
+        "responses": {
+          "200": {
+            "description": "Invoice created"
+          }
+        }
+      }
+    },
+    "/api/notifications/send": {
+      "post": {
+        "operationId": "sendNotification",
+        "summary": "Send a notification in the Java notifications service",
+        "responses": {
+          "200": {
+            "description": "Notification sent"
+          }
+        }
+      }
+    }
+  }
+}

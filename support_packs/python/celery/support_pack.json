@@ -1,0 +1,26 @@
+{
+  "id": "python-celery-v1",
+  "library": "celery",
+  "ecosystem": "python",
+  "version_range": ">=5.0,<6.0",
+  "supported_versions": ["5.x"],
+  "language": "python",
+  "status": "verified_on_fixture",
+  "trust_level": "verified_on_fixture",
+  "resolver_hooks": ["celery_task_registration", "celery_task_invocation"],
+  "evidence_requirements": {"required": ["decorator", "callsite"], "forbid_name_only": true},
+  "confidence_caps": {"verified_on_fixture": 0.8},
+  "rules": ["app.task", "shared_task", "delay", "apply_async"],
+  "fixtures": [{"name": "app_task", "path": "fixtures/celery/app_task.py"}, {"name": "shared_task", "path": "fixtures/celery/shared_task.py"}, {"name": "delay", "path": "fixtures/celery/delay.py"}, {"name": "apply_async", "path": "fixtures/celery/apply_async.py"}],
+  "negative_cases": [{"name": "unrelated_delay"}, {"name": "non_task_decorator"}],
+  "mutation_scenarios": [{"id": "remove_task_decorator", "operation": "remove_binding"}, {"id": "replace_task_provider", "operation": "replace_provider"}, {"id": "add_task_candidate", "operation": "add_second_candidate"}],
+  "sources": [{"type": "official_docs", "url": "https://docs.celeryq.dev/"}, {"type": "official_repository", "url": "https://github.com/celery/celery"}],
+  "patterns": [],
+  "edge_rules": [
+    {"id": "celery-app-task", "type": "task_entrypoint", "match": {"decorator": "app.task"}, "emit": {"kind": "DEPENDS_ON", "source": "SUPPORT_PACK", "confidence": 0.78, "to": "external:celery.task:{scope}", "description": "Celery app task registration", "evidence_ref": "https://docs.celeryq.dev/en/stable/userguide/tasks.html"}},
+    {"id": "celery-shared-task", "type": "task_entrypoint", "match": {"decorator": "shared_task"}, "emit": {"kind": "DEPENDS_ON", "source": "SUPPORT_PACK", "confidence": 0.78, "to": "external:celery.task:{scope}", "description": "Celery shared task registration", "evidence_ref": "https://docs.celeryq.dev/en/stable/userguide/tasks.html"}},
+    {"id": "celery-async-invocation", "type": "method_call_alias", "match": {"method": ["delay", "apply_async"], "imported_library": "celery"}, "emit": {"kind": "CALLS", "source": "SUPPORT_PACK", "confidence": 0.75, "description": "Celery asynchronous task invocation", "evidence_ref": "https://docs.celeryq.dev/en/stable/userguide/calling.html"}}
+  ],
+  "confidence_rules": [],
+  "playground_cases": []
+}

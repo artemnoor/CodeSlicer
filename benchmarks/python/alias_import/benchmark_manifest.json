@@ -1,0 +1,13 @@
+{
+  "fixture_id": "python_alias_import",
+  "name": "python_alias_import",
+  "category": "python",
+  "language": "python",
+  "resolver_rules": ["python.import_alias"],
+  "positive_support": true,
+  "edge_kinds": ["CALLS"],
+  "project_path": "project",
+  "expected_edges": "expected_edges.json",
+  "forbidden_edges": "forbidden_edges.json",
+  "mutations": [{"id":"alias-remove-import","operation":"remove_import","file":"service.py","old":"from helpers import save as persist\n","new":"","checks":["edge_removed"]},{"id":"alias-rename-call","operation":"rename_alias","file":"service.py","old":"return persist(value)","new":"return missing(value)","checks":["edge_removed"]}]
+}

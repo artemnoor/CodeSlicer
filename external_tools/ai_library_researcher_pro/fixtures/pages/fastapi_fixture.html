@@ -1,0 +1,14 @@
+<html>
+<head><title>FastAPI APIRouter examples</title></head>
+<body>
+<pre><code class="language-python">
+from fastapi import APIRouter, Depends
+
+router = APIRouter(prefix="/users")
+
+@router.get("/{user_id}")
+def read_user(user_id: str):
+    return {"user_id": user_id}
+</code></pre>
+</body>
+</html>

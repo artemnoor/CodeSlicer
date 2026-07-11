@@ -1,0 +1,3 @@
+[project]
+name='dramatiq-e2e'
+dependencies=['dramatiq']

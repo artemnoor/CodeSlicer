@@ -1,0 +1,542 @@
+{
+  "language": "java",
+  "fixtures": [
+    {
+      "fixture_id": "java_01",
+      "edges": [
+        {
+          "id": "support_pack_edge__spring__spring-get-mapping__HTTP GET /orders/1__com.example.orders1.OrderController1.get",
+          "kind": "ROUTE_HANDLES",
+          "from": "HTTP GET /orders/1",
+          "to": "com.example.orders1.OrderController1.get",
+          "source": "SUPPORT_PACK",
+          "confidence": 0.8,
+          "evidence": [
+            {
+              "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+              "file": "OrderController.java",
+              "line": 8
+            }
+          ],
+          "properties": {
+            "support_pack_library": "spring",
+            "support_pack_version": ">=5.0,<7.0",
+            "support_pack_rule_id": "spring-get-mapping",
+            "support_pack_id": "spring",
+            "resolver_hook_name": "decorator_entrypoint",
+            "support_pack_trust_level": "verified_on_fixture",
+            "support_pack_confidence_cap": 0.8,
+            "support_pack_active": true,
+            "support_pack": {
+              "support_pack": "java/spring",
+              "rule_id": "spring-get-mapping",
+              "rule_version": "1.0.0",
+              "trust_level": "verified_on_fixture",
+              "resolver_hook": "decorator_entrypoint",
+              "matched_pattern": "@GetMapping",
+              "evidence": [
+                {
+                  "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+                  "file": "OrderController.java",
+                  "line": 8,
+                  "source": null
+                }
+              ]
+            },
+            "resolution_status": "resolved",
+            "evidence_class": "support_pack_rule",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "SUPPORT_PACK",
+                "confidence": 0.8
+              }
+            ],
+            "canonical_from": "route:external_:HTTP_GET_/orders/1:8ae49100ff0a",
+            "canonical_to": "method:OrderController.java:com.example.orders1.OrderController1.get:a1c3fca469f4"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 0,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "java_02",
+      "edges": [
+        {
+          "id": "support_pack_edge__spring__spring-get-mapping__HTTP GET /orders/2__com.example.orders2.OrderController2.get",
+          "kind": "ROUTE_HANDLES",
+          "from": "HTTP GET /orders/2",
+          "to": "com.example.orders2.OrderController2.get",
+          "source": "SUPPORT_PACK",
+          "confidence": 0.8,
+          "evidence": [
+            {
+              "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+              "file": "OrderController.java",
+              "line": 8
+            }
+          ],
+          "properties": {
+            "support_pack_library": "spring",
+            "support_pack_version": ">=5.0,<7.0",
+            "support_pack_rule_id": "spring-get-mapping",
+            "support_pack_id": "spring",
+            "resolver_hook_name": "decorator_entrypoint",
+            "support_pack_trust_level": "verified_on_fixture",
+            "support_pack_confidence_cap": 0.8,
+            "support_pack_active": true,
+            "support_pack": {
+              "support_pack": "java/spring",
+              "rule_id": "spring-get-mapping",
+              "rule_version": "1.0.0",
+              "trust_level": "verified_on_fixture",
+              "resolver_hook": "decorator_entrypoint",
+              "matched_pattern": "@GetMapping",
+              "evidence": [
+                {
+                  "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+                  "file": "OrderController.java",
+                  "line": 8,
+                  "source": null
+                }
+              ]
+            },
+            "resolution_status": "resolved",
+            "evidence_class": "support_pack_rule",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "SUPPORT_PACK",
+                "confidence": 0.8
+              }
+            ],
+            "canonical_from": "route:external_:HTTP_GET_/orders/2:11b7247ce3dd",
+            "canonical_to": "method:OrderController.java:com.example.orders2.OrderController2.get:7e752f89353f"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 0,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "java_03",
+      "edges": [
+        {
+          "id": "support_pack_edge__spring__spring-get-mapping__HTTP GET /orders/3__com.example.orders3.OrderController3.get",
+          "kind": "ROUTE_HANDLES",
+          "from": "HTTP GET /orders/3",
+          "to": "com.example.orders3.OrderController3.get",
+          "source": "SUPPORT_PACK",
+          "confidence": 0.8,
+          "evidence": [
+            {
+              "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+              "file": "OrderController.java",
+              "line": 8
+            }
+          ],
+          "properties": {
+            "support_pack_library": "spring",
+            "support_pack_version": ">=5.0,<7.0",
+            "support_pack_rule_id": "spring-get-mapping",
+            "support_pack_id": "spring",
+            "resolver_hook_name": "decorator_entrypoint",
+            "support_pack_trust_level": "verified_on_fixture",
+            "support_pack_confidence_cap": 0.8,
+            "support_pack_active": true,
+            "support_pack": {
+              "support_pack": "java/spring",
+              "rule_id": "spring-get-mapping",
+              "rule_version": "1.0.0",
+              "trust_level": "verified_on_fixture",
+              "resolver_hook": "decorator_entrypoint",
+              "matched_pattern": "@GetMapping",
+              "evidence": [
+                {
+                  "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+                  "file": "OrderController.java",
+                  "line": 8,
+                  "source": null
+                }
+              ]
+            },
+            "resolution_status": "resolved",
+            "evidence_class": "support_pack_rule",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "SUPPORT_PACK",
+                "confidence": 0.8
+              }
+            ],
+            "canonical_from": "route:external_:HTTP_GET_/orders/3:1262a3875259",
+            "canonical_to": "method:OrderController.java:com.example.orders3.OrderController3.get:019da6bda7c9"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 0,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "java_04",
+      "edges": [
+        {
+          "id": "support_pack_edge__spring__spring-get-mapping__HTTP GET /orders/4__com.example.orders4.OrderController4.get",
+          "kind": "ROUTE_HANDLES",
+          "from": "HTTP GET /orders/4",
+          "to": "com.example.orders4.OrderController4.get",
+          "source": "SUPPORT_PACK",
+          "confidence": 0.8,
+          "evidence": [
+            {
+              "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+              "file": "OrderController.java",
+              "line": 8
+            }
+          ],
+          "properties": {
+            "support_pack_library": "spring",
+            "support_pack_version": ">=5.0,<7.0",
+            "support_pack_rule_id": "spring-get-mapping",
+            "support_pack_id": "spring",
+            "resolver_hook_name": "decorator_entrypoint",
+            "support_pack_trust_level": "verified_on_fixture",
+            "support_pack_confidence_cap": 0.8,
+            "support_pack_active": true,
+            "support_pack": {
+              "support_pack": "java/spring",
+              "rule_id": "spring-get-mapping",
+              "rule_version": "1.0.0",
+              "trust_level": "verified_on_fixture",
+              "resolver_hook": "decorator_entrypoint",
+              "matched_pattern": "@GetMapping",
+              "evidence": [
+                {
+                  "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+                  "file": "OrderController.java",
+                  "line": 8,
+                  "source": null
+                }
+              ]
+            },
+            "resolution_status": "resolved",
+            "evidence_class": "support_pack_rule",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "SUPPORT_PACK",
+                "confidence": 0.8
+              }
+            ],
+            "canonical_from": "route:external_:HTTP_GET_/orders/4:73b829d967d7",
+            "canonical_to": "method:OrderController.java:com.example.orders4.OrderController4.get:6f35f315468f"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 0,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "java_05",
+      "edges": [
+        {
+          "id": "support_pack_edge__spring__spring-get-mapping__HTTP GET /orders/5__com.example.orders5.OrderController5.get",
+          "kind": "ROUTE_HANDLES",
+          "from": "HTTP GET /orders/5",
+          "to": "com.example.orders5.OrderController5.get",
+          "source": "SUPPORT_PACK",
+          "confidence": 0.8,
+          "evidence": [
+            {
+              "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+              "file": "OrderController.java",
+              "line": 8
+            }
+          ],
+          "properties": {
+            "support_pack_library": "spring",
+            "support_pack_version": ">=5.0,<7.0",
+            "support_pack_rule_id": "spring-get-mapping",
+            "support_pack_id": "spring",
+            "resolver_hook_name": "decorator_entrypoint",
+            "support_pack_trust_level": "verified_on_fixture",
+            "support_pack_confidence_cap": 0.8,
+            "support_pack_active": true,
+            "support_pack": {
+              "support_pack": "java/spring",
+              "rule_id": "spring-get-mapping",
+              "rule_version": "1.0.0",
+              "trust_level": "verified_on_fixture",
+              "resolver_hook": "decorator_entrypoint",
+              "matched_pattern": "@GetMapping",
+              "evidence": [
+                {
+                  "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+                  "file": "OrderController.java",
+                  "line": 8,
+                  "source": null
+                }
+              ]
+            },
+            "resolution_status": "resolved",
+            "evidence_class": "support_pack_rule",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "SUPPORT_PACK",
+                "confidence": 0.8
+              }
+            ],
+            "canonical_from": "route:external_:HTTP_GET_/orders/5:855019156e02",
+            "canonical_to": "method:OrderController.java:com.example.orders5.OrderController5.get:6b11213be1ae"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 0,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "java_06",
+      "edges": [
+        {
+          "id": "support_pack_edge__spring__spring-get-mapping__HTTP GET /orders/6__com.example.orders6.OrderController6.get",
+          "kind": "ROUTE_HANDLES",
+          "from": "HTTP GET /orders/6",
+          "to": "com.example.orders6.OrderController6.get",
+          "source": "SUPPORT_PACK",
+          "confidence": 0.8,
+          "evidence": [
+            {
+              "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+              "file": "OrderController.java",
+              "line": 8
+            }
+          ],
+          "properties": {
+            "support_pack_library": "spring",
+            "support_pack_version": ">=5.0,<7.0",
+            "support_pack_rule_id": "spring-get-mapping",
+            "support_pack_id": "spring",
+            "resolver_hook_name": "decorator_entrypoint",
+            "support_pack_trust_level": "verified_on_fixture",
+            "support_pack_confidence_cap": 0.8,
+            "support_pack_active": true,
+            "support_pack": {
+              "support_pack": "java/spring",
+              "rule_id": "spring-get-mapping",
+              "rule_version": "1.0.0",
+              "trust_level": "verified_on_fixture",
+              "resolver_hook": "decorator_entrypoint",
+              "matched_pattern": "@GetMapping",
+              "evidence": [
+                {
+                  "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+                  "file": "OrderController.java",
+                  "line": 8,
+                  "source": null
+                }
+              ]
+            },
+            "resolution_status": "resolved",
+            "evidence_class": "support_pack_rule",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "SUPPORT_PACK",
+                "confidence": 0.8
+              }
+            ],
+            "canonical_from": "route:external_:HTTP_GET_/orders/6:2ce0baf09b4a",
+            "canonical_to": "method:OrderController.java:com.example.orders6.OrderController6.get:1db7ce065f5f"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 0,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "java_07",
+      "edges": [
+        {
+          "id": "support_pack_edge__spring__spring-get-mapping__HTTP GET /orders/7__com.example.orders7.OrderController7.get",
+          "kind": "ROUTE_HANDLES",
+          "from": "HTTP GET /orders/7",
+          "to": "com.example.orders7.OrderController7.get",
+          "source": "SUPPORT_PACK",
+          "confidence": 0.8,
+          "evidence": [
+            {
+              "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+              "file": "OrderController.java",
+              "line": 8
+            }
+          ],
+          "properties": {
+            "support_pack_library": "spring",
+            "support_pack_version": ">=5.0,<7.0",
+            "support_pack_rule_id": "spring-get-mapping",
+            "support_pack_id": "spring",
+            "resolver_hook_name": "decorator_entrypoint",
+            "support_pack_trust_level": "verified_on_fixture",
+            "support_pack_confidence_cap": 0.8,
+            "support_pack_active": true,
+            "support_pack": {
+              "support_pack": "java/spring",
+              "rule_id": "spring-get-mapping",
+              "rule_version": "1.0.0",
+              "trust_level": "verified_on_fixture",
+              "resolver_hook": "decorator_entrypoint",
+              "matched_pattern": "@GetMapping",
+              "evidence": [
+                {
+                  "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+                  "file": "OrderController.java",
+                  "line": 8,
+                  "source": null
+                }
+              ]
+            },
+            "resolution_status": "resolved",
+            "evidence_class": "support_pack_rule",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "SUPPORT_PACK",
+                "confidence": 0.8
+              }
+            ],
+            "canonical_from": "route:external_:HTTP_GET_/orders/7:38815936c9f2",
+            "canonical_to": "method:OrderController.java:com.example.orders7.OrderController7.get:090bbee887d9"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 0,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "java_08",
+      "edges": [
+        {
+          "id": "support_pack_edge__spring__spring-get-mapping__HTTP GET /orders/8__com.example.orders8.OrderController8.get",
+          "kind": "ROUTE_HANDLES",
+          "from": "HTTP GET /orders/8",
+          "to": "com.example.orders8.OrderController8.get",
+          "source": "SUPPORT_PACK",
+          "confidence": 0.8,
+          "evidence": [
+            {
+              "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+              "file": "OrderController.java",
+              "line": 8
+            }
+          ],
+          "properties": {
+            "support_pack_library": "spring",
+            "support_pack_version": ">=5.0,<7.0",
+            "support_pack_rule_id": "spring-get-mapping",
+            "support_pack_id": "spring",
+            "resolver_hook_name": "decorator_entrypoint",
+            "support_pack_trust_level": "verified_on_fixture",
+            "support_pack_confidence_cap": 0.8,
+            "support_pack_active": true,
+            "support_pack": {
+              "support_pack": "java/spring",
+              "rule_id": "spring-get-mapping",
+              "rule_version": "1.0.0",
+              "trust_level": "verified_on_fixture",
+              "resolver_hook": "decorator_entrypoint",
+              "matched_pattern": "@GetMapping",
+              "evidence": [
+                {
+                  "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+                  "file": "OrderController.java",
+                  "line": 8,
+                  "source": null
+                }
+              ]
+            },
+            "resolution_status": "resolved",
+            "evidence_class": "support_pack_rule",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "SUPPORT_PACK",
+                "confidence": 0.8
+              }
+            ],
+            "canonical_from": "route:external_:HTTP_GET_/orders/8:161283e2d908",
+            "canonical_to": "method:OrderController.java:com.example.orders8.OrderController8.get:eb010914e044"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 0,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    }
+  ],
+  "metrics": {
+    "go_structural_precision": 1.0,
+    "go_semantic_precision": 1.0,
+    "java_structural_precision": 1.0,
+    "java_semantic_precision": 1.0,
+    "cross_language_endpoint_precision": 1.0
+  },
+  "quality_gates": {
+    "precision_at_least_0_95": true,
+    "forbidden_violations_zero": true,
+    "mutation_failures_zero": true,
+    "determinism_true": true,
+    "name_only_matching_prohibited": true,
+    "ambiguous_not_confirmed": true,
+    "reflection_not_confirmed": true,
+    "support_pack_provenance_complete": true
+  }
+}

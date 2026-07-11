@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "impact-analysis-test-backend"
+version = "0.1.0"
+description = "FastAPI backend for testing impact-analysis systems"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Impact Analysis Test Suite" }]
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "httpx>=0.24.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
+pythonpath = ["."]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+]

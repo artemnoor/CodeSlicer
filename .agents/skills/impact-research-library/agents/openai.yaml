@@ -1,0 +1,4 @@
+interface:
+  display_name: "Research Unknown Library"
+  short_description: "Create an evidence-gated support pack"
+  default_prompt: "Use -research-library to research this unknown library safely."

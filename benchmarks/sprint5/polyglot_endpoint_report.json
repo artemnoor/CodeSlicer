@@ -1,0 +1,526 @@
+[
+  {
+    "fixture_id": "polyglot_01_go",
+    "backend": "go",
+    "endpoint_edges": [
+      {
+        "id": "graph_edge:4e0d35b10df0",
+        "kind": "HTTP_CALLS",
+        "from": "load",
+        "to": "/orders/1",
+        "source": "INFERRED",
+        "confidence": 0.7,
+        "evidence": [
+          {
+            "description": "fetch receives endpoint argument",
+            "file": "client.ts",
+            "line": 1,
+            "source": "INFERRED"
+          }
+        ],
+        "properties": {
+          "resolver": "semantic_binding_layer",
+          "semantic_edge_kind": "HTTP_CALLS",
+          "method": null,
+          "path": "/orders/1",
+          "warnings": [
+            "dangling edge: missing endpoint(s) /orders/1"
+          ],
+          "status": "suspicious",
+          "quality_guard": "quarantined_dangling_endpoint",
+          "resolution_status": "resolved",
+          "evidence_class": "static_inferred",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "INFERRED",
+              "confidence": 0.7
+            }
+          ],
+          "canonical_from": "method:client.ts:load:1b6b00dfcafd",
+          "canonical_to": "function:external_:/orders/1:fa634685713d"
+        }
+      }
+    ]
+  },
+  {
+    "fixture_id": "polyglot_02_java",
+    "backend": "java",
+    "endpoint_edges": [
+      {
+        "id": "frontend_backend_endpoint_bridge__MATCHES_ENDPOINT__HTTP GET /orders/2__com.example.orders2.OrderController2.get",
+        "kind": "MATCHES_ENDPOINT",
+        "from": "HTTP GET /orders/2",
+        "to": "com.example.orders2.OrderController2.get",
+        "source": "INFERRED",
+        "confidence": 0.82,
+        "evidence": [
+          {
+            "description": "canonical method/path match",
+            "source": "INFERRED"
+          },
+          {
+            "description": "frontend:GET /orders/2",
+            "source": "INFERRED"
+          },
+          {
+            "description": "backend:GET /orders/2",
+            "source": "INFERRED"
+          }
+        ],
+        "properties": {
+          "resolver": "frontend_backend_endpoint_bridge",
+          "original_kind": "ROUTES_TO",
+          "status": "likely",
+          "warnings": [],
+          "framework": "spring",
+          "resolution_status": "resolved",
+          "evidence_class": "static_inferred",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "INFERRED",
+              "confidence": 0.82
+            }
+          ],
+          "canonical_from": "route:/orders/2:HTTP_GET_/orders/2:759dedc77070",
+          "canonical_to": "method:OrderController.java:com.example.orders2.OrderController2.get:711e24a4132a"
+        }
+      },
+      {
+        "id": "support_pack_edge__spring__spring-get-mapping__HTTP GET /orders/2__com.example.orders2.OrderController2.get",
+        "kind": "ROUTE_HANDLES",
+        "from": "HTTP GET /orders/2",
+        "to": "com.example.orders2.OrderController2.get",
+        "source": "SUPPORT_PACK",
+        "confidence": 0.8,
+        "evidence": [
+          {
+            "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+            "file": "OrderController.java",
+            "line": 8
+          }
+        ],
+        "properties": {
+          "support_pack_library": "spring",
+          "support_pack_version": ">=5.0,<7.0",
+          "support_pack_rule_id": "spring-get-mapping",
+          "support_pack_id": "spring",
+          "resolver_hook_name": "decorator_entrypoint",
+          "support_pack_trust_level": "verified_on_fixture",
+          "support_pack_confidence_cap": 0.8,
+          "support_pack_active": true,
+          "support_pack": {
+            "support_pack": "java/spring",
+            "rule_id": "spring-get-mapping",
+            "rule_version": "1.0.0",
+            "trust_level": "verified_on_fixture",
+            "resolver_hook": "decorator_entrypoint",
+            "matched_pattern": "@GetMapping",
+            "evidence": [
+              {
+                "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+                "file": "OrderController.java",
+                "line": 8,
+                "source": null
+              }
+            ]
+          },
+          "resolution_status": "resolved",
+          "evidence_class": "support_pack_rule",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "SUPPORT_PACK",
+              "confidence": 0.8
+            }
+          ],
+          "canonical_from": "route:/orders/2:HTTP_GET_/orders/2:759dedc77070",
+          "canonical_to": "method:OrderController.java:com.example.orders2.OrderController2.get:711e24a4132a"
+        }
+      },
+      {
+        "id": "frontend_backend_endpoint_bridge__HTTP_CALLS__client.load__HTTP GET /orders/2",
+        "kind": "HTTP_CALLS",
+        "from": "client.load",
+        "to": "HTTP GET /orders/2",
+        "source": "INFERRED",
+        "confidence": 0.82,
+        "evidence": [
+          {
+            "description": "wrapper:fetch",
+            "source": "INFERRED"
+          },
+          {
+            "description": "recipe:fetch",
+            "source": "INFERRED"
+          },
+          {
+            "description": "string literal",
+            "source": "INFERRED"
+          },
+          {
+            "description": "canonical:/orders/2",
+            "source": "INFERRED"
+          }
+        ],
+        "properties": {
+          "resolver": "frontend_backend_endpoint_bridge",
+          "original_kind": "HTTP_CALLS",
+          "status": "suspicious",
+          "warnings": [
+            "dangling edge: missing endpoint(s) client.load"
+          ],
+          "call_index": 0,
+          "raw_path": "/orders/2",
+          "canonical_path": "/orders/2",
+          "method": "GET",
+          "quality_guard": "quarantined_dangling_endpoint",
+          "resolution_status": "resolved",
+          "evidence_class": "static_inferred",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "INFERRED",
+              "confidence": 0.82
+            }
+          ],
+          "canonical_from": "function:external_:client.load:62f448c8f164",
+          "canonical_to": "route:/orders/2:HTTP_GET_/orders/2:759dedc77070"
+        }
+      },
+      {
+        "id": "graph_edge:22e267d47fda",
+        "kind": "HTTP_CALLS",
+        "from": "load",
+        "to": "/orders/2",
+        "source": "INFERRED",
+        "confidence": 0.7,
+        "evidence": [
+          {
+            "description": "fetch receives endpoint argument",
+            "file": "client.ts",
+            "line": 1,
+            "source": "INFERRED"
+          }
+        ],
+        "properties": {
+          "resolver": "semantic_binding_layer",
+          "semantic_edge_kind": "HTTP_CALLS",
+          "method": null,
+          "path": "/orders/2",
+          "warnings": [
+            "dangling edge: missing endpoint(s) /orders/2"
+          ],
+          "status": "suspicious",
+          "quality_guard": "quarantined_dangling_endpoint",
+          "resolution_status": "resolved",
+          "evidence_class": "static_inferred",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "INFERRED",
+              "confidence": 0.7
+            }
+          ],
+          "canonical_from": "method:client.ts:load:c1bd0a2eda58",
+          "canonical_to": "function:external_:/orders/2:aadf527bd84a"
+        }
+      },
+      {
+        "id": "polyglot-endpoint:load:com.example.orders2.OrderController2.get:/orders/2",
+        "kind": "MATCHES_ENDPOINT",
+        "from": "load",
+        "to": "com.example.orders2.OrderController2.get",
+        "source": "INFERRED",
+        "confidence": 0.78,
+        "evidence": [
+          {
+            "description": "HTTP client path matches backend canonical route",
+            "file": "client.ts",
+            "line": 1,
+            "source": "INFERRED"
+          }
+        ],
+        "properties": {
+          "service_identity": "fixture_02_java",
+          "canonical_endpoint": "fixture_02_java:HTTP:/orders/2",
+          "resolution_status": "resolved_inferred",
+          "provider": "polyglot_endpoint_bridge",
+          "evidence_class": "static_inferred",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "INFERRED",
+              "confidence": 0.78
+            }
+          ],
+          "canonical_from": "method:client.ts:load:c1bd0a2eda58",
+          "canonical_to": "method:OrderController.java:com.example.orders2.OrderController2.get:711e24a4132a"
+        }
+      }
+    ]
+  },
+  {
+    "fixture_id": "polyglot_03_go",
+    "backend": "go",
+    "endpoint_edges": [
+      {
+        "id": "graph_edge:3000d3f6f9f1",
+        "kind": "HTTP_CALLS",
+        "from": "load",
+        "to": "/orders/3",
+        "source": "INFERRED",
+        "confidence": 0.7,
+        "evidence": [
+          {
+            "description": "fetch receives endpoint argument",
+            "file": "client.ts",
+            "line": 1,
+            "source": "INFERRED"
+          }
+        ],
+        "properties": {
+          "resolver": "semantic_binding_layer",
+          "semantic_edge_kind": "HTTP_CALLS",
+          "method": null,
+          "path": "/orders/3",
+          "warnings": [
+            "dangling edge: missing endpoint(s) /orders/3"
+          ],
+          "status": "suspicious",
+          "quality_guard": "quarantined_dangling_endpoint",
+          "resolution_status": "resolved",
+          "evidence_class": "static_inferred",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "INFERRED",
+              "confidence": 0.7
+            }
+          ],
+          "canonical_from": "method:client.ts:load:1da1b836dae1",
+          "canonical_to": "function:external_:/orders/3:be0654034cca"
+        }
+      }
+    ]
+  },
+  {
+    "fixture_id": "polyglot_04_java",
+    "backend": "java",
+    "endpoint_edges": [
+      {
+        "id": "frontend_backend_endpoint_bridge__MATCHES_ENDPOINT__HTTP GET /orders/4__com.example.orders4.OrderController4.get",
+        "kind": "MATCHES_ENDPOINT",
+        "from": "HTTP GET /orders/4",
+        "to": "com.example.orders4.OrderController4.get",
+        "source": "INFERRED",
+        "confidence": 0.82,
+        "evidence": [
+          {
+            "description": "canonical method/path match",
+            "source": "INFERRED"
+          },
+          {
+            "description": "frontend:GET /orders/4",
+            "source": "INFERRED"
+          },
+          {
+            "description": "backend:GET /orders/4",
+            "source": "INFERRED"
+          }
+        ],
+        "properties": {
+          "resolver": "frontend_backend_endpoint_bridge",
+          "original_kind": "ROUTES_TO",
+          "status": "likely",
+          "warnings": [],
+          "framework": "spring",
+          "resolution_status": "resolved",
+          "evidence_class": "static_inferred",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "INFERRED",
+              "confidence": 0.82
+            }
+          ],
+          "canonical_from": "route:/orders/4:HTTP_GET_/orders/4:fb8f11bd0c1c",
+          "canonical_to": "method:OrderController.java:com.example.orders4.OrderController4.get:b16a5f47dc9e"
+        }
+      },
+      {
+        "id": "support_pack_edge__spring__spring-get-mapping__HTTP GET /orders/4__com.example.orders4.OrderController4.get",
+        "kind": "ROUTE_HANDLES",
+        "from": "HTTP GET /orders/4",
+        "to": "com.example.orders4.OrderController4.get",
+        "source": "SUPPORT_PACK",
+        "confidence": 0.8,
+        "evidence": [
+          {
+            "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+            "file": "OrderController.java",
+            "line": 8
+          }
+        ],
+        "properties": {
+          "support_pack_library": "spring",
+          "support_pack_version": ">=5.0,<7.0",
+          "support_pack_rule_id": "spring-get-mapping",
+          "support_pack_id": "spring",
+          "resolver_hook_name": "decorator_entrypoint",
+          "support_pack_trust_level": "verified_on_fixture",
+          "support_pack_confidence_cap": 0.8,
+          "support_pack_active": true,
+          "support_pack": {
+            "support_pack": "java/spring",
+            "rule_id": "spring-get-mapping",
+            "rule_version": "1.0.0",
+            "trust_level": "verified_on_fixture",
+            "resolver_hook": "decorator_entrypoint",
+            "matched_pattern": "@GetMapping",
+            "evidence": [
+              {
+                "description": "Resolved via support pack spring:spring-get-mapping (decorator matched)",
+                "file": "OrderController.java",
+                "line": 8,
+                "source": null
+              }
+            ]
+          },
+          "resolution_status": "resolved",
+          "evidence_class": "support_pack_rule",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "SUPPORT_PACK",
+              "confidence": 0.8
+            }
+          ],
+          "canonical_from": "route:/orders/4:HTTP_GET_/orders/4:fb8f11bd0c1c",
+          "canonical_to": "method:OrderController.java:com.example.orders4.OrderController4.get:b16a5f47dc9e"
+        }
+      },
+      {
+        "id": "frontend_backend_endpoint_bridge__HTTP_CALLS__client.load__HTTP GET /orders/4",
+        "kind": "HTTP_CALLS",
+        "from": "client.load",
+        "to": "HTTP GET /orders/4",
+        "source": "INFERRED",
+        "confidence": 0.82,
+        "evidence": [
+          {
+            "description": "wrapper:fetch",
+            "source": "INFERRED"
+          },
+          {
+            "description": "recipe:fetch",
+            "source": "INFERRED"
+          },
+          {
+            "description": "string literal",
+            "source": "INFERRED"
+          },
+          {
+            "description": "canonical:/orders/4",
+            "source": "INFERRED"
+          }
+        ],
+        "properties": {
+          "resolver": "frontend_backend_endpoint_bridge",
+          "original_kind": "HTTP_CALLS",
+          "status": "suspicious",
+          "warnings": [
+            "dangling edge: missing endpoint(s) client.load"
+          ],
+          "call_index": 0,
+          "raw_path": "/orders/4",
+          "canonical_path": "/orders/4",
+          "method": "GET",
+          "quality_guard": "quarantined_dangling_endpoint",
+          "resolution_status": "resolved",
+          "evidence_class": "static_inferred",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "INFERRED",
+              "confidence": 0.82
+            }
+          ],
+          "canonical_from": "function:external_:client.load:5cea96814bb9",
+          "canonical_to": "route:/orders/4:HTTP_GET_/orders/4:fb8f11bd0c1c"
+        }
+      },
+      {
+        "id": "graph_edge:090471057203",
+        "kind": "HTTP_CALLS",
+        "from": "load",
+        "to": "/orders/4",
+        "source": "INFERRED",
+        "confidence": 0.7,
+        "evidence": [
+          {
+            "description": "fetch receives endpoint argument",
+            "file": "client.ts",
+            "line": 1,
+            "source": "INFERRED"
+          }
+        ],
+        "properties": {
+          "resolver": "semantic_binding_layer",
+          "semantic_edge_kind": "HTTP_CALLS",
+          "method": null,
+          "path": "/orders/4",
+          "warnings": [
+            "dangling edge: missing endpoint(s) /orders/4"
+          ],
+          "status": "suspicious",
+          "quality_guard": "quarantined_dangling_endpoint",
+          "resolution_status": "resolved",
+          "evidence_class": "static_inferred",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "INFERRED",
+              "confidence": 0.7
+            }
+          ],
+          "canonical_from": "method:client.ts:load:79dda0bb7427",
+          "canonical_to": "function:external_:/orders/4:0ae2beef6bd8"
+        }
+      },
+      {
+        "id": "polyglot-endpoint:load:com.example.orders4.OrderController4.get:/orders/4",
+        "kind": "MATCHES_ENDPOINT",
+        "from": "load",
+        "to": "com.example.orders4.OrderController4.get",
+        "source": "INFERRED",
+        "confidence": 0.78,
+        "evidence": [
+          {
+            "description": "HTTP client path matches backend canonical route",
+            "file": "client.ts",
+            "line": 1,
+            "source": "INFERRED"
+          }
+        ],
+        "properties": {
+          "service_identity": "fixture_04_java",
+          "canonical_endpoint": "fixture_04_java:HTTP:/orders/4",
+          "resolution_status": "resolved_inferred",
+          "provider": "polyglot_endpoint_bridge",
+          "evidence_class": "static_inferred",
+          "validation_status": "not_validated",
+          "observations": [
+            {
+              "source": "INFERRED",
+              "confidence": 0.78
+            }
+          ],
+          "canonical_from": "method:client.ts:load:79dda0bb7427",
+          "canonical_to": "method:OrderController.java:com.example.orders4.OrderController4.get:b16a5f47dc9e"
+        }
+      }
+    ]
+  }
+]

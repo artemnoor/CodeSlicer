@@ -1,0 +1,606 @@
+{
+  "language": "go",
+  "fixtures": [
+    {
+      "fixture_id": "go_01",
+      "edges": [
+        {
+          "id": "polyglot:orders1.Handler1.Handle:CALLS:orders1.Service1.Create:228",
+          "kind": "CALLS",
+          "from": "orders1.Handler1.Handle",
+          "to": "orders1.Service1.Create",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver service : Service1.Create",
+              "file": "main.go",
+              "line": 228,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders1.Handler1.Handle:21c21c081bac",
+            "canonical_to": "method:main.go:orders1.Service1.Create:13f27b4d0e89"
+          }
+        },
+        {
+          "id": "polyglot:orders1.Service1.Create:CALLS:orders1.Store1.Save:139",
+          "kind": "CALLS",
+          "from": "orders1.Service1.Create",
+          "to": "orders1.Store1.Save",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver store : Store1.Save",
+              "file": "main.go",
+              "line": 139,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders1.Service1.Create:13f27b4d0e89",
+            "canonical_to": "method:main.go:orders1.Store1.Save:712d147f07b4"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 2,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "go_02",
+      "edges": [
+        {
+          "id": "polyglot:orders2.Handler2.Handle:CALLS:orders2.Service2.Create:228",
+          "kind": "CALLS",
+          "from": "orders2.Handler2.Handle",
+          "to": "orders2.Service2.Create",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver service : Service2.Create",
+              "file": "main.go",
+              "line": 228,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders2.Handler2.Handle:e44121c9fd12",
+            "canonical_to": "method:main.go:orders2.Service2.Create:4dc41e597119"
+          }
+        },
+        {
+          "id": "polyglot:orders2.Service2.Create:CALLS:orders2.Store2.Save:139",
+          "kind": "CALLS",
+          "from": "orders2.Service2.Create",
+          "to": "orders2.Store2.Save",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver store : Store2.Save",
+              "file": "main.go",
+              "line": 139,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders2.Service2.Create:4dc41e597119",
+            "canonical_to": "method:main.go:orders2.Store2.Save:a781f67563e6"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 2,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "go_03",
+      "edges": [
+        {
+          "id": "polyglot:orders3.Handler3.Handle:CALLS:orders3.Service3.Create:228",
+          "kind": "CALLS",
+          "from": "orders3.Handler3.Handle",
+          "to": "orders3.Service3.Create",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver service : Service3.Create",
+              "file": "main.go",
+              "line": 228,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders3.Handler3.Handle:a26215c1e4f0",
+            "canonical_to": "method:main.go:orders3.Service3.Create:89ff9cf9ca85"
+          }
+        },
+        {
+          "id": "polyglot:orders3.Service3.Create:CALLS:orders3.Store3.Save:139",
+          "kind": "CALLS",
+          "from": "orders3.Service3.Create",
+          "to": "orders3.Store3.Save",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver store : Store3.Save",
+              "file": "main.go",
+              "line": 139,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders3.Service3.Create:89ff9cf9ca85",
+            "canonical_to": "method:main.go:orders3.Store3.Save:52818f7d4165"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 2,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "go_04",
+      "edges": [
+        {
+          "id": "polyglot:orders4.Handler4.Handle:CALLS:orders4.Service4.Create:228",
+          "kind": "CALLS",
+          "from": "orders4.Handler4.Handle",
+          "to": "orders4.Service4.Create",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver service : Service4.Create",
+              "file": "main.go",
+              "line": 228,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders4.Handler4.Handle:11577e0bdc96",
+            "canonical_to": "method:main.go:orders4.Service4.Create:5c98be9038a1"
+          }
+        },
+        {
+          "id": "polyglot:orders4.Service4.Create:CALLS:orders4.Store4.Save:139",
+          "kind": "CALLS",
+          "from": "orders4.Service4.Create",
+          "to": "orders4.Store4.Save",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver store : Store4.Save",
+              "file": "main.go",
+              "line": 139,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders4.Service4.Create:5c98be9038a1",
+            "canonical_to": "method:main.go:orders4.Store4.Save:f76ed84b008d"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 2,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "go_05",
+      "edges": [
+        {
+          "id": "polyglot:orders5.Handler5.Handle:CALLS:orders5.Service5.Create:228",
+          "kind": "CALLS",
+          "from": "orders5.Handler5.Handle",
+          "to": "orders5.Service5.Create",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver service : Service5.Create",
+              "file": "main.go",
+              "line": 228,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders5.Handler5.Handle:9988bf669540",
+            "canonical_to": "method:main.go:orders5.Service5.Create:79e749adc0ee"
+          }
+        },
+        {
+          "id": "polyglot:orders5.Service5.Create:CALLS:orders5.Store5.Save:139",
+          "kind": "CALLS",
+          "from": "orders5.Service5.Create",
+          "to": "orders5.Store5.Save",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver store : Store5.Save",
+              "file": "main.go",
+              "line": 139,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders5.Service5.Create:79e749adc0ee",
+            "canonical_to": "method:main.go:orders5.Store5.Save:93f7ba394ea2"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 2,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "go_06",
+      "edges": [
+        {
+          "id": "polyglot:orders6.Handler6.Handle:CALLS:orders6.Service6.Create:228",
+          "kind": "CALLS",
+          "from": "orders6.Handler6.Handle",
+          "to": "orders6.Service6.Create",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver service : Service6.Create",
+              "file": "main.go",
+              "line": 228,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders6.Handler6.Handle:5c2afe54a59d",
+            "canonical_to": "method:main.go:orders6.Service6.Create:0494c08050a7"
+          }
+        },
+        {
+          "id": "polyglot:orders6.Service6.Create:CALLS:orders6.Store6.Save:139",
+          "kind": "CALLS",
+          "from": "orders6.Service6.Create",
+          "to": "orders6.Store6.Save",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver store : Store6.Save",
+              "file": "main.go",
+              "line": 139,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders6.Service6.Create:0494c08050a7",
+            "canonical_to": "method:main.go:orders6.Store6.Save:43993629642b"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 2,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "go_07",
+      "edges": [
+        {
+          "id": "polyglot:orders7.Handler7.Handle:CALLS:orders7.Service7.Create:228",
+          "kind": "CALLS",
+          "from": "orders7.Handler7.Handle",
+          "to": "orders7.Service7.Create",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver service : Service7.Create",
+              "file": "main.go",
+              "line": 228,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders7.Handler7.Handle:324f521cc49c",
+            "canonical_to": "method:main.go:orders7.Service7.Create:aba1da0ab115"
+          }
+        },
+        {
+          "id": "polyglot:orders7.Service7.Create:CALLS:orders7.Store7.Save:139",
+          "kind": "CALLS",
+          "from": "orders7.Service7.Create",
+          "to": "orders7.Store7.Save",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver store : Store7.Save",
+              "file": "main.go",
+              "line": 139,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders7.Service7.Create:aba1da0ab115",
+            "canonical_to": "method:main.go:orders7.Store7.Save:075b74ba58b5"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 2,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    },
+    {
+      "fixture_id": "go_08",
+      "edges": [
+        {
+          "id": "polyglot:orders8.Handler8.Handle:CALLS:orders8.Service8.Create:228",
+          "kind": "CALLS",
+          "from": "orders8.Handler8.Handle",
+          "to": "orders8.Service8.Create",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver service : Service8.Create",
+              "file": "main.go",
+              "line": 228,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders8.Handler8.Handle:9c80d1020958",
+            "canonical_to": "method:main.go:orders8.Service8.Create:bcb6b177af5d"
+          }
+        },
+        {
+          "id": "polyglot:orders8.Service8.Create:CALLS:orders8.Store8.Save:139",
+          "kind": "CALLS",
+          "from": "orders8.Service8.Create",
+          "to": "orders8.Store8.Save",
+          "source": "INFERRED",
+          "confidence": 0.82,
+          "evidence": [
+            {
+              "description": "Go typed receiver store : Store8.Save",
+              "file": "main.go",
+              "line": 139,
+              "source": "INFERRED"
+            }
+          ],
+          "properties": {
+            "resolution_status": "resolved_inferred",
+            "evidence_class": "static_inferred",
+            "provider": "polyglot_limited_semantics",
+            "validation_status": "not_validated",
+            "observations": [
+              {
+                "source": "INFERRED",
+                "confidence": 0.82
+              }
+            ],
+            "canonical_from": "method:main.go:orders8.Service8.Create:bcb6b177af5d",
+            "canonical_to": "method:main.go:orders8.Store8.Save:a1b20a207b83"
+          }
+        }
+      ],
+      "metrics": {
+        "structural": 0,
+        "resolved_exact": 0,
+        "resolved_inferred": 2,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "unsupported_semantics": 0
+      }
+    }
+  ],
+  "metrics": {
+    "go_structural_precision": 1.0,
+    "go_semantic_precision": 1.0,
+    "java_structural_precision": 1.0,
+    "java_semantic_precision": 1.0,
+    "cross_language_endpoint_precision": 1.0
+  },
+  "quality_gates": {
+    "precision_at_least_0_95": true,
+    "forbidden_violations_zero": true,
+    "mutation_failures_zero": true,
+    "determinism_true": true,
+    "name_only_matching_prohibited": true,
+    "ambiguous_not_confirmed": true,
+    "reflection_not_confirmed": true,
+    "support_pack_provenance_complete": true
+  }
+}

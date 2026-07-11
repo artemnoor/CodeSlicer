@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Impact Review"
+  short_description: "Review a diff and recommend tests"
+  default_prompt: "Use -pr-review to produce an impact report for this diff."

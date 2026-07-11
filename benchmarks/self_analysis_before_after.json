@@ -1,0 +1,17 @@
+{
+  "before": {
+    "resolved_exact": 821,
+    "resolved_inferred": 877,
+    "actionable_unresolved": 7891
+  },
+  "after": {
+    "resolved_exact": 821,
+    "resolved_inferred": 877,
+    "actionable_unresolved": 7891,
+    "framework_resolved_edges": 9,
+    "route_coverage": 1,
+    "di_coverage": 3,
+    "background_task_coverage": 2
+  },
+  "note": "before is Sprint 2 accepted baseline; library-specific counts are measured on the Sprint 3 fixture"
+}

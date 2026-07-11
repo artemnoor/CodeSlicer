@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unknown-library-project"
+version = "0.1.0"
+description = "Fixture project for testing unknown-library research workflow analysis."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.110",
+  "strangebus-sdk>=0.1.0",
+  "magicqueue-client>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "internal-utils-dev>=0.1.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests/stubs"]
+addopts = "-ra"
+
+[tool.unknown_library_project.dependency_roles]
+fastapi = "known-framework"
+pytest = "dev-test"
+internal-utils-dev = "dev-only-ignore"
+strangebus-sdk = "unknown-third-party-research-required"
+magicqueue-client = "unknown-third-party-research-required"

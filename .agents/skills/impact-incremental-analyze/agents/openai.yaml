@@ -1,0 +1,4 @@
+interface:
+  display_name: "Incremental Analysis"
+  short_description: "Compare cached and clean graphs"
+  default_prompt: "Use -incremental-analyze to validate incremental reuse after this change."

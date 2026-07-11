@@ -1,0 +1,19 @@
+{
+  "fixture_id": "python_constructor_di",
+  "name": "python_constructor_di",
+  "category": "python",
+  "language": "python",
+  "resolver_rules": ["python.constructor_di", "python.self_attr"],
+  "edge_kinds": ["CALLS"],
+  "project_path": "../../../examples/golden_cases/python_di_basic",
+  "expected_edges": "expected_edges.json",
+  "forbidden_edges": "forbidden_edges.json",
+  "mutations": [
+    {"id": "remove-field-binding", "operation": "remove_binding", "file": "services.py", "old": "        self.repository = repository", "new": "        self.repository = None", "checks": ["edge_removed", "forbidden_edge_absent"]},
+    {"id": "replace-provider", "operation": "replace_provider", "file": "container.py", "old": "OrderRepository()", "new": "LegacyOrderRepository()", "checks": ["edge_removed", "expected_target", "forbidden_targets", "expected_resolution_status", "expected_validation_status", "expected_confidence_range"], "expected_target": "repositories.LegacyOrderRepository.save", "forbidden_targets": ["repositories.OrderRepository.save", "repositories.UnknownRepository.save"], "expected_resolution_status": "resolved", "expected_validation_status": "not_validated", "expected_confidence_range": [0.84, 0.86]},
+    {"id": "add-second-candidate", "operation": "add_second_candidate", "file": "services.py", "old": "class OrderService:", "new": "from repositories import OrderRepository, LegacyOrderRepository\n\n\nclass OrderService:", "edits": [{"file": "services.py", "old": "class OrderService:", "new": "from repositories import OrderRepository, LegacyOrderRepository\n\n\nclass OrderService:"}, {"file": "services.py", "old": "        self.repository = repository", "new": "        self.repository = OrderRepository()\n        self.repository = LegacyOrderRepository()"}], "checks": ["ambiguous_or_confidence_lowered", "expected_resolution_status", "expected_confidence_range", "forbidden_targets"], "expected_resolution_status": "ambiguous", "expected_confidence_range": [0.73, 0.75], "forbidden_targets": ["repositories.UnknownRepository.save"]},
+    {"id": "rename-alias", "operation": "rename_alias", "file": "services.py", "old": "self.repository.save", "new": "self.legacy.save", "checks": ["edge_removed"]},
+    {"id": "remove-import", "operation": "remove_import", "file": "container.py", "old": "from repositories import OrderRepository\n", "new": "", "checks": ["edge_removed"]},
+    {"id": "change-receiver-type", "operation": "change_receiver_type", "file": "container.py", "old": "OrderRepository()", "new": "LegacyOrderRepository()", "checks": ["edge_removed", "expected_target", "forbidden_targets", "expected_resolution_status", "expected_confidence_range"], "expected_target": "repositories.LegacyOrderRepository.save", "forbidden_targets": ["repositories.OrderRepository.save", "repositories.UnknownRepository.save"], "expected_resolution_status": "resolved", "expected_confidence_range": [0.84, 0.86]}
+  ]
+}
