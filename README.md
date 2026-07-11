@@ -9,6 +9,8 @@
 > Изменили `OrderRepository.save`? CodeSlicer помогает понять, какие сервисы,
 > маршруты, frontend-компоненты и тесты могут быть затронуты.
 
+![Семантический граф CodeSlicer](docs/images/codeslicer-hero.png)
+
 ## Содержание
 
 - [Возможности](#возможности)
