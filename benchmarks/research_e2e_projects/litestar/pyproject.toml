@@ -1,3 +1,0 @@
-[project]
-name='litestar-e2e'
-dependencies=['litestar>=2']

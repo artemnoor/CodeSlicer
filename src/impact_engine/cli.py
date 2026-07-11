@@ -84,7 +84,11 @@ def _qa_run(projects_root: str, out_dir: str | None = None) -> dict:
 
 
 def _researcher_pro_root() -> Path:
-    return Path(__file__).resolve().parents[2] / "external_tools" / "ai_library_researcher_pro"
+    configured = os.environ.get("IMPACT_RESEARCHER_PRO_ROOT")
+    if configured:
+        return Path(configured).expanduser().resolve()
+    # The researcher is an optional sibling project, kept outside the engine repo.
+    return Path(__file__).resolve().parents[3] / "ai_library_researcher_pro"
 
 
 def _run_researcher_pro(args: argparse.Namespace) -> dict:

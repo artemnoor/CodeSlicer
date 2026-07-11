@@ -31,8 +31,11 @@ benchmarks/sprint6_1/*.json
 benchmarks/sprint6/
 benchmarks/sprint6_real_projects/
 benchmarks/research_e2e/
+benchmarks/research_e2e_projects/
 benchmarks/candidate_support_packs/
 benchmarks/promoted_support_packs/
+benchmarks/sprint5/
+benchmarks/sprint5_fixtures/**/.impact_engine/
 
 # Local environment and secrets
 .env

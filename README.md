@@ -58,7 +58,8 @@ The intended current workflow is:
 
 ## External AI Library Researcher
 
-An optional external researcher is vendored under `external_tools/ai_library_researcher_pro`.
+An optional external researcher is maintained separately as the sibling project
+`ai_library_researcher_pro`; set `IMPACT_RESEARCHER_PRO_ROOT` when it is elsewhere.
 It is intentionally outside the deterministic Impact Engine core. Its job is to research
 unknown libraries, produce a machine-readable `support_pack.json`, validate it, and install
 it into `support_packs/<ecosystem>/<library>/support_pack.json`.
@@ -66,10 +67,9 @@ it into `support_packs/<ecosystem>/<library>/support_pack.json`.
 Run it independently:
 
 ```powershell
-cd external_tools/ai_library_researcher_pro
-$env:PYTHONPATH="src"
-python -m ai_library_researcher.cli create-request --library fastapi --ecosystem python --json
-python -m ai_library_researcher.mcp_server
+cd ..\ai_library_researcher_pro
+pip install -e .
+python -m ai_library_researcher_pro.cli --help
 ```
 
 Impact Engine consumes only the validated support pack artifact; it does not depend on AI,
@@ -82,6 +82,11 @@ network access, or the researcher at analysis time.
 - [MCP](docs/MCP.md)
 - [Docker Compose](docs/DOCKER.md)
 - [Local registry API](docs/REGISTRY_API.md)
+
+The local visual client is split into `frontend/index.html`, `frontend/styles.css`,
+`frontend/app.js`, `frontend/api-client.js`, `frontend/graph-2d.js`, and
+`frontend/graph-3d.js`. It talks only to the local API and does not contain a
+mock graph or hosted database integration.
 
 ## Semantic Binding Layer
 

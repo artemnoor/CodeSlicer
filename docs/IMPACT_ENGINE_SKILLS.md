@@ -1,6 +1,6 @@
 # Impact Engine Skills
 
-The repository includes eight agent workflows in `.agents/skills/`. They are
+The repository includes eight agent workflows in `integrations/agent-skills/`. They are
 thin orchestration layers over the existing CLI and MCP interfaces; they do not
 duplicate graph or resolver logic.
 
@@ -18,7 +18,7 @@ duplicate graph or resolver logic.
 ## Local setup
 
 Open the repository in an agent environment that supports repository skills. If
-the environment requires a global skills directory, copy `.agents/skills/` to
+the environment requires a global skills directory, copy `integrations/agent-skills/` to
 that directory or invoke a skill explicitly by its folder name.
 
 The skills use the installed `impact-engine` command when available and fall

@@ -4,13 +4,19 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from impact_engine.research.pro_adapter import adapt_researcher_pro_draft
 from impact_engine.support_packs.schema import validate_support_pack_dict
 from tests.helpers.cli_runner import run_cli
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RESEARCHER_PRO = ROOT / "external_tools" / "ai_library_researcher_pro"
+RESEARCHER_PRO = Path(os.environ.get("IMPACT_RESEARCHER_PRO_ROOT", ROOT.parent / "ai_library_researcher_pro")).resolve()
+pytestmark = pytest.mark.skipif(
+    not RESEARCHER_PRO.exists(),
+    reason="optional ai_library_researcher_pro project is not checked out",
+)
 GOOD_DRAFT = RESEARCHER_PRO / "fixtures" / "good_support_pack.json"
 
 
