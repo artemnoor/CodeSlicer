@@ -49,14 +49,17 @@ unresolved edges never enter the confirmed result.
 
 ## Incremental analysis
 
-Incremental analysis stores per-file raw facts and fingerprints. A changed
-file produces a FactDiff, which drives the reverse dependency index, affected
-closure, selective resolver passes, edge replacement, quality guard, and
-deterministic fingerprint comparison with a clean rebuild.
+Incremental analysis stores per-file raw facts and fingerprints and exposes
+FactDiff and reverse-dependency diagnostics. Cached facts can be reused, but
+selective semantic resolver execution is still being hardened and may fall
+back to a complete semantic pass for some changes.
 
-The invariant is:
+Clean-rebuild equivalence remains an explicit quality gate:
 
     incremental core semantic fingerprint == clean rebuild fingerprint
+
+The equality is verified by the incremental benchmark; it is not assumed for
+every unsupported or legacy edge case.
 
 ## Local persistence
 
