@@ -11,12 +11,14 @@ import argparse
 import json
 import threading
 import time
+from dataclasses import asdict
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from impact_engine.analysis.pipeline import analyze_project_core
+from impact_engine.inventory.scanner import scan_project_inventory
 from impact_engine.impact import explain_edge, impact_query
 from impact_engine.models import GraphDocument
 
@@ -31,6 +33,59 @@ class LocalApiState:
         self.analyzed_at: float | None = None
         self.progress: dict[str, Any] = {"status": "idle"}
         self.lock = threading.RLock()
+        self._load_existing_graph()
+
+    def _load_existing_graph(self, graph_path: str | None = None) -> bool:
+        """Hydrate API state from a graph produced by the CLI.
+
+        CLI and the local UI are separate processes.  Without this handoff a
+        successful CLI analysis leaves the UI in the misleading ``idle`` state
+        until the analysis is run a second time through the browser.
+        """
+        if not self.project_path:
+            return False
+        project = Path(self.project_path).expanduser().resolve()
+        candidates = [Path(graph_path).expanduser().resolve()] if graph_path else [
+            project / ".impact_engine" / "graph.json",
+            project / "graph.json",
+        ]
+        for candidate in candidates:
+            if not candidate.is_file():
+                continue
+            try:
+                graph = GraphDocument.from_json(candidate.read_text(encoding="utf-8"))
+                metadata = graph.metadata or {}
+                recorded_project = metadata.get("project_path")
+                if recorded_project and Path(str(recorded_project)).expanduser().resolve() != project:
+                    continue
+                inventory = asdict(scan_project_inventory(str(project)))
+                progress = metadata.get("analysis_progress") or {
+                    "status": "loaded",
+                    "current": {"stage": "loaded", "message": "Граф загружен из cache"},
+                }
+                self.analysis = {
+                    "status": "ok",
+                    "path": str(project),
+                    "project_path": str(project),
+                    "graph_path": str(candidate),
+                    "inventory": inventory,
+                    "languages": inventory.get("languages", []),
+                    "extractors_used": metadata.get("extractors", []),
+                    "diagnostics": metadata.get("diagnostics", {}),
+                    "nodes": len(graph.nodes),
+                    "edges": len(graph.edges),
+                    "graph": graph.to_dict(),
+                    "progress": progress,
+                    "loaded_from_existing_graph": True,
+                }
+                self.project_path = str(project)
+                self.analyzed_at = candidate.stat().st_mtime
+                self.progress = progress
+                self.last_error = None
+                return True
+            except (OSError, ValueError, TypeError):
+                continue
+        return False
 
     def snapshot(self, include_graph: bool = True) -> dict[str, Any]:
         with self.lock:
@@ -145,6 +200,21 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                     with self.state.lock:
                         self.state.last_error = str(exc)
                     return self._send_json(422, {"status": "error", "error": str(exc)})
+            if parsed.path == "/api/load-graph":
+                project_path = str(body.get("project_path") or self.state.default_project or "").strip()
+                graph_path = str(body.get("graph_path") or "").strip()
+                if not project_path or not graph_path:
+                    return self._send_json(400, {"status": "error", "error": "project_path and graph_path are required"})
+                project = Path(project_path).expanduser().resolve()
+                candidate = Path(graph_path).expanduser().resolve()
+                if not project.is_dir() or not candidate.is_file():
+                    return self._send_json(422, {"status": "error", "error": "project_path or graph_path does not exist"})
+                with self.state.lock:
+                    self.state.project_path = str(project)
+                    self.state.analysis = None
+                if not self.state._load_existing_graph(str(candidate)):
+                    return self._send_json(422, {"status": "error", "error": "graph does not belong to project or is invalid"})
+                return self._send_json(200, self.state.snapshot())
             if parsed.path == "/api/impact":
                 graph = self._graph_document()
                 result = impact_query(

@@ -13,12 +13,18 @@ change-impact questions.
 1. Identify the project root. Do not include unrelated sibling directories.
 2. Run inventory first:
    `impact-engine --json inventory <project>`
-3. Run analysis without network or AI research unless explicitly requested:
-   `impact-engine --json analyze <project> --no-research-requests --out <graph.json>`
+3. Run analysis without network or AI research unless explicitly requested.
+   Always write the artifact inside the analyzed project so the local UI can
+   discover it when started as a separate process:
+   `impact-engine --json analyze <project> --no-research-requests --out <project>/.impact_engine/graph.json`
 4. Inspect the returned metadata: languages, extractors, parser diagnostics,
    unknown libraries, support-pack errors, quality gates, and graph fingerprint.
 5. Report node/edge counts and the supported semantic capability per language.
-6. Keep the GraphDocument path and use it for later `impact`, `explain-edge`,
+6. Start the UI with `impact-engine-local-api --default-project <project>`.
+   The API automatically loads `<project>/.impact_engine/graph.json`; do not
+   claim the UI is ready until `/api/state` returns `has_analysis: true` and
+   `/api/graph` returns the same node/edge counts as the CLI result.
+7. Keep the GraphDocument path and use it for later `impact`, `explain-edge`,
    and visualization calls.
 
 ## Rules

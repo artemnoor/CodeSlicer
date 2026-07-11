@@ -67,6 +67,7 @@ The UI uses the real local API:
 - GET /api/health
 - GET /api/state
 - GET /api/graph
+- POST /api/load-graph (for an explicitly located CLI graph)
 - GET /api/inventory
 - POST /api/analyze
 - POST /api/impact
@@ -74,6 +75,15 @@ The UI uses the real local API:
 - GET /api/progress
 
 The UI has no mock graph or external database connection.
+
+Important process boundary: CLI analysis and the local API are separate
+processes. A successful CLI run alone does not populate an already-running
+browser process. Write the graph to
+`<project>/.impact_engine/graph.json` as shown above, then start the API with
+the same `--default-project`; it will hydrate the UI from that artifact. Verify
+both `GET /api/state` (`has_analysis: true`) and `GET /api/graph` before
+reporting that visualization is ready. For a graph stored elsewhere, call
+`POST /api/load-graph` with `{"project_path":"...","graph_path":"..."}`.
 
 ## Start MCP
 
