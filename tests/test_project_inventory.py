@@ -115,3 +115,26 @@ dependencies = ["orbitlane>=1", "pydantic>=2"]
     assert "@unknown/contract-shadow-client" in inv.external_imports_by_ecosystem["typescript"]
     assert "github.com/unknown/impact-shadow-go/pkg" in inv.external_imports_by_ecosystem["go"]
     assert "dev.unknown.shadow.Client" in inv.external_imports_by_ecosystem["java"]
+
+
+def test_go_indirect_requirements_are_not_declared_or_research_candidates(tmp_path):
+    service = tmp_path / "go-service"
+    service.mkdir()
+    (service / "go.mod").write_text(
+        "module example.com/app\n"
+        "require example.com/direct v1.0.0\n"
+        "require (\n"
+        "  example.com/indirect v1.0.0 // indirect\n"
+        ")\n",
+        encoding="utf-8",
+    )
+    (service / "main.go").write_text(
+        'package main\nimport "example.com/direct/client"\n',
+        encoding="utf-8",
+    )
+
+    inv = scan_project_inventory(tmp_path)
+
+    assert "example.com/direct" in inv.declared_dependencies_by_ecosystem["go"]
+    assert "example.com/indirect" not in inv.declared_dependencies_by_ecosystem["go"]
+    assert "example.com/indirect" in inv.transitive_dependencies_by_ecosystem["go"]

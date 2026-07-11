@@ -192,3 +192,25 @@ def test_unknown_library_detection_is_polyglot_and_nested_manifest_aware(tmp_pat
     assert "@api/accounts" not in unknowns
     assert "fmt" not in unknowns
     assert "java.util.List" not in unknowns
+
+
+def test_go_indirect_requirements_are_not_research_candidates(tmp_path):
+    service = tmp_path / "go-service"
+    service.mkdir()
+    (service / "go.mod").write_text(
+        "module example.com/app\n"
+        "require example.com/direct v1.0.0\n"
+        "require (\n"
+        "  example.com/indirect v1.0.0 // indirect\n"
+        ")\n",
+        encoding="utf-8",
+    )
+    (service / "main.go").write_text(
+        'package main\nimport "example.com/direct/client"\n',
+        encoding="utf-8",
+    )
+
+    unknowns = detect_unknown_libraries_core(str(tmp_path))
+
+    assert "example.com/direct" in unknowns
+    assert "example.com/indirect" not in unknowns

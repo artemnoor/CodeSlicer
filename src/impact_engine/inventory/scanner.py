@@ -143,7 +143,14 @@ def parse_package_json_aliases(path: Path) -> List[str]:
 
 
 def parse_go_mod(path: Path) -> List[str]:
+    direct, _ = parse_go_mod_groups(path)
+    return direct
+
+
+def parse_go_mod_groups(path: Path) -> tuple[List[str], List[str]]:
+    """Return direct and explicitly indirect Go module requirements."""
     deps = set()
+    indirect = set()
     try:
         content = path.read_text(encoding="utf-8")
         in_block = False
@@ -160,14 +167,14 @@ def parse_go_mod(path: Path) -> List[str]:
             if in_block:
                 parts = line.split()
                 if parts:
-                    deps.add(parts[0])
+                    (indirect if "// indirect" in line else deps).add(parts[0])
             elif line.startswith("require "):
                 parts = line[8:].strip().split()
                 if parts:
                     deps.add(parts[0])
     except Exception:
         pass
-    return sorted(list(deps))
+    return sorted(deps), sorted(indirect)
 
 
 def parse_go_module_name(path: Path) -> str | None:
@@ -362,7 +369,9 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
 
     # 3. Detect manifests and declared dependencies
     declared_dependencies = set()
+    transitive_dependencies = set()
     declared_dependencies_by_ecosystem: dict[str, set[str]] = {}
+    transitive_dependencies_by_ecosystem: dict[str, set[str]] = {}
     dev_dependencies_by_ecosystem: dict[str, set[str]] = {}
     
     # Manifest filenames mapped to parser functions
@@ -398,6 +407,10 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
             runtime_deps, dev_deps = parse_pyproject_groups(m_path)
             deps = set(runtime_deps) | set(dev_deps)
             dev_dependencies_by_ecosystem.setdefault(ecosystem, set()).update(dev_deps)
+        elif m_path.name == "go.mod":
+            deps, indirect_deps = parse_go_mod_groups(m_path)
+            transitive_dependencies.update(indirect_deps)
+            transitive_dependencies_by_ecosystem.setdefault(ecosystem, set()).update(indirect_deps)
         else:
             deps = set(parser(m_path))
         declared_dependencies.update(deps)
@@ -517,9 +530,11 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
         languages=languages,
         package_manifests=manifests,
         declared_dependencies=sorted(list(declared_dependencies)),
+        transitive_dependencies=sorted(list(transitive_dependencies)),
         external_imports=sorted(list(external_imports)),
         local_modules=sorted(list(local_modules)),
         declared_dependencies_by_ecosystem={k: sorted(v) for k, v in declared_dependencies_by_ecosystem.items()},
+        transitive_dependencies_by_ecosystem={k: sorted(v) for k, v in transitive_dependencies_by_ecosystem.items()},
         dev_dependencies_by_ecosystem={k: sorted(v) for k, v in dev_dependencies_by_ecosystem.items()},
         external_imports_by_ecosystem={k: sorted(v) for k, v in external_imports_by_ecosystem.items()},
         local_modules_by_ecosystem={k: sorted(v) for k, v in local_modules_by_ecosystem.items()},

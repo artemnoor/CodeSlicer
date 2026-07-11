@@ -10,9 +10,11 @@ class ProjectInventory:
     languages: List[str] = field(default_factory=list)
     package_manifests: List[str] = field(default_factory=list)
     declared_dependencies: List[str] = field(default_factory=list)
+    transitive_dependencies: List[str] = field(default_factory=list)
     external_imports: List[str] = field(default_factory=list)
     local_modules: List[str] = field(default_factory=list)
     declared_dependencies_by_ecosystem: dict[str, List[str]] = field(default_factory=dict)
+    transitive_dependencies_by_ecosystem: dict[str, List[str]] = field(default_factory=dict)
     dev_dependencies_by_ecosystem: dict[str, List[str]] = field(default_factory=dict)
     external_imports_by_ecosystem: dict[str, List[str]] = field(default_factory=dict)
     local_modules_by_ecosystem: dict[str, List[str]] = field(default_factory=dict)
@@ -32,9 +34,11 @@ class ProjectInventory:
             "languages": self.languages,
             "package_manifests": self.package_manifests,
             "declared_dependencies": self.declared_dependencies,
+            "transitive_dependencies": self.transitive_dependencies,
             "external_imports": self.external_imports,
             "local_modules": self.local_modules,
             "declared_dependencies_by_ecosystem": self.declared_dependencies_by_ecosystem,
+            "transitive_dependencies_by_ecosystem": self.transitive_dependencies_by_ecosystem,
             "dev_dependencies_by_ecosystem": self.dev_dependencies_by_ecosystem,
             "external_imports_by_ecosystem": self.external_imports_by_ecosystem,
             "local_modules_by_ecosystem": self.local_modules_by_ecosystem
