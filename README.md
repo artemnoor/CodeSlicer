@@ -513,6 +513,10 @@ impact-engine --json registry status
 Графы, кэши, SQLite и benchmark-отчёты должны оставаться в `.impact_engine`
 или других игнорируемых директориях, а не попадать в продуктовую документацию.
 
+## Лицензия
+
+Проект распространяется по лицензии [MIT](LICENSE).
+
 ## Дополнительная документация
 
 - [Getting Started](docs/GETTING_STARTED.md)
