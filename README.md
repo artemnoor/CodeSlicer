@@ -1,4 +1,5 @@
-# CodeSlicer
+<img width="1909" height="988" alt="image" src="https://github.com/user-attachments/assets/9a8a8f3c-d44c-4963-9cf8-8e2fbec10676" /># CodeSlicer
+![Uploading image.png…]()
 
 **CodeSlicer** — локальная система анализа влияния изменений в коде.
 Она строит граф проекта, сохраняет доказательства связей и показывает, что
@@ -265,6 +266,7 @@ impact-engine explain-edge /path/to/project/.impact_engine/graph.json \
 support-pack rule, если они участвовали в создании связи.
 
 ## Визуальный интерфейс
+<img width="1909" height="988" alt="image" src="https://github.com/user-attachments/assets/873ef2f1-7782-4bbb-ba6c-d54f8ac052bd" />
 
 Запустите локальный API:
 
