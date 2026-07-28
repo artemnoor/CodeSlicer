@@ -1,0 +1,2 @@
+recursive-include frontend *.html *.js *.css
+recursive-include plugins *.json *.md

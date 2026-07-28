@@ -82,14 +82,6 @@ def _iter_project_files(root: Path, suffixes: set[str]) -> Iterable[Path]:
 def default_semantic_recipes() -> list[Recipe]:
     return [
         Recipe(
-            id="builtin.fastapi_router_object_flow",
-            type="object_graph",
-            constructor="APIRouter",
-            prefix_kwarg="prefix",
-            include_method="include_router",
-            decorator_methods=sorted(_HTTP_METHODS),
-        ),
-        Recipe(
             id="builtin.http_endpoint_sink_flow",
             type="endpoint_sink",
             sink_functions=[
@@ -199,7 +191,7 @@ def graph_to_semantic_facts(graph: GraphDocument) -> FactSet:
 
 def apply_semantic_resolution(graph: GraphDocument, recipes: list[Recipe] | None = None) -> GraphDocument:
     facts = graph_to_semantic_facts(graph)
-    active_recipes = list(recipes or default_semantic_recipes())
+    active_recipes = default_semantic_recipes() if recipes is None else list(recipes)
     result = SemanticResolver(facts, active_recipes).resolve()
     for edge_dict in semantic_result_to_graph_edges(result):
         if edge_dict.get("kind") not in {"ROUTE_HANDLES", "HTTP_CALLS", "MATCHES_ENDPOINT"}:

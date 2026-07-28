@@ -1,0 +1,26 @@
+{
+  "schema_version": "CodeSlicerScipGolden/v1",
+  "language": "python",
+  "indexer": "@sourcegraph/scip-python",
+  "indexer_version": "0.6.6",
+  "project_dir": "project",
+  "artifact": "index.scip",
+  "artifact_sha256": "C0A1931AE26CAA18C57E2183C2F0366C4CE50856B6A9CAB51FF55A48DE810CAA",
+  "status": "materialized",
+  "generation": {
+    "command": "wsl -d Ubuntu -- bash -lc \"cd '/mnt/c/<repo>/tests/fixtures/scip/golden/python/project' && npm install --global @sourcegraph/scip-python@0.6.6 && scip-python index . --project-name codeslicer-scip-python-golden\"",
+    "working_directory": "tests/fixtures/scip/golden/python/project",
+    "notes": "Requires the explicitly selected local Python environment and the pinned npm package."
+  },
+  "expected": {
+    "document_paths": ["app/util.py", "app/main.py"],
+    "symbol_names": ["add", "total"],
+    "minimum_definitions": 2,
+    "minimum_references": 2,
+    "minimum_implementations": 0,
+    "minimum_ranges": 3,
+    "require_typed_ranges": false,
+    "range_encoding": "legacy_packed (official indexer 0.6.6)",
+    "platform_note": "Official 0.6.6 package fails on native Windows path separators; this artifact was generated in local WSL Ubuntu."
+  }
+}

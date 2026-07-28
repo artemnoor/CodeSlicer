@@ -1,0 +1,19 @@
+{
+  "id": "framework.javascript.express",
+  "kind": "framework",
+  "language": "javascript",
+  "version": "1.0.0",
+  "file_extensions": [],
+  "manifest_files": ["package.json"],
+  "supported_versions": [],
+  "activation": {"dependencies": ["express"], "imports": ["express"], "compat_source": "support_packs/javascript/express/support_pack.json"},
+  "capabilities": {"declarative_rules": true},
+  "phases": ["resolve", "validate"],
+  "entrypoint": "impact_engine.plugin_architecture.manifest_runtime:create_framework_plugin",
+  "cache_key": "framework.javascript.express-compat-v1",
+  "allowed_edge_kinds": ["ROUTE_HANDLES", "CALLS", "DEPENDS_ON"],
+  "confidence_policy": {"default": "evidence_capped"},
+  "evidence_requirements": {"requires_locations": true},
+  "fixtures": [],
+  "local_first": true
+}

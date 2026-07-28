@@ -2,11 +2,13 @@
 name = "impact-engine"
 version = "0.4.0"
 description = "DI-aware impact analysis engine with MCP and AI-generated library support packs"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "tree-sitter",
     "tree-sitter-language-pack",
-    "requests"
+    "requests",
+    "PyYAML>=6.0"
 ]
 
 [project.optional-dependencies]
@@ -18,7 +20,29 @@ impact-engine-mcp = "impact_engine.mcp.server:main"
 impact-engine-registry-api = "impact_engine.registry_api:main"
 impact-engine-local-api = "impact_engine.local_api:main"
 
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src", "."]
+include = [
+    "impact_engine*",
+    "frontend_backend_endpoint_resolver*",
+    "nested_object_graph_resolver*",
+    "project_semantics_hygiene*",
+    "runtime_trace_booster*",
+    "semantic_binding*",
+    "plugins*",
+]
+exclude = ["tests*", "build*", "dist*"]
+
+[tool.setuptools.package-data]
+impact_engine = ["agent_skills/**/*.md"]
+plugins = ["**/*.json", "**/*.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-norecursedirs = ["fixtures", "tests/fixtures"]
+norecursedirs = ["fixtures", "tests/fixtures", "tests/corpus"]
+markers = ["scip_interop: opt-in tests requiring explicitly installed external SCIP tooling and materialized golden artifacts", "lsp_interop: opt-in tests requiring an explicitly installed local Language Server", "cli_installation: opt-in tests requiring a clean installed impact-engine executable"]

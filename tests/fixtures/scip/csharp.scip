@@ -1,0 +1,9 @@
+{
+  "schema_version": "CodeSlicerScipInterchange/v1",
+  "index": {"tool": "fixture-scip-indexer", "version": "0.1", "commit": "fixture-csharp-commit"},
+  "documents": [{
+    "relative_path": "src/IClock.cs",
+    "symbols": [{"symbol": "cs/IClock", "display_name": "IClock", "kind": "interface"}, {"symbol": "cs/SystemClock", "display_name": "SystemClock", "kind": "class", "relationships": [{"symbol": "cs/IClock", "kind": "implementation"}]}, {"symbol": "cs/IClock#Now().", "display_name": "Now", "kind": "method"}],
+    "occurrences": [{"symbol": "cs/IClock", "symbol_name": "IClock", "kind": "interface", "role": "definition", "range": [1, 0, 3, 1]}, {"symbol": "cs/IClock#Now().", "symbol_name": "Now", "kind": "method", "role": "definition", "range": [2, 2, 2, 14]}, {"symbol": "cs/SystemClock", "symbol_name": "SystemClock", "kind": "class", "role": "definition", "range": [6, 0, 8, 1]}, {"symbol": "cs/IClock#Now().", "symbol_name": "Now", "kind": "method", "role": "reference", "enclosing_symbol": "cs/SystemClock", "range": [7, 2, 7, 8]}]
+  }]
+}

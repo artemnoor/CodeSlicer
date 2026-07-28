@@ -1,0 +1,11 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "metadata": {"timestamp": "2026-07-25T10:00:00Z", "tools": [{"vendor": "fixture", "name": "local-bom", "version": "1.0"}]},
+  "components": [
+    {"type": "library", "bom-ref": "pkg:npm/axios@1.6.0", "name": "axios", "version": "1.6.0", "purl": "pkg:npm/axios@1.6.0", "properties": [{"name": "codeslicer.lockfile", "value": "package-lock.json"}], "licenses": [{"license": {"id": "MIT"}}]},
+    {"type": "library", "bom-ref": "pkg:npm/lodash@4.17.21", "name": "lodash", "version": "4.17.21", "purl": "pkg:npm/lodash@4.17.21", "properties": [{"name": "codeslicer.lockfile", "value": "package-lock.json"}]}
+  ],
+  "dependencies": [{"ref": "pkg:npm/axios@1.6.0", "dependsOn": ["pkg:npm/lodash@4.17.21"]}],
+  "vulnerabilities": [{"id": "CVE-2026-0001", "ratings": [{"severity": "high"}], "affects": [{"ref": "pkg:npm/axios@1.6.0"}], "description": "SECRET FULL DESCRIPTION MUST NOT BE STORED"}]
+}

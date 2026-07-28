@@ -17,6 +17,10 @@ class AnalysisOptions:
     changed_files: list[str] | None = None
     raw_graph_cache_path: str | None = None
     progress_callback: Callable[[dict[str, Any]], None] | None = None
+    cancellation: Any = None
+    scope: str | None = None
+    memory_budget_mb: int | None = None
+    time_budget_seconds: float | None = None
 
 
 @dataclass
@@ -34,6 +38,7 @@ class AnalysisResult:
     edges: int
     graph: dict[str, Any]
     progress: dict[str, Any] = field(default_factory=dict)
+    profiling: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -50,4 +55,5 @@ class AnalysisResult:
             "edges": self.edges,
             "graph": self.graph,
             "progress": self.progress,
+            "profiling": self.profiling,
         }

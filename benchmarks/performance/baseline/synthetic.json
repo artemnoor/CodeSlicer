@@ -1,0 +1,451 @@
+{
+  "schema_version": "impact-engine.performance-report.v1",
+  "corpus": {
+    "path": "synthetic://generated",
+    "scope": ".",
+    "available": true,
+    "working_copy": false,
+    "snapshot_fingerprint": "2c642972f000b92cacc9427a6c8ea8043aeb2aa6030348bc3c8fd7e12f1ee86f",
+    "files": 4,
+    "loc_context": 10
+  },
+  "machine": {
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python": "3.11.9",
+    "processor": "AMD64 Family 25 Model 33 Stepping 0, AuthenticAMD"
+  },
+  "status": "ok",
+  "timings": {
+    "initial_scan_wall_seconds": 0.702492,
+    "warm_no_change_wall_seconds": 0.110028,
+    "one_file_incremental_wall_seconds": 0.246168,
+    "manifest_change_incremental_wall_seconds": 0.169584,
+    "top_impact_query": {
+      "p50": 0.00225,
+      "p95": 0.002665,
+      "samples": 5
+    },
+    "review": {
+      "p50": 0.174208,
+      "p95": 0.189687,
+      "samples": 3
+    }
+  },
+  "memory": {
+    "peak_bytes": 2123697
+  },
+  "profiling": {
+    "initial": {
+      "stage_timings_seconds": {
+        "inventory": 0.034286,
+        "cache_lookup": 0.000465,
+        "snapshot_hashing": 0.003205,
+        "plugin_selection": 0.230777,
+        "extraction": 0.015566,
+        "normalization": 0.014834,
+        "semantic_binding": 0.001666,
+        "framework_hooks": 0.000142,
+        "precision_resolution": 0.104801,
+        "frontend_backend_projection": 0.009169,
+        "graph_quality": 0.011174,
+        "review_projection": 0.0,
+        "serialization": 0.142275
+      },
+      "work": {
+        "files_seen": 4,
+        "files_reused": 0,
+        "files_reparsed": 0,
+        "facts_reused": 0,
+        "facts_rebuilt": 0,
+        "edges_reused": 0,
+        "edges_rebuilt": 0,
+        "plugins_executed": [
+          "language.python"
+        ],
+        "plugins_skipped": [
+          "framework.go.gin",
+          "framework.java.spring",
+          "framework.javascript.express",
+          "framework.javascript.react",
+          "framework.python.celery",
+          "framework.python.dependency-injector",
+          "framework.python.fastapi",
+          "framework.python.sqlalchemy",
+          "language.go",
+          "language.java",
+          "language.javascript",
+          "language.typescript"
+        ]
+      }
+    },
+    "warm": {
+      "stage_timings_seconds": {
+        "inventory": 0.0,
+        "cache_lookup": 0.064992,
+        "snapshot_hashing": 0.006121,
+        "plugin_selection": 0.0,
+        "extraction": 0.0,
+        "normalization": 0.0,
+        "semantic_binding": 0.0,
+        "framework_hooks": 0.0,
+        "precision_resolution": 0.0,
+        "frontend_backend_projection": 0.0,
+        "graph_quality": 0.0,
+        "review_projection": 0.0,
+        "serialization": 1e-05
+      },
+      "work": {
+        "files_seen": 4,
+        "files_reused": 4,
+        "files_reparsed": 0,
+        "facts_reused": 17,
+        "facts_rebuilt": 0,
+        "edges_reused": 0,
+        "edges_rebuilt": 0,
+        "plugins_executed": [],
+        "plugins_skipped": []
+      }
+    },
+    "incremental": {
+      "stage_timings_seconds": {
+        "inventory": 0.020359,
+        "cache_lookup": 0.003355,
+        "snapshot_hashing": 0.003016,
+        "plugin_selection": 0.027762,
+        "extraction": 0.11494,
+        "normalization": 0.0,
+        "semantic_binding": 0.0,
+        "framework_hooks": 0.0,
+        "precision_resolution": 0.0,
+        "frontend_backend_projection": 0.0,
+        "graph_quality": 0.0,
+        "review_projection": 0.0,
+        "serialization": 1.6e-05
+      },
+      "work": {
+        "files_seen": 4,
+        "files_reused": 3,
+        "files_reparsed": 1,
+        "facts_reused": 9,
+        "facts_rebuilt": 4,
+        "edges_reused": 8,
+        "edges_rebuilt": 4,
+        "plugins_executed": [
+          "language.python"
+        ],
+        "plugins_skipped": [
+          "framework.go.gin",
+          "framework.java.spring",
+          "framework.javascript.express",
+          "framework.javascript.react",
+          "framework.python.celery",
+          "framework.python.dependency-injector",
+          "framework.python.fastapi",
+          "framework.python.sqlalchemy",
+          "language.go",
+          "language.java",
+          "language.javascript",
+          "language.typescript"
+        ]
+      }
+    },
+    "review": {
+      "stage_timings_seconds": {
+        "inventory": 0.0,
+        "cache_lookup": 0.0,
+        "snapshot_hashing": 0.0,
+        "plugin_selection": 0.0,
+        "extraction": 0.0,
+        "normalization": 0.0,
+        "semantic_binding": 0.0,
+        "framework_hooks": 0.0,
+        "precision_resolution": 0.0,
+        "frontend_backend_projection": 0.0,
+        "graph_quality": 0.0,
+        "review_projection": 0.161747,
+        "serialization": 0.0
+      },
+      "work": {
+        "files_seen": 0,
+        "files_reused": 1,
+        "files_reparsed": 0,
+        "facts_reused": 0,
+        "facts_rebuilt": 0,
+        "edges_reused": 0,
+        "edges_rebuilt": 0,
+        "plugins_executed": [],
+        "plugins_skipped": []
+      }
+    },
+    "review_projection_seconds": {
+      "p50": 0.174208,
+      "p95": 0.189687,
+      "samples": 3
+    }
+  },
+  "plugins": {
+    "selected": [
+      {
+        "id": "language.python",
+        "kind": "language",
+        "language": "python",
+        "version": "1.0.0",
+        "cache_key": "python-ast-v1",
+        "capabilities": {
+          "structural_extraction": true,
+          "semantic_resolution": true
+        }
+      }
+    ],
+    "rejected": [
+      {
+        "id": "language.go",
+        "kind": "language",
+        "version": "1.0.0",
+        "cache_key": "tree-sitter-go-v1",
+        "reason": "language not present in inventory"
+      },
+      {
+        "id": "language.java",
+        "kind": "language",
+        "version": "1.0.0",
+        "cache_key": "tree-sitter-java-v1",
+        "reason": "language not present in inventory"
+      },
+      {
+        "id": "language.javascript",
+        "kind": "language",
+        "version": "1.0.0",
+        "cache_key": "tree-sitter-javascript-v1",
+        "reason": "language not present in inventory"
+      },
+      {
+        "id": "language.typescript",
+        "kind": "language",
+        "version": "1.0.0",
+        "cache_key": "tree-sitter-typescript-v1",
+        "reason": "language not present in inventory"
+      },
+      {
+        "id": "framework.go.gin",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.go.gin-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.java.spring",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.java.spring-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.javascript.express",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.javascript.express-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.javascript.react",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.javascript.react-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.python.celery",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.python.celery-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.python.dependency-injector",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.python.dependency-injector-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.python.fastapi",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.python.fastapi-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.python.sqlalchemy",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.python.sqlalchemy-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      }
+    ],
+    "diagnostics": [
+      {
+        "plugin_id": "framework.go.gin",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.java.spring",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.javascript.express",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.javascript.react",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.python.celery",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.python.dependency-injector",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.python.fastapi",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.python.sqlalchemy",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      }
+    ]
+  },
+  "cache": {
+    "hit_rate": 0.75,
+    "files_reused": 3,
+    "files_reanalyzed": 1,
+    "facts_reused": 9,
+    "facts_rebuilt": 4,
+    "graph_delta": "none",
+    "invalidated_nodes": [
+      "call:service.run:2:repository",
+      "file:service.py",
+      "method:service.repository",
+      "method:service.run"
+    ],
+    "snapshot_files": 4
+  },
+  "correctness": {
+    "differential_status": "passed",
+    "clean_vs_incremental_equal": true,
+    "deterministic_signature": true
+  },
+  "slo": {
+    "warm_no_change_lt_1s": true,
+    "one_file_incremental_lt_2s": true,
+    "top_impact_p95_lt_500ms": true
+  },
+  "incomplete": false,
+  "diagnostics": {
+    "normal_analyze_requires_internet": false,
+    "language_semantic_capabilities": {
+      "python": {
+        "language_id": "python",
+        "provider_id": "python_ast_precision",
+        "capabilities": {
+          "structural_extraction": true,
+          "import_resolution": true,
+          "call_resolution": "semantic",
+          "endpoint_resolution": true,
+          "framework_rules": true,
+          "production_semantic_baseline": true,
+          "notes": [
+            "Production-supported semantic baseline.",
+            "Supports Python AST facts, DI/self.attr/call receiver resolution, and support-pack framework hooks."
+          ]
+        },
+        "confidence_policy": "high-confidence semantic resolver; inferred edges may reach production confidence when evidence is complete",
+        "diagnostics_label": "Python semantic baseline"
+      }
+    },
+    "project_hygiene_status": "applied",
+    "pre_project_hygiene_status": "applied",
+    "post_project_hygiene_status": "applied",
+    "project_hygiene_summary": {
+      "files.SOURCE": 2,
+      "files.CONFIG": 1,
+      "files.TEST": 1,
+      "nodes.UNKNOWN": 7,
+      "nodes.RUNTIME": 7,
+      "nodes.TEST_ONLY": 3,
+      "edges.RUNTIME": 17,
+      "edges.TEST_ONLY": 1,
+      "files.total": 4,
+      "dependencies.total": 0,
+      "routes.total": 0,
+      "nodes.total": 17,
+      "edges.total": 18,
+      "dependencies.requires_research": 0,
+      "files.generated": 0,
+      "files.tests": 1,
+      "files.contracts": 0,
+      "files.dead_candidates": 0
+    },
+    "pre_project_hygiene_summary": {
+      "files.SOURCE": 2,
+      "files.CONFIG": 1,
+      "files.TEST": 1,
+      "files.total": 4,
+      "dependencies.total": 0,
+      "routes.total": 0,
+      "nodes.total": 0,
+      "edges.total": 0,
+      "dependencies.requires_research": 0,
+      "files.generated": 0,
+      "files.tests": 1,
+      "files.contracts": 0,
+      "files.dead_candidates": 0
+    },
+    "items": []
+  },
+  "elapsed_harness_seconds": 2.148832,
+  "privacy": {
+    "mode": "local-only",
+    "raw_source_diagnostics_stored": false,
+    "redactions": {
+      "urls": 0,
+      "environment_names": 0,
+      "local_paths": 0
+    }
+  }
+}

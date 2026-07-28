@@ -1,0 +1,12 @@
+{
+  "schema_version": "CodeSlicerJoernInterchange/v1",
+  "metadata": {"tool": "joern", "tool_version": "4.x", "source_format": "sanitized-flow-baseline"},
+  "nodes": [
+    {"id": "source", "kind": "SOURCE", "location": {"file": "src/input.c", "range": {"start_line": 4, "start_character": 2, "end_line": 4, "end_character": 12}}},
+    {"id": "step", "kind": "CALL", "location": {"file": "src/input.c", "range": {"start_line": 7, "start_character": 2, "end_line": 7, "end_character": 15}}},
+    {"id": "sink", "kind": "SINK", "location": {"file": "src/input.c", "range": {"start_line": 10, "start_character": 2, "end_line": 10, "end_character": 14}}}
+  ],
+  "edges": [],
+  "taint_paths": [{"id": "path-1", "source": "source", "steps": ["source", "step", "sink"], "sink": "sink", "confidence": "confirmed", "locations": [{"file": "src/input.c", "range": {"start_line": 4, "start_character": 2, "end_line": 4, "end_character": 12}}, {"file": "src/input.c", "range": {"start_line": 10, "start_character": 2, "end_line": 10, "end_character": 14}}]}],
+  "findings": []
+}

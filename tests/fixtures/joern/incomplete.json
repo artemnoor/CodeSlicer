@@ -1,0 +1,8 @@
+{
+  "schema_version": "CodeSlicerJoernInterchange/v1",
+  "metadata": {"tool": "joern", "tool_version": "2.0.0", "project_path": "__PROJECT__"},
+  "nodes": [{"id": "partial-source", "kind": "SOURCE", "name": "input", "location": {"file": "src/a.cpp", "range": {"start_line": 1, "start_character": 0, "end_line": 1, "end_character": 5}}}, {"id": "partial-sink", "kind": "SINK", "name": "sink", "location": {"file": "src/a.cpp", "range": {"start_line": 8, "start_character": 0, "end_line": 8, "end_character": 4}}}],
+  "edges": [],
+  "taint_paths": [{"id": "partial-path", "source": "partial-source", "steps": ["partial-source"], "confidence": "confirmed"}],
+  "findings": []
+}

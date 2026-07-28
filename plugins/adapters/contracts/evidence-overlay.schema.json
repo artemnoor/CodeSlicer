@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "CodeSlicerEvidenceOverlay/v1",
+  "type": "object",
+  "required": ["schema_version", "adapter_id", "adapter_version", "source_kind", "evidence_class", "confidence", "freshness", "local_artifact_reference", "nodes", "edges", "diagnostics", "network_used", "enabled"],
+  "properties": {
+    "schema_version": {"const": "CodeSlicerEvidenceOverlay/v1"},
+    "adapter_id": {"type": "string"},
+    "adapter_version": {"type": "string"},
+    "source_kind": {"type": "string"},
+    "evidence_class": {"type": "string"},
+    "confidence": {"type": "string"},
+    "freshness": {"type": "object"},
+    "local_artifact_reference": {"type": "object"},
+    "nodes": {"type": "array"},
+    "edges": {"type": "array"},
+    "diagnostics": {"type": "array"},
+    "network_used": {"const": false},
+    "enabled": {"type": "boolean"}
+  }
+}

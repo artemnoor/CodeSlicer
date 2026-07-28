@@ -1,0 +1,13 @@
+{
+  "changed_entities": ["file:service.py", "method:service.run"],
+  "golden_status": "manual",
+  "golden_rationale": "service.run is changed; the actionable causal review surface is the changed callable/file, containing module, app consumer module, and app.main consumer. repository.save is a dependency of the changed function, not a downstream impact.",
+  "expected_top_5_entities": ["method:service.run", "file:service.py", "module:service", "module:app", "method:app.main"],
+  "allowed_top_10_entities": ["file:service.py", "method:service.run", "module:service", "module:repository", "module:app", "method:repository.save", "method:app.main", "file:repository.py", "file:app.py"],
+  "forbidden_noise_entities": [],
+  "expected_tests": ["tests/test_app.py"],
+  "expected_chain_status": "cross_file_proven",
+  "expected_risk": "LOW",
+  "expected_confidence": "high",
+  "explanation_evidence_requirements": {"minimum_evidence_per_top_result": 1}
+}

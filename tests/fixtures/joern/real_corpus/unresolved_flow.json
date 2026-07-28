@@ -1,0 +1,11 @@
+{
+  "schema_version": "CodeSlicerJoernInterchange/v1",
+  "metadata": {"tool": "joern", "tool_version": "4.x", "source_format": "sanitized-flow-baseline"},
+  "nodes": [
+    {"id": "source", "kind": "SOURCE", "location": {"file": "src/input.java", "range": {"start_line": 8, "start_character": 4, "end_line": 8, "end_character": 16}}},
+    {"id": "sink", "kind": "SINK", "location": {"file": "src/handler.java", "range": {"start_line": 20, "start_character": 4, "end_line": 20, "end_character": 16}}}
+  ],
+  "edges": [],
+  "taint_paths": [{"id": "path-unresolved", "source": "source", "steps": [], "sink": "sink", "confidence": "confirmed", "locations": []}],
+  "findings": []
+}

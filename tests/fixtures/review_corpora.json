@@ -1,0 +1,56 @@
+{
+  "schema_version": "DailyReviewCorpus/v1",
+  "cases": {
+    "JunMate": {
+      "local_root": "tests/corpus/JunMate",
+      "local_diff": "tests/corpus/diffs/jun-change.diff",
+      "root_env": "IMPACT_REVIEW_JUNMATE_ROOT",
+      "diff_env": "IMPACT_REVIEW_JUNMATE_DIFF",
+      "commit_sha": "UNAVAILABLE_NO_GIT_METADATA",
+      "source_snapshot_sha256": "11812140c71fde9e3549beea17cfc4b06022fe0d10c2100c96e17bd083bb418b",
+      "diff_sha256": "1ae632763db747006064f4967957c79ead6d8281403daf4317b3003a2605ca77",
+      "golden_status": "pinned",
+      "golden_rationale": "Pins the changed merge module and its nearby regression test so ranking remains actionable for the daily review.",
+      "expected_top_impacts": ["core.merge._key", "core.merge.merge_profile", "file:core/merge.py", "module:core.merge", "screens.chat.render_chat_screen"],
+      "expected_test_files": ["tests/test_merge.py"],
+      "expected_chain_status": "cross_file_proven",
+      "max_noise_ratio": 0.25,
+      "max_review_seconds": 2.0,
+      "max_duration_seconds": 30
+    },
+    "JevioFuseHack": {
+      "local_root": "tests/corpus/JevioFuseHack",
+      "local_diff": "tests/corpus/diffs/memory-change.diff",
+      "root_env": "IMPACT_REVIEW_JEVIOFUSEHACK_ROOT",
+      "diff_env": "IMPACT_REVIEW_JEVIOFUSEHACK_DIFF",
+      "commit_sha": "UNAVAILABLE_NO_GIT_METADATA",
+      "source_snapshot_sha256": "b000bb076f5b46b1598f5bbb465be69410a44842116bc7ca1a433d8ed2f70934",
+      "diff_sha256": "800d9c628639ee09347da25e0169227104fea65c522a005a6d5c34862b3595ff",
+      "golden_status": "pinned",
+      "golden_rationale": "Pins the changed memory symbols while accepting no proven cross-file impact; this prevents fabricated chains from becoming a regression baseline.",
+      "expected_top_impacts": ["CogneeHttpError", "CogneeHttpError.constructor", "CogneeMemory", "CogneeMemory.configurationIssue", "CogneeMemory.constructor"],
+      "expected_test_files": [],
+      "expected_chain_status": "no_cross_file_impact_proven",
+      "max_noise_ratio": 0.25,
+      "max_review_seconds": 2.0,
+      "max_duration_seconds": 30
+    },
+    "Cruxa": {
+      "local_root": "tests/corpus/Cruxa",
+      "local_diff": "tests/corpus/diffs/cruxa-change.diff",
+      "root_env": "IMPACT_REVIEW_CRUXA_ROOT",
+      "diff_env": "IMPACT_REVIEW_CRUXA_DIFF",
+      "commit_sha": "UNAVAILABLE_NO_GIT_METADATA",
+      "source_snapshot_sha256": "47c50bbe0ddbda64422d14235c191d5e978ad7c669f9e83aeb86fdc6c2e808f9",
+      "diff_sha256": "54daad66c76fb10e930148aa1f636831c2e839363e1c7ac05aed48e439106d78",
+      "golden_status": "pinned",
+      "golden_rationale": "Pins the bounded C# fallback projection for the changed controller: limited compiler coverage, UNKNOWN risk, and no fabricated cross-file chain, tests, or frontend impact.",
+      "expected_top_impacts": ["file:backend/src/Cruxa.Api/Features/Routes/RoutesController.cs"],
+      "expected_test_files": [],
+      "expected_chain_status": "no_cross_file_impact_proven",
+      "max_noise_ratio": 0.25,
+      "max_review_seconds": 2.0,
+      "max_duration_seconds": 30
+    }
+  }
+}

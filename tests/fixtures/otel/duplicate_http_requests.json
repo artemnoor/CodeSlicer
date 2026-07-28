@@ -1,0 +1,12 @@
+{
+  "resourceSpans": [
+    {"resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "web"}}]}, "scopeSpans": [{"spans": [
+      {"traceId": "cccccccccccccccccccccccccccccccc", "spanId": "c-client-1", "name": "GET /api/orders", "kind": 3, "startTimeUnixNano": "3000000000", "endTimeUnixNano": "3010000000", "attributes": [{"key": "http.request.method", "value": {"stringValue": "GET"}}, {"key": "http.route", "value": {"stringValue": "/api/orders"}}]},
+      {"traceId": "cccccccccccccccccccccccccccccccc", "spanId": "c-client-2", "name": "GET /api/orders", "kind": 3, "startTimeUnixNano": "3020000000", "endTimeUnixNano": "3030000000", "attributes": [{"key": "http.request.method", "value": {"stringValue": "GET"}}, {"key": "http.route", "value": {"stringValue": "/api/orders"}}]}
+    ]}]},
+    {"resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "api"}}]}, "scopeSpans": [{"spans": [
+      {"traceId": "cccccccccccccccccccccccccccccccc", "spanId": "c-server-1", "parentSpanId": "c-client-1", "name": "GET /api/orders", "kind": 2, "startTimeUnixNano": "3005000000", "endTimeUnixNano": "3009000000", "attributes": [{"key": "http.request.method", "value": {"stringValue": "GET"}}, {"key": "http.route", "value": {"stringValue": "/api/orders"}}]},
+      {"traceId": "cccccccccccccccccccccccccccccccc", "spanId": "c-server-2", "parentSpanId": "c-client-2", "name": "GET /api/orders", "kind": 2, "startTimeUnixNano": "3025000000", "endTimeUnixNano": "3029000000", "attributes": [{"key": "http.request.method", "value": {"stringValue": "GET"}}, {"key": "http.route", "value": {"stringValue": "/api/orders"}}]}
+    ]}]}
+  ]
+}

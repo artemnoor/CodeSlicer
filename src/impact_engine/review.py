@@ -1,0 +1,795 @@
+"""Compact, local-first daily review projection.
+
+This module deliberately projects the existing graph instead of changing the
+legacy PR review or impact-query contracts.  The full graph remains available
+through ``deep_action`` and the existing viewers.
+"""
+from __future__ import annotations
+
+import subprocess
+import time
+import hashlib
+import json
+from dataclasses import dataclass
+import heapq
+from pathlib import Path
+from typing import Any
+
+from impact_engine.graph_quality import graph_fingerprint
+from impact_engine.impact import impact_query
+from impact_engine.edge_quality import edge_is_active_for_impact
+from impact_engine.models import GraphDocument
+from impact_engine.persistence import write_json_atomic
+from impact_engine.profiling import AnalysisProfiler
+from impact_engine.pr_review import (
+    _changed_symbols,
+    parse_git_diff,
+    recommend_tests,
+    score_pr_risk,
+)
+from impact_engine.ranking_policy import DEFAULT_RANKING_POLICY, REVIEW_PROJECTION_POLICY_VERSION, REVIEW_SCHEMA_VERSION, TEST_SELECTION_POLICY_VERSION
+from impact_engine.review_projection import build_review_projection
+from impact_engine.contracts import MODE_CONTRACT_VERSION, action, attach_mode_contract
+from impact_engine.project_storage import is_codeslicer_artifact_path
+
+
+SCHEMA_VERSION = "ReviewReport/v1"
+SUPPRESSED_KINDS = {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "SUPPORT_PACK"}
+SUPPORTED_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".cs"}
+
+
+@dataclass(frozen=True)
+class ReviewReport:
+    """Typed wrapper for the stable ReviewReport/v1 dictionary contract."""
+
+    payload: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(self.payload)
+
+
+def build_review_report(
+    project_path: str,
+    *,
+    graph: GraphDocument | None = None,
+    graph_path: str | Path | None = None,
+    diff_text: str | None = None,
+    diff_source: str | None = None,
+    base: str | None = None,
+    refresh: str = "auto",
+    max_results: int = 10,
+    run_tests: str = "suggested",
+    deep: bool = False,
+    entity: str | None = None,
+    scope: str | None = None,
+) -> dict[str, Any]:
+    """Build a deterministic, bounded daily review report.
+
+    ``graph`` is injectable for fixtures and callers that already loaded the
+    local graph.  No network or upload is performed here.
+    """
+    root = Path(project_path).expanduser().resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"Project directory does not exist: {project_path}")
+    warnings: list[str] = []
+    profiler = AnalysisProfiler()
+    profile_started = time.perf_counter()
+    graph, freshness = _resolve_graph(root, graph, refresh, warnings, base=base, graph_path=graph_path)
+    graph = _exclude_graphify_from_default_review(graph, warnings)
+    graph_integrity = _review_graph_integrity(graph)
+    if graph_integrity["dangling_endpoint_edges"]:
+        warnings.append(
+            f"{graph_integrity['dangling_endpoint_edges']} dangling edges excluded from concise review"
+        )
+    diff, source = _resolve_diff(root, diff_text, diff_source, base)
+    if source == "project-not-a-git-repository":
+        # A nested project must never inherit the parent repository's diff.
+        # Keep the review honest and let the UI explain why no changed files
+        # were inferred until the caller supplies an explicit diff.
+        warnings.append("project is nested in another Git repository; parent diff was not used")
+    changed_files = parse_git_diff(diff)
+    generated_changes = [item.path for item in changed_files if is_codeslicer_artifact_path(item.path)]
+    changed_files = [item for item in changed_files if not is_codeslicer_artifact_path(item.path)]
+    if generated_changes:
+        warnings.append(f"{len(generated_changes)} generated CodeSlicer artifact changes excluded from review")
+    scope_prefix = (scope or "").replace("\\", "/").strip("/")
+    if scope_prefix:
+        changed_files = [
+            item for item in changed_files
+            if item.path == scope_prefix or item.path.startswith(scope_prefix + "/")
+        ]
+    # The final pipeline already persists a content fingerprint. Recomputing
+    # a sorted JSON serialization of a large graph on every repeated review
+    # request dominated the review-cache hit path on Cruxa.
+    graph_key = graph.metadata.get("graph_fingerprint") or graph_fingerprint(graph)
+    plugin_fingerprint = graph.metadata.get("plugin_packs_fingerprint") or graph.metadata.get("support_pack_fingerprint") or graph.metadata.get("support_pack_versions", {})
+    review_cache_key = hashlib.sha256(json.dumps({
+        "mode": "review",
+        "mode_contract_version": MODE_CONTRACT_VERSION,
+        "graph_fingerprint": graph_key,
+        "diff_fingerprint": hashlib.sha256(diff.encode("utf-8")).hexdigest(),
+        "scope": scope or ".",
+        "ranking_policy_version": DEFAULT_RANKING_POLICY.version,
+        "review_projection_policy_version": REVIEW_PROJECTION_POLICY_VERSION,
+        "test_selection_policy_version": TEST_SELECTION_POLICY_VERSION,
+        "max_results": max_results,
+        "deep_or_concise": "deep" if deep else "concise",
+        "plugin_packs_fingerprint": plugin_fingerprint,
+        "review_schema_version": REVIEW_SCHEMA_VERSION,
+        "run_tests": run_tests,
+    }, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+    review_cache_path = root / ".impact_engine" / "review.json"
+    if refresh != "force" and not deep and not entity and review_cache_path.is_file():
+        try:
+            cached_review = json.loads(review_cache_path.read_text(encoding="utf-8"))
+            if cached_review.get("cache_key") == review_cache_key:
+                cached_payload = dict(cached_review.get("payload") or {})
+                # The projection is reusable across equivalent graph payloads,
+                # but its provenance envelope is request-local. In particular,
+                # an externally supplied graph may live at a different path
+                # while retaining the same fingerprint.
+                cached_payload["graph_freshness"] = freshness
+                cached_payload["project"] = str(root)
+                cached_payload.setdefault("cache", {})["review_projection"] = "hit"
+                profiler.timings["review_projection"] = time.perf_counter() - profile_started
+                profiler.add_work(files_reused=1)
+                cached_payload["profiling"] = profiler.snapshot()
+                _attach_review_contract(cached_payload)
+                return cached_payload
+        except (OSError, ValueError, TypeError):
+            warnings.append("review projection cache invalidated")
+    changed_symbols = _changed_symbols(graph, changed_files)
+    if entity and not changed_symbols:
+        query = str(entity).strip().lower()
+        entity_matches = [
+            node for node in graph.nodes
+            if query and (str(node.id).lower() == query or str(node.name).lower() == query)
+        ]
+        if not entity_matches:
+            entity_matches = [
+                node for node in graph.nodes
+                if query and (query in str(node.id).lower() or query in str(node.name).lower())
+            ]
+        if len(entity_matches) == 1:
+            selected = entity_matches[0]
+            selected_file = selected.properties.get("file") or selected.properties.get("path")
+            changed_symbols = [{
+                "id": selected.id, "kind": selected.kind, "file": selected_file,
+                "line": selected.properties.get("line"), "changed_lines": [],
+                "entity_scope": True,
+            }]
+            warnings.append("entity-scoped review: no diff supplied; impact is anchored to the selected entity")
+
+    changed_paths = {item.path for item in changed_files}
+    changed_paths.update(str(item.get("file")) for item in changed_symbols if item.get("file"))
+    coverage = _coverage(graph, changed_paths)
+    projection = build_review_projection(
+        graph, changed_symbols, changed_paths, max_results=max_results,
+        deep=deep, coverage=coverage,
+    )
+    all_nodes = {
+        node.id: {"id": node.id, "name": node.name, "kind": node.kind, "properties": node.properties}
+        for node in graph.nodes
+        if node.id in {item.entity_id for item in projection.candidates} or node.id in set(projection.changed_entities)
+    }
+    all_edges = {edge.id: edge.to_dict() for edge in graph.edges if edge.from_node in all_nodes or edge.to_node in all_nodes}
+    suppressed = sum(1 for node in graph.nodes if _suppressed(node, allow_boundary=True))
+    local_graph_path = Path(str(freshness.get("graph_path"))) if freshness.get("graph_path") else root / ".impact_engine" / "graph.json"
+    if not local_graph_path.is_file():
+        local_graph_path = root / "graph.json"
+    visible: list[dict[str, Any]] = []
+    for candidate in projection.candidates:
+        item = candidate.to_dict()
+        item["entity_id"] = _review_entity_id(candidate.entity_id)
+        item["label"] = candidate.symbol
+        item["class"] = candidate.impact_class
+        item["line"] = next((ev.line for ev in projection.evidence if ev.id in candidate.evidence_ids and ev.line is not None), None)
+        item["why_affected"] = candidate.why_affected
+        item["why"] = {
+            "evidence_ids": list(candidate.evidence_ids),
+            "evidence_locations": [ev.to_dict() for ev in projection.evidence if ev.id in candidate.evidence_ids and (ev.file or ev.line)],
+        }
+        if not item["why"]["evidence_locations"]:
+            item["why"]["heuristic"] = "changed symbol or file-level fallback"
+            item["heuristic"] = True
+        else:
+            item["heuristic"] = False
+        item["deep_action"] = f"impact-engine review {root} --deep --entity {candidate.entity_id} --graph {local_graph_path}"
+        if freshness.get("stale"):
+            item["confidence"] = "low"
+        visible.append(item)
+
+    chains = []
+    for chain in projection.chains:
+        chain_dict = chain.to_dict()
+        # The stable projection explanation contains human labels.  The
+        # legacy ReviewReport chain field keeps IDs for existing consumers,
+        # while technical hops remain hidden in concise mode.
+        chain_node_ids = []
+        for label in chain.nodes:
+            node = next((item for item in graph.nodes if item.name == label), None)
+            if node is not None and _chain_visible(node) and node.id not in chain_node_ids:
+                chain_node_ids.append(node.id)
+        chain_dict["node_ids"] = chain_node_ids
+        chain_dict["evidence_locations"] = [ev.to_dict() for ev in projection.evidence if ev.id in chain.evidence_ids]
+        chain_dict["edge_ids"] = [ev.id.split(":", 2)[1] for ev in projection.evidence if ev.id in chain.evidence_ids and ev.id.startswith("edge:")]
+        chains.append(chain_dict)
+    if not chains:
+        warnings.append("no cross-file impact proven: no concise chain available")
+    changed_dicts = [item.to_dict() for item in changed_files]
+    changed_paths = {item.path for item in changed_files}
+    affected_nodes = list(all_nodes.values())
+    risk = dict(projection.risk)
+    risk["confidence"] = "low" if freshness.get("stale") else risk.get("confidence", "medium")
+    if freshness.get("stale"):
+        risk["reasons"].append("graph is stale; high-confidence claims are suppressed")
+        risk["score"] = max(0, int(risk["score"]) - 1)
+    warnings.extend(_coverage_warnings(coverage))
+    incomplete_coverage = any(
+        item["status"] in {"unsupported", "limited"}
+        and not item.get("review_usable", False)
+        and not _is_test_path(item["path"])
+        for item in coverage
+    )
+    usable_limited_coverage = any(item.get("status") == "limited" and item.get("review_usable") for item in coverage)
+    if incomplete_coverage and chains:
+        # A limited/unsupported changed language cannot provide a confirmed
+        # cross-file chain.  Keep the raw graph for deep investigation, but
+        # make concise review state the honest no-proof status.
+        chains = []
+        warnings.append("cross-file chains withheld because changed language coverage is incomplete")
+    if incomplete_coverage:
+        risk.update({"level": "UNKNOWN", "confidence": "low", "reason": "incomplete language coverage"})
+        risk.setdefault("reasons", []).append("incomplete language coverage")
+    elif usable_limited_coverage:
+        risk.setdefault("reasons", []).append("limited compiler coverage; confirmed structural features used")
+    if freshness.get("status") == "externally_supplied_unverified":
+        risk["confidence"] = "low"
+        risk.setdefault("reasons", []).append("external graph is not verified against the current branch")
+    test_recommendations = [] if run_tests == "none" or incomplete_coverage else [item.to_dict() for item in projection.tests]
+    if incomplete_coverage and projection.tests:
+        warnings.append("targeted tests withheld; backend language coverage is incomplete")
+    if suppressed:
+        warnings.append(f"{suppressed} low-value entities suppressed (assignments, built-ins, libraries, or generated files)")
+    warnings.extend(projection.warnings)
+
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "status": "ok",
+        "project": str(root),
+        "diff_source": source,
+        "graph_freshness": freshness,
+        "graph_integrity": graph_integrity,
+        "changed": {"files": changed_dicts, "hunks": _hunks(changed_files), "symbols": changed_symbols, "symbol_confidence": "ast_or_graph_span" if changed_symbols and changed_symbols[0].get("line") is not None else "file_fallback"},
+        "risk": risk,
+        "coverage": coverage,
+        "top_impacts": visible,
+        "test_recommendations": test_recommendations,
+        "review_projection": projection.to_dict(),
+        "ranking_policy": DEFAULT_RANKING_POLICY.to_dict(),
+        "test_selection_policy_version": TEST_SELECTION_POLICY_VERSION,
+        "chains": chains,
+        "chain_summary": {
+            "status": "cross_file_proven" if chains else "no_cross_file_impact_proven",
+            "count": len(chains),
+        },
+        "warnings": sorted(set(warnings)),
+        "actions": {"deep": deep, "suppressed_count": suppressed, "local_only": True},
+        "scope": scope or ".",
+        "cache": graph.metadata.get("cache", {"status": "unknown", "reason": "graph_metadata_missing"}),
+        "progress": graph.metadata.get("analysis_progress", {"phase": "unknown", "completed": 0, "total": 0, "elapsed_seconds": 0.0, "eta_seconds": None, "cancellable": True}),
+        "incomplete": bool(incomplete_coverage or graph.metadata.get("incomplete")),
+    }
+    profiler.timings["review_projection"] = time.perf_counter() - profile_started
+    profiler.add_work(
+        files_seen=len(changed_files),
+        facts_reused=len(graph.nodes),
+        edges_reused=len(graph.edges),
+    )
+    payload["profiling"] = profiler.snapshot()
+    if deep:
+        selected_entity = entity or (visible[0]["entity_id"] if visible else None)
+        if selected_entity:
+            payload["deep_result"] = impact_query(graph, target=selected_entity, direction="both", max_depth=20, min_confidence=0.0)
+            payload["actions"]["selected_entity"] = selected_entity
+    _attach_review_contract(payload)
+    try:
+        write_json_atomic(review_cache_path, {"schema_version": SCHEMA_VERSION, "cache_key": review_cache_key, "payload": payload})
+    except OSError:
+        payload.setdefault("warnings", []).append("review projection cache write failed")
+    return payload
+
+
+def _attach_review_contract(payload: dict[str, Any]) -> dict[str, Any]:
+    """Add the common mode envelope while preserving legacy review actions."""
+
+    legacy = dict(payload.get("actions") or {})
+    legacy.pop("items", None)
+    items = [
+        action("refresh-graph", "refresh_graph", "Refresh graph", payload={"project_path": payload.get("project")}),
+        action("view-coverage", "view_coverage", "View coverage", payload={"coverage": payload.get("coverage", [])}),
+    ]
+    for item in (payload.get("top_impacts") or [])[:10]:
+        entity_id = item.get("entity_id")
+        if entity_id:
+            items.append(action(
+                f"inspect-{entity_id}", "inspect_entity", "Inspect impact",
+                payload={"project_path": payload.get("project"), "entity": entity_id},
+            ))
+            items.append(action(
+                f"investigate-{entity_id}", "investigate_entity", "Investigate impact",
+                payload={"project_path": payload.get("project"), "entity": entity_id},
+            ))
+        file_name = item.get("file") or item.get("path")
+        if file_name:
+            items.append(action(f"open-{entity_id or file_name}", "open_file", "Open impact file", payload={"file": file_name, "line": item.get("line")}))
+    for test in (payload.get("test_recommendations") or [])[:10]:
+        if test.get("file"):
+            items.append(action(
+                f"test-{test.get('file')}", "run_recommended_test", "Run recommended test",
+                payload={"project_path": payload.get("project"), "file": test.get("file"), "command": test.get("command")},
+            ))
+    for warning in (payload.get("warnings") or [])[:10]:
+        items.append(action(
+            f"ack-{hashlib.sha256(str(warning).encode('utf-8')).hexdigest()[:12]}", "acknowledge_warning", "Acknowledge warning",
+            payload={"warning": warning},
+        ))
+    attach_mode_contract(payload, "review", schema_version=SCHEMA_VERSION, actions=items, legacy_actions=legacy)
+    return payload
+
+
+def _resolve_graph(root: Path, graph: GraphDocument | None, refresh: str, warnings: list[str], base: str | None = None, graph_path: str | Path | None = None) -> tuple[GraphDocument, dict[str, Any]]:
+    explicit_path = Path(graph_path).expanduser().resolve() if graph_path else None
+    if explicit_path is not None:
+        if not explicit_path.is_file():
+            raise FileNotFoundError(f"Graph path does not exist: {explicit_path}")
+        if graph is None:
+            graph = GraphDocument.from_json(explicit_path.read_text(encoding="utf-8"))
+        path = explicit_path
+        age = max(0.0, time.time() - path.stat().st_mtime)
+        graph_fp = graph.metadata.get("graph_fingerprint") or graph_fingerprint(graph)
+        freshness = {
+            "fingerprint": graph_fp, "graph_path": str(path), "external_graph": True,
+            "branch": _git(root, ["branch", "--show-current"]), "head": _git(root, ["rev-parse", "HEAD"]),
+            "base": base, "age_seconds": round(age, 3), "refresh_mode": refresh,
+            "stale": True, "status": "externally_supplied_unverified", "verified": False,
+            "freshness_assertion": "external graph timestamp/fingerprint only",
+            "scan_plan_hash": None, "extractor_versions": graph.metadata.get("extractor_versions", {}),
+            "support_pack_versions": graph.metadata.get("support_pack_versions", {}),
+        }
+        warnings.append("external graph supplied; project graph freshness is not asserted")
+        return graph, freshness
+    path = next((p for p in (root / ".impact_engine" / "graph.json", root / "graph.json") if p.is_file()), None)
+    stale = False
+    if graph is None and path:
+        graph = GraphDocument.from_json(path.read_text(encoding="utf-8"))
+    snapshot_path = root / ".impact_engine" / "project.snapshot.json"
+    snapshot_changed = False
+    refresh_status = "reused" if graph is not None else "full_refresh"
+    fallback_reason = None
+    if snapshot_path.is_file() and refresh in {"auto", "never"}:
+        try:
+            from impact_engine.incremental import project_snapshot
+            previous = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            snapshot_changed = previous != project_snapshot(root)
+        except Exception:
+            snapshot_changed = True
+    if graph is None and refresh == "never":
+        graph = GraphDocument(metadata={"project_path": str(root)})
+        warnings.append("graph is missing; refresh was disabled")
+        return graph, {
+            "status": "missing", "stale": True, "verified": False,
+            "graph_path": None, "refresh_mode": refresh,
+            "fallback_reason": "graph_missing_refresh_disabled",
+        }
+    if graph is None or refresh == "force" or (refresh == "auto" and path is not None):
+        from impact_engine.analysis.pipeline import analyze_project_core
+        try:
+            if refresh == "auto" and path and path.exists() and snapshot_path.exists():
+                from impact_engine.incremental import incremental_update, load_snapshot, save_snapshot
+                result = incremental_update(str(root), lambda changed=None: analyze_project_core(str(root), out_path=str(root / ".impact_engine" / "graph.json")), load_snapshot(snapshot_path), str(root / ".impact_engine" / "graph.json"), str(path))
+                save_snapshot(result["incremental"]["snapshot"], snapshot_path)
+                refresh_status = "compatibility_full_refresh" if result.get("selective_execution", {}).get("execution_mode") == "full_pipeline_compatibility" else str(result.get("incremental", {}).get("status", "updated"))
+                fallback_reason = result.get("selective_execution", {}).get("reason")
+            else:
+                result = analyze_project_core(str(root), out_path=str(root / ".impact_engine" / "graph.json"))
+                if refresh == "auto":
+                    from impact_engine.incremental import project_snapshot, save_snapshot
+                    save_snapshot(project_snapshot(root), snapshot_path)
+                refresh_status = "full_refresh"
+                fallback_reason = "snapshot_missing_or_graph_missing"
+            graph = GraphDocument.from_dict(result["graph"])
+            path = Path(result.get("graph_path") or root / ".impact_engine" / "graph.json")
+        except Exception as exc:
+            stale = True
+            warnings.append(f"graph refresh failed; using last local graph: {exc}")
+            if graph is None:
+                graph = GraphDocument(metadata={"project_path": str(root)})
+                path = None
+                freshness = {
+                    "status": "missing", "stale": True, "verified": False,
+                    "graph_path": None, "refresh_mode": refresh,
+                    "fallback_reason": "graph_missing_and_refresh_failed",
+                }
+                warnings.append("graph is missing; run a local analysis before relying on impact results")
+                return graph, freshness
+    elif refresh == "never" and snapshot_changed:
+        stale = True
+        warnings.append("graph snapshot differs from working tree")
+    assert graph is not None
+    age = max(0.0, time.time() - path.stat().st_mtime) if path and path.exists() else 0.0
+    graph_fp = graph.metadata.get("graph_fingerprint") or graph_fingerprint(graph)
+    scan_plan = root / ".impact_engine" / "scan_plan.json"
+    scan_plan_hash = hashlib.sha256(scan_plan.read_bytes()).hexdigest() if scan_plan.is_file() else None
+    freshness = {
+        "fingerprint": graph_fp,
+        "graph_path": str(path) if path else None,
+        "branch": _git(root, ["branch", "--show-current"]),
+        "head": _git(root, ["rev-parse", "HEAD"]),
+        "base": base,
+        "age_seconds": round(age, 3),
+        "refresh_mode": refresh,
+        "stale": stale,
+        "scan_plan_hash": scan_plan_hash,
+        "extractor_versions": graph.metadata.get("extractor_versions", {}),
+        "support_pack_versions": graph.metadata.get("support_pack_versions", {}),
+        "refresh_status": refresh_status,
+        "fallback_reason": fallback_reason,
+    }
+    freshness["status"] = "stale" if stale else "fresh"
+    if not graph.metadata.get("graph_fingerprint"):
+        warnings.append("graph fingerprint was not recorded; computed locally")
+    return graph, freshness
+
+
+def _exclude_graphify_from_default_review(graph: GraphDocument, warnings: list[str]) -> GraphDocument:
+    """Keep legacy Graphify imports readable without letting them rank Review."""
+    graphify_document = graph.metadata.get("adapter") == "graphify" or graph.metadata.get("source") == "graphify"
+    graphify_nodes = {node.id for node in graph.nodes if graphify_document or node.properties.get("external_tool") == "graphify"}
+    graphify_edges = [edge for edge in graph.edges if edge.properties.get("external_tool") == "graphify"]
+    if not graphify_nodes and not graphify_edges:
+        return graph
+    filtered = GraphDocument(metadata={**graph.metadata, "graphify_overlay_excluded_from_review": True})
+    for node in graph.nodes:
+        if node.id not in graphify_nodes:
+            filtered.add_node(node)
+    for edge in graph.edges:
+        if graphify_document or edge.properties.get("external_tool") == "graphify" or edge.from_node in graphify_nodes or edge.to_node in graphify_nodes:
+            continue
+        filtered.add_edge(edge)
+    warnings.append("Graphify overlay is available only for explicit Architecture/Investigate views; default Review ranking is CodeSlicer-only")
+    return filtered
+
+
+def _resolve_diff(root: Path, diff_text: str | None, source: str | None, base: str | None) -> tuple[str, str]:
+    if diff_text is not None:
+        return diff_text, source or "provided"
+    if base:
+        value = _git(root, ["diff", "--unified=0", f"{base}...HEAD"])
+        if value is not None:
+            return value, f"base:{base}...HEAD"
+    git_root = _git(root, ["rev-parse", "--show-toplevel"])
+    if git_root:
+        try:
+            if Path(git_root.strip()).expanduser().resolve() != root.resolve():
+                return "", "project-not-a-git-repository"
+        except OSError:
+            return "", "project-not-a-git-repository"
+    return _working_tree_diff(root), "working-tree:staged+unstaged-fallback"
+
+
+def _git(root: Path, args: list[str]) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", *args], cwd=root, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=20,
+        )
+        if result.returncode == 0:
+            return result.stdout
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return None
+
+
+def _working_tree_diff(root: Path) -> str:
+    unstaged = _git(root, ["diff", "--unified=0"]) or ""
+    staged = _git(root, ["diff", "--cached", "--unified=0"]) or ""
+    return "\n".join(part for part in (unstaged, staged) if part)
+
+
+def _bounded_projection(
+    graph: GraphDocument,
+    target: str,
+    *,
+    direction: str,
+    max_depth: int,
+    min_confidence: float,
+    max_nodes: int = 40,
+    max_edges: int = 80,
+    max_branching: int = 6,
+) -> dict[str, Any]:
+    """Priority traversal used by default review.
+
+    It stops expanding once the bounded evidence budget is exhausted; the
+    legacy ``impact_query`` remains reserved for explicit deep investigation.
+    """
+    graph._ensure_indexes()
+    node_by_id = {node.id: node for node in graph.nodes}
+    out_adj: dict[str, list[Any]] = {}
+    in_adj: dict[str, list[Any]] = {}
+    for edge in graph.edges:
+        if edge.from_node not in node_by_id or edge.to_node not in node_by_id:
+            continue
+        if edge.confidence < min_confidence or not edge_is_active_for_impact(edge):
+            continue
+        out_adj.setdefault(edge.from_node, []).append(edge)
+        in_adj.setdefault(edge.to_node, []).append(edge)
+    for values in (*out_adj.values(), *in_adj.values()):
+        values.sort(key=lambda edge: (-edge.confidence, edge.kind, edge.id))
+
+    matched = node_by_id.get(target)
+    queue: list[tuple[float, int, str, tuple[str, ...], tuple[str, ...]]] = [(0.0, 0, target, (), (target,))]
+    visited = {target}
+    nodes: dict[str, dict[str, Any]] = {}
+    edges: dict[str, dict[str, Any]] = {}
+    paths: list[dict[str, Any]] = []
+    while queue and len(nodes) < max_nodes and len(edges) < max_edges:
+        neg_score, depth, current, path_edges, path_nodes = heapq.heappop(queue)
+        if depth >= max_depth:
+            continue
+        adjacent = []
+        if direction in {"downstream", "both"}:
+            adjacent.extend(out_adj.get(current, []))
+        if direction in {"upstream", "both"}:
+            adjacent.extend(in_adj.get(current, []))
+        for edge in adjacent[:max_branching]:
+            next_id = edge.to_node if edge.from_node == current else edge.from_node
+            if next_id in path_nodes or next_id in visited:
+                continue
+            if len(edges) >= max_edges or len(nodes) >= max_nodes:
+                break
+            visited.add(next_id)
+            edge_dict = {
+                "id": edge.id, "kind": edge.kind, "from": edge.from_node, "to": edge.to_node,
+                "confidence": edge.confidence, "source": edge.source,
+                "evidence": [item.to_dict() for item in edge.evidence],
+            }
+            edges[edge.id] = edge_dict
+            node = node_by_id.get(next_id)
+            if node is not None:
+                nodes[next_id] = {"id": node.id, "name": node.name, "kind": node.kind, "properties": node.properties}
+            confidence = min(edge.confidence, -neg_score if neg_score else edge.confidence)
+            new_path_edges = path_edges + (edge.id,)
+            new_path_nodes = path_nodes + (next_id,)
+            paths.append({"target": next_id, "depth": depth + 1, "confidence": confidence, "status": "confirmed" if confidence >= .9 else "likely", "edges": list(new_path_edges)})
+            heapq.heappush(queue, (-confidence, depth + 1, next_id, new_path_edges, new_path_nodes))
+
+    ranking = [
+        {"node_id": item["target"], "impact_score": round(float(item["confidence"]) / max(1, int(item["depth"])), 6), "distance": item["depth"]}
+        for item in paths
+    ]
+    if matched is None and target not in nodes:
+        return {"matched_nodes": [], "affected_nodes": list(nodes.values()), "affected_edges": list(edges.values()), "impact_paths": paths, "impact_ranking": ranking, "warnings": ["no_matching_node_or_edge_endpoint"]}
+    return {"matched_nodes": [{"id": matched.id, "name": matched.name, "kind": matched.kind, "properties": matched.properties}] if matched else [], "affected_nodes": list(nodes.values()), "affected_edges": list(edges.values()), "impact_paths": paths, "impact_ranking": ranking, "warnings": []}
+
+
+def _candidate(node: dict[str, Any], score: float, factors: list[str], edge_ids: list[str], line: Any) -> dict[str, Any]:
+    properties = node.get("properties") or {}
+    return {"entity_id": node["id"], "label": node.get("name") or node["id"], "kind": node.get("kind", "SYMBOL"), "class": "direct" if "direct_changed_symbol" in factors else "transitive", "rank_score": round(float(score), 6), "score_factors": factors, "confidence": "medium", "why": {"edge_ids": edge_ids, "evidence_locations": []}, "line": line, "file": properties.get("file") or properties.get("path")}
+
+
+def _merge_candidate(old: dict[str, Any] | None, new: dict[str, Any]) -> dict[str, Any]:
+    if old is None or (new["rank_score"], new["entity_id"]) > (old["rank_score"], old["entity_id"]):
+        return new
+    old["score_factors"] = sorted(set(old["score_factors"] + new["score_factors"]))
+    return old
+
+
+def _node_by_id(graph: GraphDocument, node_id: str):
+    return next((node for node in graph.nodes if node.id == node_id), None)
+
+
+def _diversify_visible(items: list[dict[str, Any]], changed_paths: set[str], limit: int) -> list[dict[str, Any]]:
+    """Keep daily cards useful when one changed file contains many symbols."""
+    if limit <= 0:
+        return []
+    ordered = sorted(items, key=lambda x: (-float(x["rank_score"]), x["entity_id"]))
+    selected: list[dict[str, Any]] = []
+    per_file: dict[str, int] = {}
+    max_per_file = 3
+    for item in ordered:
+        file_name = str(item.get("file") or "")
+        if not file_name:
+            node_file = str(item.get("entity_id", "")).split(":", 1)[0]
+            file_name = node_file
+        if per_file.get(file_name, 0) >= max_per_file:
+            continue
+        per_file[file_name] = per_file.get(file_name, 0) + 1
+        selected.append(item)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def _suppressed(node, allow_boundary: bool = False) -> bool:
+    props = node.properties or {}
+    file_name = str(props.get("file") or props.get("path") or "").lower()
+    kind = node.kind.upper()
+    if kind == "CALL_EXPR":
+        boundary = bool(props.get("boundary") or props.get("is_boundary") or props.get("api_boundary"))
+        boundary = boundary or str(props.get("role") or props.get("semantic_role") or "").lower() in {"api", "route", "queue", "database", "http", "rpc"}
+        if not (allow_boundary and boundary):
+            return True
+    return kind in SUPPRESSED_KINDS - {"CALL_EXPR"} or kind == "LIBRARY" or bool(props.get("generated")) or any(part in file_name for part in ("/generated/", "/dist/", "/build/", "/vendor/", "\\generated\\", "\\vendor\\"))
+
+
+def _evidence_for_item(item: dict[str, Any], edges: dict[str, dict[str, Any]], graph: GraphDocument) -> dict[str, Any]:
+    ids, locations = [], []
+    for edge in edges.values():
+        if item["entity_id"] not in {edge.get("from"), edge.get("to")}:
+            continue
+        ids.append(edge["id"])
+        for ev in edge.get("evidence", []):
+            if ev.get("file") or ev.get("line"):
+                locations.append({"file": ev.get("file"), "line": ev.get("line"), "description": ev.get("description", "")})
+    return {"edge_ids": sorted(set(ids)), "locations": locations[:10]}
+
+
+def _select_chains(paths: list[dict[str, Any]], edges: dict[str, dict[str, Any]], graph: GraphDocument, max_count: int) -> list[dict[str, Any]]:
+    selected, boundaries = [], set()
+    for path in sorted(paths, key=lambda p: (-float(p.get("confidence", 0)), int(p.get("depth", 0)), str(p.get("target", "")))):
+        edge_ids = list(path.get("edges", []))[:5]
+        if not edge_ids or len(set(edge_ids)) != len(edge_ids):
+            continue
+        first = edges.get(edge_ids[0], {})
+        boundary = first.get("kind", "unknown")
+        if boundary in boundaries and len(selected) < max_count:
+            continue
+        boundaries.add(boundary)
+        evidence = []
+        ordered_nodes = _walk_edge_nodes(edge_ids, edges)
+        for edge_id in edge_ids:
+            edge = edges.get(edge_id, {})
+            if _node_by_id(graph, edge.get("from")) is None or _node_by_id(graph, edge.get("to")) is None:
+                ordered_nodes = []
+                break
+            evidence.extend(edge.get("evidence", []))
+        meaningful_ids = []
+        for node_id in ordered_nodes:
+            node = _node_by_id(graph, node_id)
+            if node is not None and _chain_visible(node) and node_id not in meaningful_ids:
+                meaningful_ids.append(node_id)
+        if len(meaningful_ids) < 2:
+            continue
+        if not evidence:
+            continue
+        selected.append({
+            "target": meaningful_ids[-1],
+            "node_ids": meaningful_ids,
+            "status": path.get("status", "likely"),
+            "confidence": path.get("confidence", 0),
+            "edge_ids": edge_ids,
+            "evidence_locations": evidence[:10],
+        })
+        if len(selected) >= max_count:
+            break
+    return selected
+
+
+def _review_entity_id(entity_id: str) -> str:
+    """Collapse extractor kind aliases in the legacy concise card only."""
+    for prefix in ("method:", "function:", "class:"):
+        if entity_id.startswith(prefix):
+            return entity_id[len(prefix):]
+    return entity_id
+
+
+def _chain_visible(node) -> bool:
+    """Nodes allowed in concise chains; technical hops are only deep context."""
+    return node.kind.upper() not in {
+        "CALL_EXPR", "ASSIGNMENT", "EXTERNAL_LIBRARY", "SUPPORT_PACK", "LIBRARY",
+    } and not bool((node.properties or {}).get("generated"))
+
+
+def _walk_edge_nodes(edge_ids: list[str], edges: dict[str, dict[str, Any]]) -> list[str]:
+    """Recover an undirected path for traversal paths that mix directions."""
+    if not edge_ids:
+        return []
+    first = edges.get(edge_ids[0], {})
+    starts = [first.get("from"), first.get("to")]
+    walks: list[list[str]] = []
+    for start in starts:
+        if not start:
+            continue
+        walk = [start]
+        for edge_id in edge_ids:
+            edge = edges.get(edge_id, {})
+            current = walk[-1]
+            if current == edge.get("from"):
+                walk.append(edge.get("to"))
+            elif current == edge.get("to"):
+                walk.append(edge.get("from"))
+            else:
+                walk = []
+                break
+        if walk:
+            walks.append(walk)
+    return max(walks, key=len, default=[])
+
+
+def _review_graph_integrity(graph: GraphDocument) -> dict[str, Any]:
+    """Return the strict endpoint contract used by concise review.
+
+    Alias metadata may help diagnostics, but it cannot make an edge safe for
+    daily review: projection requires both literal endpoint IDs to exist.
+    """
+    node_ids = {node.id for node in graph.nodes}
+    missing_by_kind: dict[str, int] = {}
+    dangling = 0
+    for edge in graph.edges:
+        if edge.from_node in node_ids and edge.to_node in node_ids:
+            continue
+        dangling += 1
+        missing_by_kind[edge.kind] = missing_by_kind.get(edge.kind, 0) + 1
+    edge_count = len(graph.edges)
+    return {
+        "status": "warning" if dangling else "ok",
+        "node_count": len(graph.nodes),
+        "edge_count": edge_count,
+        "dangling_endpoint_edges": dangling,
+        "dangling_endpoint_ratio": round(dangling / edge_count, 6) if edge_count else 0.0,
+        "edges_by_kind_with_missing_endpoint": dict(sorted(missing_by_kind.items())),
+        "concise_policy": "exclude_dangling_edges",
+    }
+
+
+def _coverage(graph: GraphDocument, paths: set[str]) -> list[dict[str, Any]]:
+    language_capabilities = graph.metadata.get("language_semantic_capabilities", {}) or {}
+    csharp_features = graph.metadata.get("csharp_framework_features", {}) or {}
+    csharp_usable_features = sorted({feature for item in csharp_features.values() if isinstance(item, dict) and item.get("review_usable") for feature in item.get("review_usable_features", []) or []})
+    result = []
+    for path in sorted(paths):
+        suffix = Path(path).suffix.lower()
+        language = {".py": "python", ".js": "javascript", ".jsx": "javascript", ".ts": "typescript", ".tsx": "typescript", ".go": "go", ".java": "java", ".cs": "csharp"}.get(suffix, "unknown")
+        cap = language_capabilities.get(language, {}) if isinstance(language_capabilities, dict) else {}
+        capability_values = cap.get("capabilities", cap) if isinstance(cap, dict) else {}
+        production = bool(capability_values.get("production_semantic_baseline"))
+        call_resolution = str(capability_values.get("call_resolution") or "none")
+        if suffix not in SUPPORTED_SUFFIXES or not capability_values:
+            status = "unsupported"
+        elif production and call_resolution == "semantic":
+            status = "supported"
+        else:
+            status = "limited"
+        result.append({
+            "language": language, "path": path, "status": status,
+            "extractor": cap.get("provider_id") or cap.get("extractor") if isinstance(cap, dict) else None,
+            "resolver": call_resolution,
+            "production_semantic_baseline": production,
+            "may_be_incomplete": status != "supported",
+            "review_usable": bool(language == "csharp" and csharp_usable_features),
+            "review_usable_features": csharp_usable_features if language == "csharp" else [],
+        })
+    return result
+
+
+def _coverage_warnings(coverage: list[dict[str, Any]]) -> list[str]:
+    return [f"coverage for {item['path']} is {item['status']}" for item in coverage if item["status"] in {"unsupported", "limited"}]
+
+
+def _is_test_path(path: str) -> bool:
+    parts = {part.lower() for part in Path(path).parts}
+    name = Path(path).name.lower()
+    return bool(parts & {"test", "tests", "spec", "specs"}) or name.startswith(("test_", "test.", "spec_", "spec."))
+
+
+def _test_items(tests: dict[str, list[dict[str, Any]]], edges: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    result = []
+    for category in ("required", "recommended"):
+        for item in tests.get(category, []):
+            result.append({**item, "priority": category, "evidence": [{"edge_id": e["id"], "locations": e.get("evidence", [])} for e in edges.values() if item.get("node") in {e.get("from"), e.get("to")}][:3], "heuristic": category == "recommended"})
+    return result
+
+
+def _hunks(files) -> list[dict[str, Any]]:
+    return [{"path": item.path, "added_lines": item.to_dict()["lines"]} for item in files]

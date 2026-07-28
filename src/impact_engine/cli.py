@@ -30,6 +30,51 @@ def _print_result(data: object, json_output: bool, human: str | None = None) -> 
         print(human)
 
 
+def _attach_runtime_contract(result: dict, *, scope: str | None = None) -> dict:
+    """Expose the stable cache/progress/coverage envelope for JSON clients."""
+    graph = result.get("graph") if isinstance(result, dict) else None
+    metadata = graph.get("metadata", {}) if isinstance(graph, dict) else {}
+    cache = dict(metadata.get("cache") or metadata.get("incremental_cache") or result.get("cache") or {})
+    status = cache.get("status")
+    if status not in {"hit", "miss", "partial", "invalidated"}:
+        status = "hit" if cache.get("analysis_reused") or cache.get("cache_hit_rate") == 1.0 else "miss"
+    result["cache"] = {
+        "status": status,
+        "reason": cache.get("reason") or cache.get("cache_reason") or "analysis_completed",
+        "branch": cache.get("branch"),
+        "snapshot": cache.get("snapshot") or cache.get("source_snapshot_hash"),
+        "scope": scope or cache.get("scope") or cache.get("scan_scope") or ".",
+        "plugins": cache.get("plugins") or metadata.get("plugin_selection_plan", {}).get("selected", []),
+        "files_reused": int(cache.get("files_reused", 0) or 0),
+        "files_reanalyzed": int(cache.get("files_reanalyzed", 0) or 0),
+        "facts_reused": int(cache.get("facts_reused", 0) or 0),
+        "facts_rebuilt": int(cache.get("facts_rebuilt", 0) or 0),
+    }
+    progress = result.get("progress") or metadata.get("analysis_progress") or {}
+    current = progress.get("current", progress) if isinstance(progress, dict) else {}
+    result["progress"] = {
+        "phase": current.get("phase") or current.get("stage", "unknown"),
+        "completed": current.get("completed", current.get("processed", 0)),
+        "total": current.get("total", 0),
+        "elapsed_seconds": current.get("elapsed_seconds", 0.0),
+        "eta_seconds": current.get("eta_seconds"),
+        "cancellable": current.get("cancellable", True),
+    }
+    result["coverage"] = metadata.get("resolution_coverage", result.get("coverage", []))
+    result["incomplete"] = bool(result.get("incomplete", False) or metadata.get("incomplete", False))
+    return result
+
+
+def _project_graph_path(project_path: str) -> str:
+    """Return the canonical project-local graph destination.
+
+    Analysis artifacts must never appear in the caller's current directory:
+    that both pollutes the workspace and makes a later review treat the graph
+    as an externally supplied, unverified file.
+    """
+    return str(Path(project_path).expanduser().resolve() / ".impact_engine" / "graph.json")
+
+
 def _load_support_pack_candidate(path: str) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
@@ -162,11 +207,22 @@ def main(argv: list[str] | None = None) -> None:
 
     analyze = sub.add_parser("analyze")
     analyze.add_argument("path")
-    analyze.add_argument("--out", default="graph.json")
+    analyze.add_argument("--out", default=None)
     analyze.add_argument("--local-registry", dest="remote_registry", action="store_true", help="Use the local SQLite registry")
     analyze.add_argument("--no-research-requests", action="store_true")
     analyze.add_argument("--graphify", default=None, help="Optional Graphify graph.json to normalize and merge")
     analyze.add_argument("--use-scan-plan", action="store_true", help="Create/reuse .impact_engine/scan_plan.json before analysis")
+    analyze.add_argument("--scope", default=None, help="Workspace/package scope to analyze")
+    analyze.add_argument("--no-daemon", action="store_true", help="Do not use the local daemon owner")
+
+    onboard = sub.add_parser("onboard", help="Connect a local project or explicit Git URL and build separate CodeSlicer/Graphify graphs")
+    onboard.add_argument("source", help="Existing local project directory or Git URL")
+    onboard.add_argument("--allow-network", action="store_true", help="Explicitly allow git clone when source is a URL")
+    onboard.add_argument("--workspace", default=None, help="Local directory for a URL clone; defaults to ~/.codeslicer/projects")
+    onboard.add_argument("--branch", default=None, help="Optional branch for a Git URL clone")
+    onboard.add_argument("--graphify", choices=["auto", "off", "required"], default="auto", help="Build a separate optional Graphify architecture graph")
+    onboard.add_argument("--graphify-timeout", type=int, default=120)
+    onboard.add_argument("--out", default=None, help="Optional copy of the onboarding JSON report")
 
     scan_plan = sub.add_parser("scan-plan", help="Plan the files and directories that will be analyzed")
     scan_plan.add_argument("path")
@@ -183,14 +239,176 @@ def main(argv: list[str] | None = None) -> None:
 
     incremental = sub.add_parser("analyze-incremental")
     incremental.add_argument("path")
-    incremental.add_argument("--out", default="graph.json")
-    incremental.add_argument("--snapshot", default=".impact_engine/project.snapshot.json")
+    incremental.add_argument("--out", default=None)
+    incremental.add_argument("--snapshot", default=None)
+    incremental.add_argument("--changed", action="append", default=None)
+    incremental.add_argument("--scope", default=None)
+    incremental.add_argument("--no-daemon", action="store_true")
 
     watch = sub.add_parser("watch")
     watch.add_argument("path")
-    watch.add_argument("--out", default="graph.json")
+    watch.add_argument("--out", default=None)
     watch.add_argument("--interval", type=float, default=1.0)
     watch.add_argument("--iterations", type=int, default=1)
+    watch.add_argument("--scope", default=None)
+    watch.add_argument("--no-daemon", action="store_true")
+
+    daemon = sub.add_parser("daemon", help="Manage the local persistent analysis owner")
+    daemon_sub = daemon.add_subparsers(dest="daemon_command")
+    daemon_start = daemon_sub.add_parser("start")
+    daemon_start.add_argument("project")
+    daemon_status_parser = daemon_sub.add_parser("status")
+    daemon_status_parser.add_argument("project")
+    daemon_stop = daemon_sub.add_parser("stop")
+    daemon_stop.add_argument("project")
+
+    adapters = sub.add_parser("adapters", help="Manage optional local evidence adapters")
+    adapters_sub = adapters.add_subparsers(dest="adapter_command")
+    adapters_list = adapters_sub.add_parser("list")
+    adapters_list.add_argument("project")
+    adapters_list.add_argument("--json", action="store_true", dest="local_json")
+    adapters_preflight = adapters_sub.add_parser("preflight", help="Show the explicit local setup action for every optional adapter")
+    adapters_preflight.add_argument("project")
+    adapters_preflight.add_argument("adapter_id", nargs="?", default=None)
+    adapters_preflight.add_argument("--json", action="store_true", dest="local_json")
+    adapters_native = adapters_sub.add_parser("native", help="Discover or explicitly run an allowlisted local upstream-tool operation")
+    adapters_native.add_argument("project")
+    adapters_native.add_argument("adapter_id", choices=["graphify", "codegraph", "gortex", "joern", "openapi", "asyncapi", "scip", "cyclonedx", "spdx", "sarif"])
+    adapters_native.add_argument("operation", nargs="?", default="profile", help="profile, probe, index, sync, status, query, context, impact, callers, callees, affected, refresh, or recipes")
+    adapters_native.add_argument("--query", default="", help="Required by native query operations; never interpreted by a shell")
+    adapters_native.add_argument("--confirm", action="store_true", help="Explicitly allow an operation that can create local tool state")
+    adapters_native.add_argument("--timeout-seconds", type=int, default=60)
+    adapters_native.add_argument("--json", action="store_true", dest="local_json")
+    adapters_status = adapters_sub.add_parser("status", help="Show one optional adapter status")
+    adapters_status.add_argument("project")
+    adapters_status.add_argument("adapter_id")
+    adapters_status.add_argument("--json", action="store_true", dest="local_json")
+    adapters_import = adapters_sub.add_parser("import", help="Import one explicit local artifact for any artifact-backed adapter")
+    adapters_import.add_argument("project")
+    adapters_import.add_argument("adapter_id")
+    adapters_import.add_argument("artifact")
+    adapters_import.add_argument("--enable", action="store_true", help="Enable only after the local artifact passes validation")
+    adapters_import.add_argument("--json", action="store_true", dest="local_json")
+    adapters_import_scip = adapters_sub.add_parser("import-scip")
+    adapters_import_scip.add_argument("project")
+    adapters_import_scip.add_argument("artifact")
+    adapters_import_scip.add_argument("--json", action="store_true", dest="local_json")
+    adapters_enable = adapters_sub.add_parser("enable")
+    adapters_enable.add_argument("project")
+    adapters_enable.add_argument("adapter_id")
+    adapters_enable.add_argument("--json", action="store_true", dest="local_json")
+    adapters_disable = adapters_sub.add_parser("disable")
+    adapters_disable.add_argument("project")
+    adapters_disable.add_argument("adapter_id")
+    adapters_disable.add_argument("--json", action="store_true", dest="local_json")
+    adapters_verify_scip = adapters_sub.add_parser("verify-scip", help="Verify explicit local SCIP golden artifacts")
+    adapters_verify_scip.add_argument("corpus", nargs="?", default=None, help="Golden corpus directory (default: repository tests/fixtures/scip/golden)")
+    adapters_verify_scip.add_argument("--no-lint", action="store_true", help="Skip the official scip lint subprocess")
+    adapters_verify_scip.add_argument("--json", action="store_true", dest="local_json")
+    adapters_lsp = adapters_sub.add_parser("lsp", help="Configure and query an explicitly selected local Language Server")
+    lsp_sub = adapters_lsp.add_subparsers(dest="lsp_command")
+    lsp_status = lsp_sub.add_parser("status")
+    lsp_status.add_argument("project")
+    lsp_status.add_argument("--json", action="store_true", dest="local_json")
+    lsp_configure = lsp_sub.add_parser("configure")
+    lsp_configure.add_argument("project")
+    lsp_configure.add_argument("--executable", required=True, help="Absolute local LSP executable")
+    lsp_configure.add_argument("--workspace-root", action="append", required=True, dest="workspace_roots", help="Absolute allowed workspace root; repeat for multiple roots")
+    lsp_configure.add_argument("--arg", action="append", default=[], dest="arguments", help="Optional local process argument; repeat as needed")
+    lsp_configure.add_argument("--timeout-ms", type=int, default=5000)
+    lsp_configure.add_argument("--json", action="store_true", dest="local_json")
+    lsp_probe = lsp_sub.add_parser("probe")
+    lsp_probe.add_argument("project")
+    lsp_probe.add_argument("--json", action="store_true", dest="local_json")
+    lsp_disable = lsp_sub.add_parser("disable")
+    lsp_disable.add_argument("project")
+    lsp_disable.add_argument("--json", action="store_true", dest="local_json")
+    lsp_query = lsp_sub.add_parser("query", help="Explicitly request one bounded LSP semantic operation")
+    lsp_query.add_argument("project")
+    lsp_query.add_argument("--method", required=True, choices=["documentSymbol", "definition", "references", "implementation", "workspace/symbol"])
+    lsp_query.add_argument("--file", default=None)
+    lsp_query.add_argument("--line", type=int, default=0)
+    lsp_query.add_argument("--character", type=int, default=0)
+    lsp_query.add_argument("--query", default="")
+    lsp_query.add_argument("--entity-id", default=None)
+    lsp_query.add_argument("--graph", default=None)
+    lsp_query.add_argument("--timeout-ms", type=int, default=None)
+    lsp_query.add_argument("--json", action="store_true", dest="local_json")
+    for boundary_id in ("openapi", "asyncapi"):
+        boundary_parser = adapters_sub.add_parser(boundary_id, help=f"Manage the local {boundary_id} boundary overlay")
+        boundary_sub = boundary_parser.add_subparsers(dest="boundary_command")
+        boundary_import = boundary_sub.add_parser("import")
+        boundary_import.add_argument("project")
+        boundary_import.add_argument("spec")
+        boundary_import.add_argument("--json", action="store_true", dest="local_json")
+        for action in ("enable", "disable", "status"):
+            boundary_action = boundary_sub.add_parser(action)
+            boundary_action.add_argument("project")
+            boundary_action.add_argument("--json", action="store_true", dest="local_json")
+    otel_parser = adapters_sub.add_parser("otel", help="Manage the local OpenTelemetry runtime evidence overlay")
+    otel_sub = otel_parser.add_subparsers(dest="otel_command")
+    otel_import = otel_sub.add_parser("import")
+    otel_import.add_argument("project")
+    otel_import.add_argument("trace")
+    otel_import.add_argument("--json", action="store_true", dest="local_json")
+    for action in ("enable", "disable", "status"):
+        otel_action = otel_sub.add_parser(action)
+        otel_action.add_argument("project")
+        otel_action.add_argument("--json", action="store_true", dest="local_json")
+    for security_id in ("cyclonedx", "spdx", "sarif"):
+        security_parser = adapters_sub.add_parser(security_id, help=f"Manage the local {security_id} security evidence overlay")
+        security_sub = security_parser.add_subparsers(dest="security_command")
+        security_import = security_sub.add_parser("import")
+        security_import.add_argument("project")
+        security_import.add_argument("report")
+        security_import.add_argument("--json", action="store_true", dest="local_json")
+        for action in ("enable", "disable", "status"):
+            security_action = security_sub.add_parser(action)
+            security_action.add_argument("project")
+            security_action.add_argument("--json", action="store_true", dest="local_json")
+    for external_graph_id in ("graphify", "codegraph"):
+        external_graph_parser = adapters_sub.add_parser(external_graph_id, help=f"Manage the local {external_graph_id} external graph overlay")
+        external_graph_sub = external_graph_parser.add_subparsers(dest="external_graph_command")
+        external_graph_import = external_graph_sub.add_parser("import")
+        external_graph_import.add_argument("project")
+        external_graph_import.add_argument("artifact")
+        external_graph_import.add_argument("--json", action="store_true", dest="local_json")
+        for action in ("enable", "disable", "status"):
+            external_graph_action = external_graph_sub.add_parser(action)
+            external_graph_action.add_argument("project")
+            external_graph_action.add_argument("--json", action="store_true", dest="local_json")
+    joern_parser = adapters_sub.add_parser("joern", help="Manage the explicit local Joern CPG/data-flow overlay")
+    joern_sub = joern_parser.add_subparsers(dest="joern_command")
+    joern_import = joern_sub.add_parser("import")
+    joern_import.add_argument("project")
+    joern_import.add_argument("artifact")
+    joern_import.add_argument("--json", action="store_true", dest="local_json")
+    joern_convert = joern_sub.add_parser("convert", help="Convert explicit local native GraphSON/CPGQL output to CodeSlicer interchange")
+    joern_convert.add_argument("graphson")
+    joern_convert.add_argument("--project", required=True)
+    joern_convert.add_argument("--output", required=True)
+    joern_convert.add_argument("--json", action="store_true", dest="local_json")
+    joern_benchmark = joern_sub.add_parser("benchmark", help="Run a bounded local Joern quality benchmark")
+    joern_benchmark.add_argument("project")
+    joern_benchmark.add_argument("artifact")
+    joern_benchmark.add_argument("--case-file", default=None, help="Absolute golden-case JSON file")
+    joern_benchmark.add_argument("--case-id", default=None)
+    joern_benchmark.add_argument("--output", default=None, help="Absolute aggregate report path")
+    joern_benchmark.add_argument("--entity", default=None)
+    joern_benchmark.add_argument("--max-nodes", type=int, default=80)
+    joern_benchmark.add_argument("--max-edges", type=int, default=160)
+    joern_benchmark.add_argument("--max-paths", type=int, default=40)
+    joern_benchmark.add_argument("--json", action="store_true", dest="local_json")
+    joern_discover = joern_sub.add_parser("discover", help="Find explicit local Joern interchange exports")
+    joern_discover.add_argument("roots", nargs="+")
+    joern_discover.add_argument("--max-files", type=int, default=5000)
+    joern_discover.add_argument("--timeout", type=float, default=10.0, help="Maximum discovery time in seconds")
+    joern_discover.add_argument("--include-synthetic", action="store_true", help="Include tests/fixtures and corpus directories")
+    joern_discover.add_argument("--json", action="store_true", dest="local_json")
+    for action in ("enable", "disable", "status"):
+        joern_action = joern_sub.add_parser(action)
+        joern_action.add_argument("project")
+        joern_action.add_argument("--json", action="store_true", dest="local_json")
 
     quality = sub.add_parser("graph-quality")
     quality.add_argument("graph")
@@ -225,6 +443,55 @@ def main(argv: list[str] | None = None) -> None:
     pr_review.add_argument("--diff-file", default=None)
     pr_review.add_argument("--depth", type=int, default=6)
     pr_review.add_argument("--min-confidence", type=float, default=0.0)
+    pr_review.add_argument("--max-results", type=int, default=10, help="Maximum concise impact entities (capped at 10)")
+    pr_review.add_argument("--full-evidence", action="store_true", help="Explicitly include the complete impact closure for investigation")
+
+    review = sub.add_parser("review", help="Build a compact local-first daily review brief")
+    review.add_argument("project_path")
+    review.add_argument("--base", default=None)
+    review.add_argument("--deep", action="store_true")
+    review.add_argument("--entity", default=None, help="Entity to inspect in explicit deep mode")
+    review.add_argument("--graph", default=None)
+    review.add_argument("--diff-file", default=None)
+    review.add_argument("--refresh", choices=["auto", "never", "force"], default="auto")
+    review.add_argument("--max-results", type=int, default=10)
+    review.add_argument("--run-tests", choices=["none", "suggested"], default="suggested")
+    review.add_argument("--json", action="store_true", dest="local_json")
+    review.add_argument("--scope", default=None)
+    review.add_argument("--no-daemon", action="store_true")
+
+    inspect = sub.add_parser("inspect", help="Explain one local graph entity")
+    inspect.add_argument("project_path")
+    inspect.add_argument("--entity", required=True)
+    inspect.add_argument("--graph", default=None)
+    inspect.add_argument("--refresh", choices=["auto", "never", "force"], default="never")
+    inspect.add_argument("--max-context", type=int, default=12)
+    inspect.add_argument("--json", action="store_true", dest="local_json")
+
+    investigate = sub.add_parser("investigate", help="Run an explicit bounded deep graph investigation")
+    investigate.add_argument("project_path")
+    investigate.add_argument("--entity", required=True)
+    investigate.add_argument("--graph", default=None)
+    investigate.add_argument("--direction", choices=["upstream", "downstream", "both"], default="both")
+    investigate.add_argument("--depth", type=int, default=8)
+    investigate.add_argument("--runtime-validate", action="store_true")
+    investigate.add_argument("--max-nodes", type=int, default=500)
+    investigate.add_argument("--max-edges", type=int, default=1000)
+    investigate.add_argument("--refresh", choices=["auto", "never", "force"], default="never")
+    investigate.add_argument("--json", action="store_true", dest="local_json")
+
+    ci = sub.add_parser("ci", help="Evaluate the review projection with an optional CI policy")
+    ci.add_argument("project_path")
+    ci.add_argument("--base", default=None)
+    ci.add_argument("--policy", default=None)
+    ci.add_argument("--graph", default=None)
+    ci.add_argument("--diff-file", default=None)
+    ci.add_argument("--refresh", choices=["auto", "never", "force"], default="auto")
+    ci.add_argument("--format", choices=["json", "sarif"], default="json")
+    ci.add_argument("--out", default=None)
+    ci.add_argument("--run-tests", action="store_true", help="Explicitly run the selected project test command")
+    ci.add_argument("--test-command", nargs="+", default=None, help="Explicit test command argv; only used with --run-tests")
+    ci.add_argument("--json", action="store_true", dest="local_json")
 
     runtime_trace = sub.add_parser("runtime-trace")
     runtime_trace.add_argument("project_path")
@@ -428,7 +695,275 @@ def main(argv: list[str] | None = None) -> None:
     elif getattr(args, "command", None) == "runtime-trace":
         args.test_command = []
 
-    if args.command == "scan-plan":
+    if args.command == "daemon":
+        from impact_engine.persistence import daemon_status, start_daemon, stop_daemon
+        if args.daemon_command == "start":
+            result = start_daemon(args.project)
+        elif args.daemon_command == "status":
+            result = daemon_status(args.project)
+        elif args.daemon_command == "stop":
+            result = stop_daemon(args.project)
+        else:
+            result = {"status": "error", "error": "daemon subcommand is required"}
+        if args.json:
+            _print_json(result)
+        else:
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        if result.get("status") == "error":
+            sys.exit(1)
+
+    elif args.command == "adapters":
+        if args.adapter_command == "native":
+            from impact_engine.adapters.native import native_profile, run_native_operation
+            try:
+                result = (
+                    {"status": "ok", "adapter_id": args.adapter_id, "native": native_profile(args.adapter_id), "privacy": {"mode": "local-only", "network_used": False}}
+                    if args.operation == "profile"
+                    else run_native_operation(args.project, args.adapter_id, args.operation, confirmed=args.confirm, query=args.query, timeout_seconds=args.timeout_seconds)
+                )
+            except (FileNotFoundError, ValueError, OSError) as exc:
+                result = {"status": "error", "error": str(exc)}
+            if args.json or getattr(args, "local_json", False):
+                _print_json(result)
+            else:
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            if result.get("status") in {"error", "failed", "timeout"}:
+                sys.exit(1)
+            return
+        if args.adapter_command in {"preflight", "status", "import"}:
+            from impact_engine.adapters.registry import AdapterRegistry
+            registry = AdapterRegistry(args.project)
+            try:
+                if args.adapter_command == "preflight":
+                    result = registry.preflight(args.adapter_id)
+                elif args.adapter_command == "status":
+                    result = {"status": "ok", "adapter": registry.status(args.adapter_id), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.adapter_id == "lsp":
+                    raise ValueError("LSP is a local process; configure it explicitly with `impact-engine adapters lsp configure`")
+                else:
+                    imported = registry.import_artifact(args.adapter_id, args.artifact)
+                    adapter = registry.set_enabled(args.adapter_id, True) if args.enable else imported.get("adapter")
+                    result = {"status": "ok", "import_status": imported.get("status"), "adapter": adapter, "privacy": {"mode": "local-only", "network_used": False}}
+            except (FileNotFoundError, ValueError, OSError) as exc:
+                result = {"status": "error", "error": str(exc)}
+            if args.json or getattr(args, "local_json", False):
+                _print_json(result)
+            else:
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            if result.get("status") == "error":
+                sys.exit(1)
+            return
+        if args.adapter_command == "verify-scip":
+            from impact_engine.adapters.scip_interop import verify_golden_corpus
+            result = verify_golden_corpus(args.corpus, run_lint=not args.no_lint)
+            if args.json or getattr(args, "local_json", False):
+                _print_json(result)
+            else:
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            if result.get("status") == "error":
+                sys.exit(1)
+            return
+        if args.adapter_command == "lsp":
+            from impact_engine.adapters.lsp import configure_lsp, disable_lsp, lsp_status, probe_lsp, query_lsp
+            try:
+                if args.lsp_command == "status":
+                    result = {"status": "ok", "adapter": lsp_status(args.project), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.lsp_command == "configure":
+                    result = {"status": "ok", "adapter": configure_lsp(args.project, args.executable, args.workspace_roots, arguments=args.arguments, timeout_ms=args.timeout_ms), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.lsp_command == "probe":
+                    result = {"status": "ok", "adapter": probe_lsp(args.project), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.lsp_command == "disable":
+                    result = {"status": "ok", "adapter": disable_lsp(args.project), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.lsp_command == "query":
+                    result = query_lsp(args.project, method=args.method, file=args.file, line=args.line, character=args.character, query=args.query, entity_id=args.entity_id, timeout_ms=args.timeout_ms)
+                    # `--graph` is meaningful only for an explicit LSP query:
+                    # it lets the adapter expose exact/ambiguous mapping to
+                    # the canonical graph without changing that graph.  The
+                    # parser advertised the flag but previously ignored it.
+                    if args.graph and result.get("status") == "ok":
+                        from impact_engine.adapters.lsp import map_lsp_overlay
+                        canonical = GraphDocument.from_json(Path(args.graph).read_text(encoding="utf-8"))
+                        result = map_lsp_overlay(result, canonical)
+                else:
+                    result = {"status": "error", "error": "lsp subcommand is required"}
+            except (FileNotFoundError, ValueError, OSError) as exc:
+                result = {"status": "error", "error": str(exc)}
+            if args.json or getattr(args, "local_json", False):
+                _print_json(result)
+            else:
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            if result.get("status") == "error":
+                sys.exit(1)
+            return
+        if args.adapter_command in {"openapi", "asyncapi"}:
+            from impact_engine.adapters.registry import AdapterRegistry
+            registry = AdapterRegistry(args.project)
+            try:
+                if args.boundary_command == "import":
+                    imported = registry.import_artifact(args.adapter_command, args.spec)
+                    result = {"status": "ok", "import_status": imported.get("status"), "adapter": imported.get("adapter"), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.boundary_command == "enable":
+                    result = {"status": "ok", "adapter": registry.set_enabled(args.adapter_command, True), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.boundary_command == "disable":
+                    result = {"status": "ok", "adapter": registry.set_enabled(args.adapter_command, False), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.boundary_command == "status":
+                    result = {"status": "ok", "adapter": registry.status(args.adapter_command), "privacy": {"mode": "local-only", "network_used": False}}
+                else:
+                    result = {"status": "error", "error": f"{args.adapter_command} subcommand is required"}
+            except (FileNotFoundError, ValueError, OSError) as exc:
+                result = {"status": "error", "error": str(exc)}
+            if args.json or getattr(args, "local_json", False):
+                _print_json(result)
+            else:
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            if result.get("status") == "error":
+                sys.exit(1)
+            return
+        if args.adapter_command == "otel":
+            from impact_engine.adapters.registry import AdapterRegistry
+            registry = AdapterRegistry(args.project)
+            try:
+                if args.otel_command == "import":
+                    imported = registry.import_artifact("otel", args.trace)
+                    result = {"status": "ok", "import_status": imported.get("status"), "adapter": imported.get("adapter"), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.otel_command == "enable":
+                    result = {"status": "ok", "adapter": registry.set_enabled("otel", True), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.otel_command == "disable":
+                    result = {"status": "ok", "adapter": registry.set_enabled("otel", False), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.otel_command == "status":
+                    result = {"status": "ok", "adapter": registry.status("otel"), "privacy": {"mode": "local-only", "network_used": False}}
+                else:
+                    result = {"status": "error", "error": "otel subcommand is required"}
+            except (FileNotFoundError, ValueError, OSError) as exc:
+                result = {"status": "error", "error": str(exc)}
+            if args.json or getattr(args, "local_json", False):
+                _print_json(result)
+            else:
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            if result.get("status") == "error":
+                sys.exit(1)
+            return
+        if args.adapter_command in {"cyclonedx", "spdx", "sarif"}:
+            from impact_engine.adapters.registry import AdapterRegistry
+            registry = AdapterRegistry(args.project)
+            try:
+                if args.security_command == "import":
+                    imported = registry.import_artifact(args.adapter_command, args.report)
+                    result = {"status": "ok", "import_status": imported.get("status"), "adapter": imported.get("adapter"), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.security_command == "enable":
+                    result = {"status": "ok", "adapter": registry.set_enabled(args.adapter_command, True), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.security_command == "disable":
+                    result = {"status": "ok", "adapter": registry.set_enabled(args.adapter_command, False), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.security_command == "status":
+                    result = {"status": "ok", "adapter": registry.status(args.adapter_command), "privacy": {"mode": "local-only", "network_used": False}}
+                else:
+                    result = {"status": "error", "error": f"{args.adapter_command} subcommand is required"}
+            except (FileNotFoundError, ValueError, OSError) as exc:
+                result = {"status": "error", "error": str(exc)}
+            if args.json or getattr(args, "local_json", False):
+                _print_json(result)
+            else:
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            if result.get("status") == "error":
+                sys.exit(1)
+            return
+        if args.adapter_command in {"graphify", "codegraph"}:
+            from impact_engine.adapters.registry import AdapterRegistry
+            registry = AdapterRegistry(args.project)
+            try:
+                if args.external_graph_command == "import":
+                    imported = registry.import_artifact(args.adapter_command, args.artifact)
+                    result = {"status": "ok", "import_status": imported.get("status"), "adapter": imported.get("adapter"), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.external_graph_command == "enable":
+                    result = {"status": "ok", "adapter": registry.set_enabled(args.adapter_command, True), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.external_graph_command == "disable":
+                    result = {"status": "ok", "adapter": registry.set_enabled(args.adapter_command, False), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.external_graph_command == "status":
+                    result = {"status": "ok", "adapter": registry.status(args.adapter_command), "privacy": {"mode": "local-only", "network_used": False}}
+                else:
+                    result = {"status": "error", "error": f"{args.adapter_command} subcommand is required"}
+            except (FileNotFoundError, ValueError, OSError) as exc:
+                result = {"status": "error", "error": str(exc)}
+            if args.json or getattr(args, "local_json", False):
+                _print_json(result)
+            else:
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            if result.get("status") == "error":
+                sys.exit(1)
+            return
+        if args.adapter_command == "joern":
+            from impact_engine.adapters.registry import AdapterRegistry
+            try:
+                if args.joern_command == "import":
+                    registry = AdapterRegistry(args.project)
+                    imported = registry.import_artifact("joern", args.artifact)
+                    result = {"status": "ok", "import_status": imported.get("status"), "adapter": imported.get("adapter"), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.joern_command == "convert":
+                    from impact_engine.adapters.joern_bridge import convert_graphson_file
+                    result = convert_graphson_file(args.graphson, project_path=args.project, output_path=args.output)
+                elif args.joern_command == "benchmark":
+                    from impact_engine.adapters.joern_benchmark import run_joern_benchmark
+                    case = None
+                    if args.case_file:
+                        case_path = Path(args.case_file).expanduser()
+                        if not case_path.is_absolute():
+                            raise ValueError("case_file must be an absolute local path")
+                        case_data = json.loads(case_path.resolve().read_text(encoding="utf-8"))
+                        cases = case_data.get("cases") if isinstance(case_data, dict) and isinstance(case_data.get("cases"), list) else [case_data]
+                        if args.case_id:
+                            case = next((item for item in cases if isinstance(item, dict) and item.get("case_id") == args.case_id), None)
+                            if case is None:
+                                raise ValueError(f"golden case not found: {args.case_id}")
+                        elif len(cases) == 1:
+                            case = cases[0]
+                        else:
+                            raise ValueError("case_id is required when case_file contains multiple cases")
+                    result = run_joern_benchmark(args.project, args.artifact, case=case, output_path=args.output, entity=args.entity, max_nodes=args.max_nodes, max_edges=args.max_edges, max_paths=args.max_paths)
+                elif args.joern_command == "discover":
+                    from impact_engine.adapters.joern_benchmark import discover_local_joern_corpus
+                    result = discover_local_joern_corpus(args.roots, max_files=args.max_files, timeout_seconds=args.timeout, include_synthetic=args.include_synthetic)
+                elif args.joern_command == "enable":
+                    registry = AdapterRegistry(args.project)
+                    result = {"status": "ok", "adapter": registry.set_enabled("joern", True), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.joern_command == "disable":
+                    registry = AdapterRegistry(args.project)
+                    result = {"status": "ok", "adapter": registry.set_enabled("joern", False), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.joern_command == "status":
+                    registry = AdapterRegistry(args.project)
+                    result = {"status": "ok", "adapter": registry.status("joern"), "privacy": {"mode": "local-only", "network_used": False}}
+                else:
+                    result = {"status": "error", "error": "joern subcommand is required"}
+            except (FileNotFoundError, ValueError, OSError) as exc:
+                result = {"status": "error", "error": str(exc)}
+            if args.json or getattr(args, "local_json", False):
+                _print_json(result)
+            else:
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            if result.get("status") == "error":
+                sys.exit(1)
+            return
+        from impact_engine.adapters.registry import AdapterRegistry
+        registry = AdapterRegistry(args.project)
+        try:
+            if args.adapter_command == "list":
+                result = {"status": "ok", "project_path": str(registry.project_path), "adapters": registry.list(), "privacy": {"mode": "local-only", "network_used": False}}
+            elif args.adapter_command == "import-scip":
+                imported = registry.import_artifact("scip", args.artifact)
+                result = {"status": "ok", "import_status": imported.get("status"), "adapter": imported.get("adapter"), "privacy": {"mode": "local-only", "network_used": False}}
+            elif args.adapter_command in {"enable", "disable"}:
+                result = {"status": "ok", "adapter": registry.set_enabled(args.adapter_id, args.adapter_command == "enable"), "privacy": {"mode": "local-only", "network_used": False}}
+            else:
+                result = {"status": "error", "error": "adapter subcommand is required"}
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            result = {"status": "error", "error": str(exc)}
+        if args.json or getattr(args, "local_json", False):
+            _print_json(result)
+        else:
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        if result.get("status") == "error":
+            sys.exit(1)
+
+    elif args.command == "scan-plan":
         from impact_engine.scope import build_scan_plan, write_scan_plan
         plan = build_scan_plan(args.path)
         plan["plan_path"] = str(write_scan_plan(args.path, plan))
@@ -464,41 +999,81 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "analyze-incremental":
         from impact_engine.analysis.pipeline import analyze_project_core
         from impact_engine.incremental import incremental_update, load_snapshot, save_snapshot
-        previous = load_snapshot(args.snapshot) if Path(args.snapshot).exists() else None
-        raw_cache = str(Path(args.snapshot).with_name("raw_graph.json"))
-        result = incremental_update(
-            args.path,
-            lambda changed: analyze_project_core(
-                args.path,
-                out_path=None,
-                changed_files=changed,
-                raw_graph_cache_path=raw_cache,
-            ),
-            previous_snapshot=previous,
-            out_path=args.out,
-            previous_graph_path=args.out,
-        )
-        save_snapshot(result["incremental"]["snapshot"], args.snapshot)
+        from contextlib import nullcontext
+        from impact_engine.persistence import CacheLock, CancellationToken
+        out_path = args.out or _project_graph_path(args.path)
+        snapshot_path = args.snapshot or str(Path(args.path).resolve() / ".impact_engine" / "project.snapshot.json")
+        previous = load_snapshot(snapshot_path) if Path(snapshot_path).exists() else None
+        scope_key = __import__("hashlib").sha256((args.scope or ".").encode("utf-8")).hexdigest()[:12]
+        raw_cache = str(Path(args.path).resolve() / ".impact_engine" / f"raw_graph.{scope_key}.json")
+        cancellation = CancellationToken()
+        from impact_engine.persistence import daemon_request, daemon_status
+        daemon_running = not args.no_daemon and daemon_status(args.path).get("status") == "running"
+        try:
+            if daemon_running:
+                result = daemon_request(args.path, "analyze-incremental", {
+                    "out_path": out_path, "snapshot_path": snapshot_path,
+                    "changed_files": args.changed, "scope": args.scope,
+                })
+            else:
+                with CacheLock(args.path, owner="cli-incremental"):
+                    result = incremental_update(
+                    args.path,
+                    lambda changed: analyze_project_core(
+                        args.path,
+                        out_path=None,
+                        changed_files=changed,
+                        raw_graph_cache_path=raw_cache,
+                        scope=args.scope,
+                        cancellation=cancellation,
+                    ),
+                    previous_snapshot=previous,
+                    out_path=out_path,
+                    previous_graph_path=out_path,
+                    forced_changed=args.changed,
+                    scope=args.scope,
+                    cancellation=cancellation,
+                    )
+                    save_snapshot(result["incremental"]["snapshot"], snapshot_path)
+        except KeyboardInterrupt:
+            result = {"status": "cancelled", "incomplete": True, "diagnostics": ["analysis cancelled by user"]}
+        _attach_runtime_contract(result, scope=args.scope)
         if args.json:
             _print_json(result)
         else:
             print(f"Incremental analysis: {result.get('status')}")
-            print(f"  Changed files: {result['incremental']['changed_file_count']}")
-            print(f"  Graph: {result.get('graph_path') or args.out}")
+            print(f"  Changed files: {result.get('incremental', {}).get('changed_file_count', 0)}")
+            print(f"  Graph: {result.get('graph_path') or out_path}")
 
     elif args.command == "watch":
         from impact_engine.analysis.pipeline import analyze_project_core
         from impact_engine.watch import watch_project
-        results = list(watch_project(
-            args.path,
-            lambda: analyze_project_core(args.path, out_path=None),
-            interval_seconds=args.interval,
-            iterations=args.iterations,
-            out_path=args.out,
-        ))
+        from contextlib import nullcontext
+        from impact_engine.persistence import CacheLock, CancellationToken
+        out_path = args.out or _project_graph_path(args.path)
+        cancellation = CancellationToken()
+        from impact_engine.persistence import daemon_request, daemon_status
+        if not args.no_daemon and daemon_status(args.path).get("status") == "running":
+            daemon_result = daemon_request(args.path, "watch", {
+                "out_path": out_path, "interval_seconds": args.interval,
+                "iterations": args.iterations, "scope": args.scope,
+            })
+            results = daemon_result.get("iterations", [])
+        else:
+            with CacheLock(args.path, owner="cli-watch"):
+                results = list(watch_project(
+                args.path,
+                lambda: analyze_project_core(args.path, out_path=None, scope=args.scope, cancellation=cancellation),
+                interval_seconds=args.interval,
+                iterations=args.iterations,
+                out_path=out_path,
+                scope=args.scope,
+                cancellation=cancellation,
+                ))
         result = results[-1] if results else {"incremental": {}}
+        _attach_runtime_contract(result, scope=args.scope)
         if args.json:
-            _print_json({"status": "ok", "iterations": results})
+            _print_json({"status": "ok", "iterations": results, **result})
         else:
             print(f"Watch completed: {len(results)} iteration(s)")
             print(f"  Last changed files: {result.get('incremental', {}).get('changed_file_count', 0)}")
@@ -593,9 +1168,42 @@ def main(argv: list[str] | None = None) -> None:
         if result.get("status") == "failed" or result.get("status") == "error":
             sys.exit(1)
 
+    elif args.command == "onboard":
+        from impact_engine.project_onboarding import onboard_project
+        try:
+            summary = onboard_project(
+                args.source, allow_network=args.allow_network, workspace=args.workspace, branch=args.branch,
+                graphify_mode=args.graphify, graphify_timeout_seconds=args.graphify_timeout,
+            )
+        except (FileNotFoundError, FileExistsError, PermissionError, RuntimeError, ValueError, OSError) as exc:
+            summary = {"schema_version": "CodeSlicerProjectOnboarding/v1", "status": "error", "error": str(exc), "privacy": {"mode": "local-only", "network_used": False}}
+        if args.out and summary.get("status") != "error":
+            destination = Path(args.out).expanduser().resolve()
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        if args.json:
+            _print_json(summary)
+        else:
+            print(f"Project onboarding: {summary.get('status')}")
+            if summary.get("project"):
+                print(f"  Project: {summary['project'].get('path')}")
+            if summary.get("canonical_graph"):
+                print(f"  CodeSlicer graph: {summary['canonical_graph'].get('nodes')} nodes, {summary['canonical_graph'].get('edges')} edges")
+            if summary.get("architecture_graph"):
+                print(f"  Graphify: {summary['architecture_graph'].get('status')}")
+            for limitation in summary.get("limitations", []):
+                print(f"  Limitation: {limitation}")
+            if summary.get("error"):
+                print(f"  Error: {summary['error']}", file=sys.stderr)
+        if summary.get("status") == "error":
+            sys.exit(1)
+
     elif args.command == "analyze":
         from impact_engine.analysis.pipeline import analyze_project_core
         from impact_engine.support_packs.detection import detect_unknown_libraries_core
+        from contextlib import nullcontext
+        from impact_engine.persistence import CacheLock, CancellationToken, daemon_request, daemon_status
+        out_path = args.out or _project_graph_path(args.path)
         if args.use_scan_plan:
             from impact_engine.scope import build_scan_plan, write_scan_plan
             write_scan_plan(args.path, build_scan_plan(args.path))
@@ -607,14 +1215,21 @@ def main(argv: list[str] | None = None) -> None:
                 file=stream,
                 flush=True,
             )
-        summary = analyze_project_core(
-            args.path,
-            out_path=args.out,
-            enable_remote_registry=args.remote_registry,
-            create_research_requests=not args.no_research_requests,
-            graphify_path=args.graphify,
-            progress_callback=report_progress,
-        )
+        cancellation = CancellationToken()
+        if not args.no_daemon and daemon_status(args.path).get("status") == "running":
+            summary = daemon_request(args.path, "analyze", {
+                "out_path": out_path, "scope": args.scope,
+                "enable_remote_registry": args.remote_registry,
+                "create_research_requests": not args.no_research_requests,
+                "graphify_path": args.graphify,
+            })
+        else:
+            with CacheLock(args.path, owner="cli-analyze"):
+                summary = analyze_project_core(
+                    args.path, out_path=out_path, enable_remote_registry=args.remote_registry,
+                    create_research_requests=not args.no_research_requests, graphify_path=args.graphify,
+                    progress_callback=report_progress, scope=args.scope, cancellation=cancellation,
+                )
         
         try:
             unknown_libs = detect_unknown_libraries_core(args.path)
@@ -626,6 +1241,7 @@ def main(argv: list[str] | None = None) -> None:
             
         summary["extractors"] = summary["extractors_used"]
         summary["support pack errors"] = summary["support_pack_load_errors"]
+        _attach_runtime_contract(summary, scope=args.scope)
         
         if args.json:
             _print_json(summary)
@@ -700,6 +1316,8 @@ def main(argv: list[str] | None = None) -> None:
                 diff_text=diff_text,
                 max_depth=args.depth,
                 min_confidence=args.min_confidence,
+                max_results=args.max_results,
+                include_full_evidence=args.full_evidence,
             )
         except Exception as exc:
             result = {"status": "error", "error": str(exc)}
@@ -712,7 +1330,7 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"  Risk: {result.get('risk', {}).get('level')} ({result.get('risk', {}).get('score')})")
                 print(f"  Changed files: {result.get('summary', {}).get('changed_files')}")
                 print(f"  Changed symbols: {result.get('summary', {}).get('changed_symbols')}")
-                print(f"  Affected nodes: {result.get('summary', {}).get('affected_nodes')}")
+                print(f"  Top impacts: {result.get('summary', {}).get('top_impacts')}")
                 print("  Risk reasons:")
                 for reason in result.get("risk", {}).get("reasons", []):
                     print(f"    - {reason}")
@@ -726,6 +1344,131 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"  Error: {result.get('error')}")
         if result.get("status") == "error":
             sys.exit(1)
+
+    elif args.command == "review":
+        from impact_engine.review import build_review_report
+        from impact_engine.persistence import CacheLock, daemon_request, daemon_status
+        from impact_engine.contracts import build_mode_response
+
+        diff_text = Path(args.diff_file).read_text(encoding="utf-8") if args.diff_file else None
+        try:
+            if not args.no_daemon and daemon_status(args.project_path).get("status") == "running":
+                result = daemon_request(args.project_path, "review", {
+                    "diff_text": diff_text, "base": args.base, "graph_path": args.graph,
+                    "refresh": args.refresh, "max_results": args.max_results,
+                    "run_tests": args.run_tests, "deep": args.deep, "entity": args.entity,
+                    "scope": args.scope,
+                })
+            else:
+                graph = GraphDocument.from_json(Path(args.graph).read_text(encoding="utf-8")) if args.graph else None
+                with CacheLock(args.project_path, owner="cli-review"):
+                    result = build_review_report(
+                        args.project_path, graph=graph, diff_text=diff_text, base=args.base,
+                        graph_path=args.graph, refresh=args.refresh, max_results=args.max_results,
+                        run_tests=args.run_tests, deep=args.deep, entity=args.entity, scope=args.scope,
+                    )
+            from impact_engine.review_history import record_review
+            result["review_id"] = record_review(args.project_path, result)
+            result["mode_response"] = build_mode_response(
+                "review", project=args.project_path,
+                freshness=result.get("graph_freshness"), coverage=result.get("coverage"),
+                warnings=result.get("warnings", []), adapters=result.get("adapters", []), result=result,
+            )
+        except Exception as exc:
+            result = {"status": "error", "error": str(exc), "schema_version": "ReviewReport/v1"}
+        if args.json or getattr(args, "local_json", False):
+            _print_json(result)
+        else:
+            print("Daily Review:")
+            print(f"  Risk: {result.get('risk', {}).get('level')} (confidence: {result.get('risk', {}).get('confidence')})")
+            print(f"  Graph: {result.get('graph_freshness', {}).get('refresh_mode')} / stale={result.get('graph_freshness', {}).get('stale')}")
+            print("  Review now:")
+            for item in result.get("top_impacts", []):
+                print(f"    - {item.get('label')} [{item.get('kind')}] ({item.get('confidence')})")
+            print("  Tests:")
+            for item in result.get("test_recommendations", [])[:10]:
+                print(f"    - {item.get('file')} ({item.get('priority')})")
+            for warning in result.get("warnings", []):
+                print(f"  Warning: {warning}")
+
+    elif args.command in {"inspect", "investigate", "ci"}:
+        from impact_engine.modes import build_ci_report, build_inspect_report, build_investigate_report, to_sarif
+        from impact_engine.contracts import build_mode_response
+
+        diff_text = Path(args.diff_file).read_text(encoding="utf-8") if getattr(args, "diff_file", None) else None
+        exit_code = 0
+        try:
+            if args.command == "inspect":
+                result = build_inspect_report(
+                    args.project_path, entity=args.entity, graph_path=args.graph,
+                    refresh=args.refresh, max_context=args.max_context,
+                )
+            elif args.command == "investigate":
+                result = build_investigate_report(
+                    args.project_path, entity=args.entity, graph_path=args.graph,
+                    direction=args.direction, depth=args.depth, refresh=args.refresh,
+                    runtime_validate=args.runtime_validate, max_nodes=args.max_nodes,
+                    max_edges=args.max_edges,
+                )
+            else:
+                result = build_ci_report(
+                    args.project_path, base=args.base, policy_path=args.policy,
+                    graph_path=args.graph, diff_text=diff_text, refresh=args.refresh,
+                    run_tests=args.run_tests, test_command=args.test_command,
+                )
+                exit_code = int(result.get("exit_code", 0))
+        except (FileNotFoundError, ValueError) as exc:
+            exit_code = 2
+            result = {
+                "schema_version": "CodeSlicerModeReport/v1",
+                "mode": args.command,
+                "status": "invalid_input",
+                "local_only": True,
+                "error": str(exc),
+                "warnings": [str(exc)],
+                "coverage": [],
+                "graph_freshness": {"status": "unavailable", "stale": True},
+                "actions": {"items": []},
+                "exit_code": exit_code,
+            }
+        except Exception as exc:
+            exit_code = 3 if args.command == "ci" else 1
+            result = {
+                "schema_version": "CodeSlicerModeReport/v1",
+                "mode": args.command,
+                "status": "analysis_failed",
+                "local_only": True,
+                "error": str(exc),
+                "warnings": [f"analysis could not complete: {exc}"],
+                "coverage": [],
+                "graph_freshness": {"status": "unavailable", "stale": True},
+                "actions": {"items": []},
+                "exit_code": exit_code,
+            }
+        result["mode_response"] = build_mode_response(
+            args.command, project=args.project_path,
+            freshness=result.get("graph_freshness"), coverage=result.get("coverage"),
+            warnings=result.get("warnings", []), adapters=result.get("adapters", []), result=result,
+        )
+        output = to_sarif(result) if args.command == "ci" and args.format == "sarif" else result
+        if getattr(args, "out", None):
+            destination = Path(args.out).expanduser().resolve()
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
+            if not args.json and args.command == "ci":
+                print(f"CodeSlicer CI report written: {destination}")
+        elif args.json or getattr(args, "local_json", False) or args.command == "ci":
+            _print_json(output)
+        else:
+            print(f"{args.command.capitalize()}: {result.get('status')}")
+            if result.get("resolved_entity"):
+                print(f"  Entity: {result['resolved_entity'].get('id')}")
+            if result.get("risk"):
+                print(f"  Risk: {result['risk'].get('level')}")
+            for warning in result.get("warnings", []):
+                print(f"  Warning: {warning}")
+        if exit_code:
+            sys.exit(exit_code)
 
     elif args.command == "runtime-trace":
         from impact_engine.runtime_trace import runtime_trace_project_core

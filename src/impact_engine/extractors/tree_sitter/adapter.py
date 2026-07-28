@@ -206,7 +206,7 @@ def walk_js_ts(node, file_path, rel_path, graph, scope="", imports=None):
                         id=edge_id,
                         kind="CALLS",
                         from_node=scope,
-                        to_node=call_name,
+                        to_node=call_id,
                         source="EXTRACTED",
                         confidence=0.60,
                         evidence=[Evidence(
@@ -339,7 +339,7 @@ def walk_go(node, file_path, rel_path, graph, scope="", imports=None, package_na
                         id=edge_id,
                         kind="CALLS",
                         from_node=scope,
-                        to_node=call_name,
+                        to_node=call_id,
                         source="EXTRACTED",
                         confidence=0.60,
                         evidence=[Evidence(
@@ -443,7 +443,7 @@ def walk_java(node, file_path, rel_path, graph, scope="", imports=None, package_
                     id=edge_id,
                     kind="CALLS",
                     from_node=scope,
-                    to_node=call_name,
+                    to_node=call_id,
                     source="EXTRACTED",
                     confidence=0.60,
                     evidence=[Evidence(
@@ -495,7 +495,7 @@ def _emit_fallback_call(graph: GraphDocument, rel_path: str, scope: str, call_na
     ))
     graph.add_edge(Edge(
         id=f"fallback_static_call__{scope}__{call_name}__{line}__{col}", kind="CALLS",
-        from_node=scope, to_node=call_name, source="EXTRACTED", confidence=0.50,
+        from_node=scope, to_node=call_id, source="EXTRACTED", confidence=0.50,
         evidence=[Evidence(file=rel_path, line=line, description=f"Static {lang} fallback call: {call_name}")],
         properties={"extractor_id": extractor_id}
     ))
@@ -743,7 +743,14 @@ def extract_tree_sitter_file(file_path: Path, rel_path: str, lang_name: str, gra
         fallback_extract_tree_sitter_file(file_path, rel_path, lang_name, graph, reason=reason)
 
 
-def extract_tree_sitter_project(project_path: str | Path, languages: List[str] | None = None, files: List[str] | None = None) -> GraphDocument:
+def extract_tree_sitter_project(
+    project_path: str | Path,
+    languages: List[str] | None = None,
+    files: List[str] | None = None,
+    *,
+    cancellation=None,
+    progress_callback=None,
+) -> GraphDocument:
     graph = GraphDocument()
 
     root = Path(project_path).resolve()
@@ -761,11 +768,36 @@ def extract_tree_sitter_project(project_path: str | Path, languages: List[str] |
         "go": [".go"],
         "java": [".java"]
     }
-    selected = {str(item).replace("\\", "/") for item in files or []}
+    selected = set()
+    for item in files or []:
+        candidate = Path(str(item).replace("\\", "/"))
+        if candidate.is_absolute():
+            try:
+                candidate = candidate.resolve().relative_to(root)
+            except (OSError, ValueError):
+                continue
+        selected.add(candidate.as_posix())
 
     # Gather matching files
-    from impact_engine.scope import iter_project_files
-    for p in iter_project_files(root):
+    from impact_engine.scope import iter_project_files, iter_selected_project_files
+    candidates = (
+        iter_selected_project_files(root, list(files or []))
+        if files is not None
+        else iter_project_files(root)
+    )
+    candidate_paths = list(candidates)
+    matching_total = sum(
+        1 for p in candidate_paths
+        if p.suffix.lower() in {extension for language in languages for extension in lang_ext_map.get(language, [])}
+    )
+    processed = 0
+    for p in candidate_paths:
+        if cancellation is not None:
+            check = getattr(cancellation, "check", None)
+            if callable(check):
+                check()
+            elif getattr(cancellation, "is_set", lambda: False)():
+                raise TimeoutError("tree-sitter extraction cancelled")
         parts = p.relative_to(root).parts
         if any(part.startswith(".") or part in {
             "__pycache__", "venv", "env", "node_modules", "external_tools",
@@ -781,6 +813,14 @@ def extract_tree_sitter_project(project_path: str | Path, languages: List[str] |
             for lang in languages:
                 if lang in lang_ext_map and suffix in lang_ext_map[lang]:
                     extract_tree_sitter_file(p, rel_path, lang, graph)
+                    processed += 1
+                    if progress_callback is not None:
+                        progress_callback(
+                            file=rel_path,
+                            processed=processed,
+                            total=matching_total,
+                            message=f"{lang}: {rel_path}",
+                        )
                     break
 
     # Determine aggregate tree_sitter_status

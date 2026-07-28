@@ -13,6 +13,8 @@ from impact_engine.extractors.python_ast import extract_project
 from impact_engine.resolution.precision import resolve_precision
 from impact_engine.impact import impact_query as impact_query_core, explain_edge as explain_edge_core
 from impact_engine.support_packs.registry import list_local_support_packs, validate_support_pack_file, import_support_pack_file
+from impact_engine.contracts import build_mode_response
+from impact_engine.tool_runtime import ToolRuntime
 
 
 def _verify_path_exists(p_str: str) -> None:
@@ -39,6 +41,19 @@ def server_info() -> Dict[str, Any]:
         "version": "0.4.0",
         "protocol_version": "2024-11-05"
     }
+
+
+def _mode_response(mode: str, project_path: str, result: dict[str, Any] | None) -> dict[str, Any]:
+    report = result or {}
+    return build_mode_response(
+        mode,
+        project=project_path,
+        freshness=report.get("graph_freshness"),
+        coverage=report.get("coverage"),
+        warnings=report.get("warnings", []),
+        adapters=report.get("adapters", []),
+        result=report,
+    )
 
 
 def analyze_project(
@@ -169,6 +184,8 @@ def pr_review(
     diff_text: str | None = None,
     max_depth: int = 6,
     min_confidence: float = 0.0,
+    max_results: int = 10,
+    include_full_evidence: bool = False,
 ) -> Dict[str, Any]:
     from impact_engine.pr_review import pr_review_core
     try:
@@ -181,10 +198,95 @@ def pr_review(
             diff_text=diff_text,
             max_depth=max_depth,
             min_confidence=min_confidence,
+            max_results=max_results,
+            include_full_evidence=include_full_evidence,
         )
         return {"tool": "pr_review", "status": "ok", "project_path": project_path, "result": result}
     except Exception as e:
         return {"tool": "pr_review", "status": "error", "project_path": project_path, "error": str(e), "result": None}
+
+
+def review(
+    project_path: str,
+    graph_path: str | None = None,
+    diff_text: str | None = None,
+    base: str | None = None,
+    refresh: str = "auto",
+    max_results: int = 10,
+    run_tests: str = "suggested",
+    deep: bool = False,
+    entity: str | None = None,
+) -> Dict[str, Any]:
+    from impact_engine.review import build_review_report
+    try:
+        _verify_path_exists(project_path)
+        graph = GraphDocument.from_json(Path(graph_path).read_text(encoding="utf-8")) if graph_path else None
+        result = build_review_report(project_path, graph=graph, graph_path=graph_path, diff_text=diff_text, base=base, refresh=refresh, max_results=max_results, run_tests=run_tests, deep=deep, entity=entity)
+        return {"tool": "review", "status": "ok", "project_path": project_path, "result": result, "mode_response": _mode_response("review", project_path, result)}
+    except Exception as e:
+        return {"tool": "review", "status": "error", "project_path": project_path, "error": str(e), "result": None}
+
+
+def inspect(
+    project_path: str,
+    entity: str,
+    graph_path: str | None = None,
+    refresh: str = "never",
+    max_context: int = 12,
+) -> Dict[str, Any]:
+    from impact_engine.modes import build_inspect_report
+    try:
+        _verify_path_exists(project_path)
+        if graph_path:
+            _verify_path_exists(graph_path)
+        result = build_inspect_report(project_path, entity=entity, graph_path=graph_path, refresh=refresh, max_context=max_context)
+        return {"tool": "inspect", "status": "ok", "project_path": project_path, "result": result, "mode_response": _mode_response("inspect", project_path, result)}
+    except Exception as e:
+        return {"tool": "inspect", "status": "error", "project_path": project_path, "error": str(e), "result": None}
+
+
+def investigate(
+    project_path: str,
+    entity: str,
+    graph_path: str | None = None,
+    direction: str = "both",
+    depth: int = 8,
+    runtime_validate: bool = False,
+    max_nodes: int = 500,
+    max_edges: int = 1000,
+    refresh: str = "never",
+) -> Dict[str, Any]:
+    from impact_engine.modes import build_investigate_report
+    try:
+        _verify_path_exists(project_path)
+        if graph_path:
+            _verify_path_exists(graph_path)
+        result = build_investigate_report(project_path, entity=entity, graph_path=graph_path, direction=direction, depth=depth, runtime_validate=runtime_validate, max_nodes=max_nodes, max_edges=max_edges, refresh=refresh)
+        return {"tool": "investigate", "status": "ok", "project_path": project_path, "result": result, "mode_response": _mode_response("investigate", project_path, result)}
+    except Exception as e:
+        return {"tool": "investigate", "status": "error", "project_path": project_path, "error": str(e), "result": None}
+
+
+def ci(
+    project_path: str,
+    base: str | None = None,
+    policy_path: str | None = None,
+    graph_path: str | None = None,
+    diff_text: str | None = None,
+    refresh: str = "auto",
+    run_tests: bool = False,
+    test_command: list[str] | None = None,
+) -> Dict[str, Any]:
+    from impact_engine.modes import build_ci_report
+    try:
+        _verify_path_exists(project_path)
+        for candidate in (policy_path, graph_path):
+            if candidate:
+                _verify_path_exists(candidate)
+        result = build_ci_report(project_path, base=base, policy_path=policy_path, graph_path=graph_path, diff_text=diff_text, refresh=refresh, run_tests=run_tests, test_command=test_command)
+        return {"tool": "ci", "status": "ok", "project_path": project_path, "result": result, "mode_response": _mode_response("ci", project_path, result)}
+    except Exception as e:
+        return {"tool": "ci", "status": "error", "project_path": project_path, "error": str(e), "result": None}
 
 
 def runtime_trace(
@@ -498,6 +600,80 @@ def registry_simulate_lifecycle(ecosystem: str, library: str, source_url: str) -
     return {"tool": "registry_simulate_lifecycle", **RegistryClient().simulate_library_lifecycle(ecosystem, library, source_url)}
 
 
+# Managed upstream tools deliberately have a separate lifecycle from graph
+# adapters.  These MCP entry points let an agent inspect the exact local
+# checkout and use its real CLI, while the canonical CodeSlicer graph remains
+# unchanged unless an adapter is explicitly imported by the user.
+def list_managed_tools(project_path: str) -> Dict[str, Any]:
+    _verify_path_exists(project_path)
+    runtime = ToolRuntime(project_path)
+    return {
+        "tool": "list_managed_tools",
+        "status": "ok",
+        "project_path": str(Path(project_path).resolve()),
+        "tools": runtime.catalog(),
+        "privacy": {"mode": "local-only", "network_used": False},
+    }
+
+
+def connect_managed_tool(project_path: str, tool_id: str, confirmed: bool, ref: str | None = None) -> Dict[str, Any]:
+    _verify_path_exists(project_path)
+    status = ToolRuntime(project_path).connect(tool_id, confirmed=confirmed, ref=ref)
+    return {
+        "tool": "connect_managed_tool",
+        "status": "ok",
+        "managed_tool": status,
+        "privacy": {
+            "mode": "local-only",
+            "network_used": bool(status.get("repository", {}).get("cloned")),
+            "network_action": "explicit-git-clone",
+        },
+    }
+
+
+def read_managed_tool_docs(project_path: str, tool_id: str, query: str = "", limit: int = 40) -> Dict[str, Any]:
+    _verify_path_exists(project_path)
+    result = ToolRuntime(project_path).docs(tool_id, query=query, limit=limit)
+    return {"tool": "read_managed_tool_docs", "status": "ok", **result}
+
+
+def read_managed_tool_document(project_path: str, tool_id: str, path: str, offset: int = 0, limit_bytes: int = 128 * 1024) -> Dict[str, Any]:
+    _verify_path_exists(project_path)
+    result = ToolRuntime(project_path).read_document(tool_id, path, offset=offset, limit_bytes=limit_bytes)
+    return {"tool": "read_managed_tool_document", "status": "ok", **result}
+
+
+def configure_managed_tool_executable(project_path: str, tool_id: str, executable: str) -> Dict[str, Any]:
+    _verify_path_exists(project_path)
+    status = ToolRuntime(project_path).configure_executable(tool_id, executable)
+    return {"tool": "configure_managed_tool_executable", "status": "ok", "managed_tool": status}
+
+
+def managed_tool_help(project_path: str, tool_id: str) -> Dict[str, Any]:
+    _verify_path_exists(project_path)
+    result = ToolRuntime(project_path).help(tool_id)
+    return {"tool": "managed_tool_help", "status": "ok", **result}
+
+
+def run_managed_tool(
+    project_path: str,
+    tool_id: str,
+    argv: List[str],
+    confirmed: bool,
+    workspace: str = "project",
+    timeout_seconds: int = 60,
+) -> Dict[str, Any]:
+    _verify_path_exists(project_path)
+    result = ToolRuntime(project_path).run(
+        tool_id,
+        argv=argv,
+        confirmed=confirmed,
+        workspace=workspace,
+        timeout_seconds=timeout_seconds,
+    )
+    return {"tool": "run_managed_tool", "status": "ok", **result}
+
+
 # Stable MCP tool registry
 TOOLS = [
     {
@@ -596,7 +772,80 @@ TOOLS = [
                 "graph_path": {"type": "string", "description": "Optional path to an existing JSON impact graph"},
                 "diff_text": {"type": "string", "description": "Optional unified git diff text; current git diff is used when omitted"},
                 "max_depth": {"type": "integer", "default": 6},
-                "min_confidence": {"type": "number", "default": 0.0}
+                "min_confidence": {"type": "number", "default": 0.0},
+                "max_results": {"type": "integer", "default": 10, "maximum": 10},
+                "include_full_evidence": {"type": "boolean", "default": False, "description": "Explicitly return the complete impact closure for investigation."}
+            },
+            "required": ["project_path"]
+        }
+    },
+    {
+        "name": "review",
+        "description": "Build a bounded local-first daily review report from the working-tree diff.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_path": {"type": "string"},
+                "graph_path": {"type": "string"},
+                "diff_text": {"type": "string"},
+                "base": {"type": "string"},
+                "refresh": {"type": "string", "enum": ["auto", "never", "force"]},
+                "max_results": {"type": "integer", "default": 10},
+                "run_tests": {"type": "string", "enum": ["none", "suggested"]},
+                "deep": {"type": "boolean", "default": False},
+                "entity": {"type": "string"}
+            },
+            "required": ["project_path"]
+        }
+    },
+    {
+        "name": "inspect",
+        "description": "Explain one exact local GraphDocument entity with bounded evidence and coverage.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_path": {"type": "string"},
+                "entity": {"type": "string"},
+                "graph_path": {"type": "string"},
+                "refresh": {"type": "string", "enum": ["auto", "never", "force"], "default": "never"},
+                "max_context": {"type": "integer", "default": 12}
+            },
+            "required": ["project_path", "entity"]
+        }
+    },
+    {
+        "name": "investigate",
+        "description": "Run an explicit bounded deep impact traversal with graph diagnostics and unresolved regions.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_path": {"type": "string"},
+                "entity": {"type": "string"},
+                "graph_path": {"type": "string"},
+                "direction": {"type": "string", "enum": ["upstream", "downstream", "both"], "default": "both"},
+                "depth": {"type": "integer", "default": 8},
+                "runtime_validate": {"type": "boolean", "default": False},
+                "max_nodes": {"type": "integer", "default": 500},
+                "max_edges": {"type": "integer", "default": 1000},
+                "refresh": {"type": "string", "enum": ["auto", "never", "force"], "default": "never"}
+            },
+            "required": ["project_path", "entity"]
+        }
+    },
+    {
+        "name": "ci",
+        "description": "Evaluate the shared review projection with a local CI policy; no tests or network by default.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_path": {"type": "string"},
+                "base": {"type": "string"},
+                "policy_path": {"type": "string"},
+                "graph_path": {"type": "string"},
+                "diff_text": {"type": "string"},
+                "refresh": {"type": "string", "enum": ["auto", "never", "force"], "default": "auto"},
+                "run_tests": {"type": "boolean", "default": False},
+                "test_command": {"type": "array"}
             },
             "required": ["project_path"]
         }
@@ -820,6 +1069,93 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {"ecosystem": {"type": "string"}, "library": {"type": "string"}, "source_url": {"type": "string"}}, "required": ["ecosystem", "library", "source_url"]}
     }
 ]
+
+
+# This surface is intentionally explicit.  An agent may discover and read a
+# connected upstream checkout freely, but cloning and every arbitrary command
+# still require a caller-supplied confirmation flag.
+TOOLS.extend([
+    {
+        "name": "list_managed_tools",
+        "description": "List the local upstream-tool catalog and connection state for a project. No network or process is started.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"project_path": {"type": "string"}},
+            "required": ["project_path"],
+        },
+    },
+    {
+        "name": "connect_managed_tool",
+        "description": "After explicit confirmation, clone the complete upstream Git repository into this project's private CodeSlicer storage. Does not build, install, or start it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_path": {"type": "string"},
+                "tool_id": {"type": "string"},
+                "confirmed": {"type": "boolean", "description": "Must be true: this explicitly uses Git network access."},
+                "ref": {"type": "string", "description": "Optional upstream Git ref to check out after cloning."},
+            },
+            "required": ["project_path", "tool_id", "confirmed"],
+        },
+    },
+    {
+        "name": "read_managed_tool_docs",
+        "description": "Search documentation indexed from an already connected local upstream repository. No network access.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_path": {"type": "string"}, "tool_id": {"type": "string"},
+                "query": {"type": "string"}, "limit": {"type": "integer", "default": 40},
+            },
+            "required": ["project_path", "tool_id"],
+        },
+    },
+    {
+        "name": "read_managed_tool_document",
+        "description": "Read a page of one documentation file from an already connected local upstream repository. Continue with next_offset to read the complete file. The path must stay inside that checkout.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_path": {"type": "string"}, "tool_id": {"type": "string"}, "path": {"type": "string"},
+                "offset": {"type": "integer", "default": 0}, "limit_bytes": {"type": "integer", "default": 131072},
+            },
+            "required": ["project_path", "tool_id", "path"],
+        },
+    },
+    {
+        "name": "configure_managed_tool_executable",
+        "description": "Associate a managed tool with an existing absolute local executable. This does not execute it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"project_path": {"type": "string"}, "tool_id": {"type": "string"}, "executable": {"type": "string"}},
+            "required": ["project_path", "tool_id", "executable"],
+        },
+    },
+    {
+        "name": "managed_tool_help",
+        "description": "Run the configured local upstream executable with --help and return the actual available commands.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"project_path": {"type": "string"}, "tool_id": {"type": "string"}},
+            "required": ["project_path", "tool_id"],
+        },
+    },
+    {
+        "name": "run_managed_tool",
+        "description": "Run a complete raw argv command on a configured local upstream executable. It never uses a shell and requires confirmed=true for each invocation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_path": {"type": "string"}, "tool_id": {"type": "string"},
+                "argv": {"type": "array", "description": "Arguments after the configured executable, as an argv list."},
+                "confirmed": {"type": "boolean", "description": "Must be true for this individual process execution."},
+                "workspace": {"type": "string", "enum": ["project", "tool"], "default": "project"},
+                "timeout_seconds": {"type": "integer", "default": 60},
+            },
+            "required": ["project_path", "tool_id", "argv", "confirmed"],
+        },
+    },
+])
 
 
 def validate_arguments(schema: dict, arguments: dict) -> str | None:
@@ -1049,6 +1385,14 @@ def main():
                             res = impact_path(**arguments)
                         elif tool_name == "pr_review":
                             res = pr_review(**arguments)
+                        elif tool_name == "review":
+                            res = review(**arguments)
+                        elif tool_name == "inspect":
+                            res = inspect(**arguments)
+                        elif tool_name == "investigate":
+                            res = investigate(**arguments)
+                        elif tool_name == "ci":
+                            res = ci(**arguments)
                         elif tool_name == "runtime_trace":
                             res = runtime_trace(**arguments)
                         elif tool_name == "detect_unknown_libraries":
@@ -1091,6 +1435,20 @@ def main():
                             res = registry_check_documentation(**arguments)
                         elif tool_name == "registry_simulate_lifecycle":
                             res = registry_simulate_lifecycle(**arguments)
+                        elif tool_name == "list_managed_tools":
+                            res = list_managed_tools(**arguments)
+                        elif tool_name == "connect_managed_tool":
+                            res = connect_managed_tool(**arguments)
+                        elif tool_name == "read_managed_tool_docs":
+                            res = read_managed_tool_docs(**arguments)
+                        elif tool_name == "read_managed_tool_document":
+                            res = read_managed_tool_document(**arguments)
+                        elif tool_name == "configure_managed_tool_executable":
+                            res = configure_managed_tool_executable(**arguments)
+                        elif tool_name == "managed_tool_help":
+                            res = managed_tool_help(**arguments)
+                        elif tool_name == "run_managed_tool":
+                            res = run_managed_tool(**arguments)
                         else:
                             raise ValueError(f"Unknown tool: {tool_name}")
 

@@ -87,9 +87,12 @@ def test_analyze_polyglot_project_tree_sitter():
         assert e["confidence"] == 0.60
         assert e["source"] == "EXTRACTED"
         
+    nodes_by_id = {node["id"]: node for node in graph_dict.get("nodes", [])}
     targets = {e["to"] for e in ts_edges}
-    assert "helper" in targets
-    assert "this.save" in targets
+    assert any(nodes_by_id.get(target, {}).get("properties", {}).get("call_name") == "helper" for target in targets)
+    assert any(nodes_by_id.get(target, {}).get("properties", {}).get("call_name") == "this.save" for target in targets)
+    assert all(target in nodes_by_id for target in targets)
+    assert all(edge["from"] in nodes_by_id and edge["to"] in nodes_by_id for edge in edges)
 
 
 def test_pipeline_merges_optional_graphify_input(tmp_path):

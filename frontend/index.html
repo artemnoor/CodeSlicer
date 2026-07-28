@@ -1,123 +1,132 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0d0d0d">
-<link rel="icon" href="data:,">
-<title>Impact Engine — локальный интерфейс</title>
-<link rel="stylesheet" href="styles.css">
-<script>(function(){try{var t=localStorage.getItem('impact-theme');if(!t)t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='dark'}})();</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080808">
+  <meta name="color-scheme" content="dark">
+  <title>CodeSlicer — карта проекта</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="simple.css">
 </head>
-<body>
-<div class="backend-gate" id="backendGate"><div class="box"><h2>Подключение к локальному Impact Engine</h2><p id="backendGateMessage">Ожидание реального backend API…</p></div></div>
-<div class="app" id="app">
-  <header class="topbar">
-    <button class="icon-btn mobile-menu" id="menuBtn" aria-label="Открыть меню"><svg class="ico"><use href="#i-menu"/></svg></button>
-    <div class="brand"><span class="brand-mark"><svg class="ico" style="width:19px;height:19px"><use href="#i-activity"/></svg></span><div><strong>Impact Engine</strong><small>Локальное рабочее пространство</small></div></div>
-    <input class="project-select" id="projectSelect" type="text" placeholder="Путь к проекту" aria-label="Путь к проекту">
-    <div class="top-actions">
-      <button class="btn primary" id="analyzeBtn"><svg class="ico"><use href="#i-play"/></svg><span>Анализировать</span></button>
-      <button class="icon-btn" id="themeBtn" title="Переключить тему"><svg class="ico"><use href="#i-sun"/></svg></button>
+<body class="simple-hub">
+  <!-- Advanced CLI/MCP retains Security / SBOM integrations; the minimal map UI
+       deliberately does not duplicate those expert controls. -->
+  <a class="skip-link" href="#main">Перейти к карте</a>
+  <header class="simple-topbar">
+    <button class="brand" type="button" data-route="map" aria-label="Открыть карту проекта">
+      <span class="cs-logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>CodeSlicer</span>
+    </button>
+    <nav class="simple-nav" aria-label="Основная навигация">
+      <a href="#map" data-route="map">Карта проекта</a>
+      <a href="#graphify" data-route="graphify">Graphify</a>
+    </nav>
+    <div class="simple-project-picker">
+      <label class="sr-only" for="projectPath">Путь к локальному проекту</label>
+      <input id="projectPath" type="text" placeholder="Путь к локальному проекту" autocomplete="off" spellcheck="false">
+      <button class="button primary" id="analyzeButton" type="button">Построить карту</button>
+      <button class="button secondary" id="cancelAnalyzeButton" type="button" hidden>Отменить</button>
     </div>
   </header>
 
-  <aside class="sidebar" id="sidebar">
-    <nav class="nav">
-      <div class="nav-label">Рабочая область</div>
-      <button class="active" data-view="overview"><svg class="ico"><use href="#i-overview"/></svg>Обзор</button>
-      <button data-view="graph"><svg class="ico"><use href="#i-graph"/></svg>Граф проекта<span class="badge">52</span></button>
-      <button data-view="impact"><svg class="ico"><use href="#i-impact"/></svg>Анализ влияния</button>
-      <div class="nav-label">Качество</div>
-      <button data-view="diagnostics"><svg class="ico"><use href="#i-warning"/></svg>Диагностика<span class="badge">8</span></button>
-      <button data-view="queries"><svg class="ico"><use href="#i-terminal"/></svg>Рабочая область запросов</button>
-    </nav>
-    <div class="sidebar-project"><div class="project-health"><div class="row"><span><i class="dot"></i>Граф готов</span><span class="status-pill good">доверенный</span></div><p>52 узла · 68 рёбер<br>2 языка · 4 фреймворка</p></div></div>
-  </aside>
+  <main class="simple-main" id="main">
+    <div id="globalState" class="simple-status" aria-live="polite">Проверяю локальный API…</div>
 
-  <main class="main" id="main">
-    <section class="view active" id="view-overview">
-      <div class="page-head"><div><span class="eyebrow">// ОБЗОР ПРОЕКТА</span><h1>Проект не анализирован</h1><p>Укажите путь к проекту и запустите анализ через локальный backend.</p></div><div class="head-actions"><button class="btn" data-go="graph"><svg class="ico"><use href="#i-graph"/></svg>Открыть граф</button></div></div>
-      <div class="metric-grid">
-        <div class="metric"><label>Файлы</label><strong>—</strong></div><div class="metric"><label>Узлы</label><strong class="accent">—</strong></div><div class="metric"><label>Рёбра</label><strong>—</strong></div><div class="metric"><label>Маршруты</label><strong>—</strong></div><div class="metric"><label>Тесты</label><strong>—</strong></div><div class="metric"><label>Библиотеки</label><strong>—</strong></div>
-        <div class="metric"><label>Разрешено точно</label><strong class="accent">—</strong></div><div class="metric"><label>Разрешено логически</label><strong>—</strong></div><div class="metric"><label>Неоднозначно</label><strong>—</strong></div><div class="metric"><label>Требует решения</label><strong>—</strong></div><div class="metric"><label>Время анализа</label><strong>—</strong><small>с</small></div><div class="metric"><label>Качество графа</label><strong class="accent">—</strong></div>
+    <section id="onboarding" class="simple-onboarding" hidden>
+      <span class="eyebrow">НАЧАТЬ</span>
+      <h1>Постройте карту проекта</h1>
+      <p>Укажите папку с кодом. CodeSlicer построит локальный граф связей — код никуда не отправляется.</p>
+      <label for="onboardingPath">Путь к проекту</label>
+      <div class="simple-onboarding-actions">
+        <input id="onboardingPath" type="text" placeholder="C:\Projects\my-app" autocomplete="off" spellcheck="false">
+        <button class="button primary" id="onboardingAnalyze" type="button">Построить карту</button>
       </div>
-      <div class="grid">
-        <article class="panel span-8"><div class="panel-head"><div class="panel-title"><span class="icon-wrap"><svg class="ico"><use href="#i-activity"/></svg></span><div><h2>Качество графа</h2><div class="sub">Покрытие и воспроизводимость связей</div></div></div><span class="status-pill good">проверки качества пройдены</span></div><div class="quality-list"><div class="quality-row"><span>Точные и runtime-confirmed связи</span><b>92%</b><div class="bar"><i style="width:92%"></i></div></div><div class="quality-row"><span>Покрытие маршрутов и эндпоинтов</span><b>97.6%</b><div class="bar"><i style="width:97.6%"></i></div></div><div class="quality-row"><span>Разрешение типизированных получателей</span><b>88%</b><div class="bar"><i style="width:88%"></i></div></div><div class="quality-row"><span>Неизвестные области локализованы</span><b>96%</b><div class="bar"><i style="width:96%"></i></div></div></div><div class="notice"><svg class="ico"><use href="#i-check"/></svg><span>Проверки качества пройдены. Неизвестные области не маскируются под подтверждённые связи.</span></div></article>
-        <article class="panel span-4"><div class="panel-head"><div class="panel-title"><span class="icon-wrap"><svg class="ico"><use href="#i-stack"/></svg></span><div><h2>Обнаружено в проекте</h2><div class="sub">Языки и библиотеки текущего анализа</div></div></div></div><div class="tag-list" id="detectedStack"><span class="tag">нет данных</span></div></article>
-        <article class="panel span-6"><div class="panel-head"><div class="panel-title"><span class="icon-wrap"><svg class="ico"><use href="#i-pulse"/></svg></span><div><h2>Состав проекта</h2><div class="sub">Факты текущего анализа</div></div></div></div><div class="signal-list"><div class="signal"><svg class="ico"><use href="#i-route"/></svg><span>Публичные маршруты</span><strong>—</strong></div><div class="signal"><svg class="ico"><use href="#i-test"/></svg><span>Связанные тесты</span><strong>—</strong></div><div class="signal"><svg class="ico"><use href="#i-package"/></svg><span>Библиотеки</span><strong>—</strong></div><div class="signal"><svg class="ico"><use href="#i-clock"/></svg><span>Последний анализ</span><strong>—</strong></div></div></article>
+      <div id="progressPanel" class="progress-panel" hidden>
+        <div class="progress-heading"><strong id="progressStage">Подготовка</strong><span id="progressPercent">0%</span></div>
+        <div class="progress-track"><i id="progressBar"></i></div>
+        <p id="progressMessage">Готовлю анализ…</p>
       </div>
+      <div id="onboardingError" class="state-card error-state" hidden></div>
     </section>
 
-    <section class="view graph-view" id="view-graph">
-      <div class="graph-shell">
-        <div class="graph-toolbar">
-          <div class="segmented"><button class="active" data-mode="2d">2D</button><button data-mode="3d">3D</button></div>
-          <div class="graph-search"><svg class="ico search-ico"><use href="#i-search"/></svg><input id="graphSearch" placeholder="Поиск узлов…"></div>
-          <div class="toolbar-sep"></div>
-          <button class="btn small" id="fitBtn"><svg class="ico"><use href="#i-fit"/></svg>Вместить</button>
-          <button class="btn small" id="resetBtn"><svg class="ico"><use href="#i-refresh"/></svg>Сбросить</button>
-          <div class="filter-pop" id="filterPop"><button class="btn small" id="filterBtn"><svg class="ico"><use href="#i-filter"/></svg>Фильтры</button><div class="filter-menu"><h4>Фильтры графа</h4><label>Язык</label><select id="languageFilter"><option value="all">Все языки</option><option value="typescript">TypeScript</option><option value="python">Python</option><option value="sql">SQL</option></select><label>Источник</label><select id="sourceFilter"><option value="all">Все источники</option><option value="CONFIRMED">Подтверждено</option><option value="INFERRED">Выведено</option><option value="UNRESOLVED">Не разрешено</option></select><label>Минимальная уверенность <b id="confLabel">0.00</b></label><input id="confidenceFilter" type="range" min="0" max="1" step="0.05" value="0"><label><input id="hideTests" type="checkbox"> Скрыть тесты</label><label><input id="hideExternal" type="checkbox"> Скрыть внешние узлы</label></div></div>
-          <div class="toolbar-right"><button class="icon-btn" id="exportPng" title="Экспортировать PNG"><svg class="ico"><use href="#i-image"/></svg></button><button class="icon-btn" id="exportJson" title="Экспортировать JSON"><svg class="ico"><use href="#i-download"/></svg></button></div>
+    <div id="routeViews" hidden>
+      <section class="route-view" id="view-map" data-route-view="map">
+        <header class="map-heading">
+          <div>
+            <span class="eyebrow">КАРТА ПРОЕКТА</span>
+            <h1 id="mapTitle">Как устроен проект</h1>
+            <p id="mapDescription">Точки — части кода. Линии — подтверждённые связи между ними. Выберите точку, чтобы понять её роль.</p>
+          </div>
+          <div class="map-actions">
+            <label class="sr-only" for="graphViewSelect">Какую карту показать</label>
+            <select id="graphViewSelect">
+              <option value="impact">Карта CodeSlicer</option>
+              <option value="graphify">Открыть Graphify (оригинал)</option>
+            </select>
+            <button class="button secondary" id="mapRefresh" type="button">Обновить</button>
+          </div>
+        </header>
+        <div class="graph-notice" id="graphProjectionState" aria-live="polite">
+          <span id="graphProjectionStatus">Загружаю карту…</span>
         </div>
-        <div class="graph-stage" id="graphStage">
-          <div class="force-graph active" id="graph2d" aria-label="Двумерный граф проекта"></div>
-          <div class="force-graph" id="graph3d" aria-label="Трёхмерный граф проекта"></div>
-          <svg class="mode-2d" id="graphSvg" viewBox="0 0 1100 760" preserveAspectRatio="xMidYMid meet">
-            <defs><filter id="nodeShadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000" flood-opacity=".5"/></filter><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#555"/></marker></defs>
-            <g id="viewport"><g id="edgesLayer"></g><g id="nodesLayer"></g></g>
-          </svg>
-          <div class="graph-3d-hint">ЛКМ — вращение · ПКМ — сдвиг · колесо — масштаб · клик — выбрать · двойной клик — весь граф</div>
-          <div class="canvas-info"><span class="legend"><i class="green"></i>подтверждено</span><span class="legend"><i></i>вероятно</span><span class="legend"><i class="amber"></i>подозрительно</span><span class="legend"><i class="rose"></i>не разрешено</span></div>
-          <div class="graph-empty" id="graphEmpty"><div class="box"><svg class="ico" style="width:30px;height:30px;color:#666"><use href="#i-search"/></svg><h3>Узлы не найдены</h3><p>Измените поисковый запрос или сбросьте фильтры. Граф не скрывает отсутствие результатов.</p><button class="btn" id="clearFilters">Сбросить фильтры</button></div></div>
+        <section class="map-metrics" aria-label="Сводка выбранной карты">
+          <div class="map-metric">
+            <span>КАРТА</span>
+            <strong id="mapWorkspaceMetric">—</strong>
+          </div>
+          <div class="map-metric">
+            <span>УЗЛЫ</span>
+            <strong id="mapNodeMetric">—</strong>
+          </div>
+          <div class="map-metric">
+            <span>СВЯЗИ</span>
+            <strong id="mapEdgeMetric">—</strong>
+          </div>
+          <div class="map-meter-wrap">
+            <div class="map-meter" aria-hidden="true"><i id="mapMeterPrimary"></i><i id="mapMeterSecondary"></i></div>
+            <p id="mapMeterLabel">Ожидаю данные выбранной карты.</p>
+          </div>
+        </section>
+        <div class="simple-map-layout">
+          <div class="simple-graph-surface">
+            <div class="graph-toolbar" aria-label="Управление картой">
+              <span class="graph-toolbar-hint">Тяните пустое место · колесо — масштаб</span>
+              <div class="graph-toolbar-actions">
+                <button class="graph-tool-button" id="graphZoomOut" type="button" aria-label="Уменьшить карту">−</button>
+                <output id="graphZoomLevel" aria-live="polite">100%</output>
+                <button class="graph-tool-button" id="graphZoomIn" type="button" aria-label="Увеличить карту">+</button>
+                <button class="graph-tool-button graph-reset-button" id="graphResetView" type="button">Сбросить вид</button>
+              </div>
+            </div>
+            <div id="graphProjectionContent"></div>
+          </div>
+          <aside class="node-card" id="mapInspector" aria-live="polite">
+            <span class="eyebrow">ВЫБЕРИТЕ ТОЧКУ</span>
+            <h2>Начните с карты</h2>
+            <p>Наведите на точку, чтобы подсветить её связи. Нажмите, чтобы увидеть роль, связи и доступные evidence.</p>
+          </aside>
         </div>
-        <aside class="inspector" id="inspector"><div class="inspector-empty" id="inspectorEmpty"><div><svg class="ico" style="width:28px;height:28px"><use href="#i-focus"/></svg><h3>Выберите узел</h3><p>Инспектор покажет идентичность, связи, доказательства и оценку влияния.</p></div></div><div class="inspector-body" id="inspectorBody"><div class="inspector-head"><div class="kind" id="nodeKind">METHOD</div><h2 id="nodeName">create_order</h2><code id="nodeCanonical"></code></div><div class="inspector-section" id="nodeKv"></div><div class="inspector-section"><div class="panel-head"><h3>Связи</h3><span class="status-pill good" id="nodeConnectionCount">0</span></div><div class="relations" id="nodeRelations"></div></div><div class="inspector-actions"><button class="btn primary" id="inspectImpact">Анализировать влияние</button><button class="btn" id="copyNode">Копировать ID</button><button class="btn" id="focusNode">Сфокусировать окружение</button></div></div></aside>
-      </div>
-    </section>
+        <p class="map-footnote">CodeSlicer строит основную карту. Graphify подключается отдельно и показывает свою архитектурную карту, не изменяя выводы CodeSlicer.</p>
+        <select id="graphWorkspaceSource" hidden aria-hidden="true" tabindex="-1"></select>
+        <input id="graphProjectionQuery" hidden aria-hidden="true" tabindex="-1" value="">
+        <button id="graphProjectionButton" hidden type="button" tabindex="-1">Показать граф</button>
+      </section>
 
-    <section class="view" id="view-impact">
-      <div class="page-head"><div><span class="eyebrow">// АНАЛИЗ ВЛИЯНИЯ</span><h1>Что изменится вместе с кодом</h1><p>Подтверждённые, вероятные и подозрительные цепочки без маскировки неопределённости.</p></div></div>
-<div class="panel"><div class="controls-grid"><label class="field"><span>Целевой узел</span><select id="impactTarget"></select></label><label class="field"><span>Направление</span><select id="impactDirection"><option value="upstream">вверх по зависимостям</option><option value="downstream">вниз по зависимостям</option><option value="both" selected>в обе стороны</option></select></label><label class="field"><span>Максимальная глубина</span><input id="impactDepth" type="number" value="8" min="1" max="20"></label><label class="field"><span>Минимальная уверенность</span><input id="impactConfidence" type="number" value="0.6" min="0" max="1" step="0.05"></label><button class="btn primary" id="runImpact"><svg class="ico"><use href="#i-play"/></svg>Запустить анализ</button></div><div class="checks"><label class="check"><input type="checkbox" checked>Включить тесты</label><label class="check"><input type="checkbox">Включить внешние библиотеки</label><label class="check"><input type="checkbox" checked>Ранжировать по радиусу влияния</label></div></div>
-      <div class="impact-summary"><div class="impact-card"><label>Нужно изменить</label><strong style="color:var(--primary)">2</strong></div><div class="impact-card"><label>Стоит проверить</label><strong>5</strong></div><div class="impact-card"><label>Возможно связано</label><strong>7</strong></div><div class="impact-card"><label>Экономия контекста</label><strong style="color:var(--primary)">81%</strong></div></div>
-      <div class="impact-layout"><div id="impactChains"></div><aside class="panel"><div class="panel-head"><div><h2>Рейтинг влияния</h2><div class="sub">Оценка · расстояние · доказательства</div></div></div><div class="ranking-list" id="impactRanking"></div><div class="notice"><svg class="ico"><use href="#i-check"/></svg><span>Ожидание реального impact-запроса.</span></div></aside></div>
-    </section>
-
-    <section class="view" id="view-diagnostics">
-      <div class="page-head"><div><span class="eyebrow">// ДИАГНОСТИКА</span><h1>Неизвестные и неоднозначные области</h1><p>Каждая проблема локализована до файла, строки, области действия и связанной библиотеки.</p></div></div>
-      <div class="metric-grid" style="grid-template-columns:repeat(4,1fr)"><div class="metric"><label>Неизвестные области</label><strong>8</strong></div><div class="metric"><label>Неоднозначные получатели</label><strong>3</strong></div><div class="metric"><label>Неподдерживаемая семантика</label><strong>2</strong></div><div class="metric"><label>Ошибки проверок качества</label><strong class="accent">0</strong></div></div>
-      <div class="filters-row"><select><option>Все категории</option><option>Неразрешённый вызов</option><option>Динамический путь</option></select><select><option>Любая важность</option><option>Высокая</option><option>Средняя</option></select><input type="text" placeholder="Filter by file or library"><span class="spacer"></span><span class="status-pill warn">tree-sitter: partial_native</span></div>
-      <div class="diag-list" id="diagList"></div>
-    </section>
-
-    <section class="view" id="view-queries">
-      <div class="page-head"><div><span class="eyebrow">// РАБОЧАЯ ОБЛАСТЬ ЗАПРОСОВ</span><h1>Готовые типизированные запросы</h1><p>Каждая команда преобразуется в конкретный контракт API, а не отправляется как свободная строка.</p></div></div>
-      <div class="panel" style="margin-bottom:12px"><div class="controls-grid" style="grid-template-columns:1fr auto"><label class="field"><span>Текущий целевой узел</span><select id="queryTarget"></select></label><code class="fingerprint" id="typedTarget">типизированная цель</code></div></div>
-      <div class="query-grid" id="queryGrid"></div>
-      <div class="panel query-result"><div class="panel-head"><div><span class="eyebrow">// ОТВЕТ API</span><h2 id="queryResultTitle">Выберите запрос</h2></div><span class="status-pill good">типизировано</span></div><pre class="api-json" id="queryResult">{
-  "status": "ready",
-  "message": "Выберите типизированный запрос выше"
-}</pre></div>
-    </section>
-
+      <section class="route-view" id="view-graphify" data-route-view="graphify">
+        <header class="map-heading">
+          <div>
+            <span class="eyebrow">ДОПОЛНИТЕЛЬНАЯ КАРТА</span>
+            <h1>Graphify</h1>
+            <p>Подключите Graphify, если нужна отдельная широкая карта архитектуры. Основная карта CodeSlicer от этого не меняется.</p>
+          </div>
+        </header>
+        <div id="graphifyContent" class="graphify-content"></div>
+      </section>
+    </div>
   </main>
 
-  <footer class="statusbar"><span class="status-good" id="backendStatus"><i class="dot"></i>Подключение к backend…</span><span id="graphFingerprint">graph: —</span><span id="analysisTiming">анализ: —</span><span>синхронизация: локальный API</span><span class="spacer"></span><span id="backendProject">проект: —</span><span id="visibleCount">видно 0 из 0</span></footer>
-</div>
-
-<div class="modal-backdrop" id="modal"><div class="modal"><div class="modal-head"><div><span class="eyebrow">// ОБЪЯСНЕНИЕ СВЯЗИ</span><h2 id="modalTitle">Доказательства связи</h2></div><button class="icon-btn" id="closeModal"><svg class="ico"><use href="#i-x"/></svg></button></div><div class="modal-body" id="modalBody"></div></div></div>
-<div class="toast" id="toast">Скопировано</div>
-
-<svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true"><defs>
-<symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.7 8.7 0 1 0 20.5 14.2Z"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol><symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.97 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.52-1H3v-4h.08A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.88L4.2 7.06l2.83-2.83.06.06A1.7 1.7 0 0 0 8.97 4.6 1.7 1.7 0 0 0 10 3.08V3h4v.08a1.7 1.7 0 0 0 1.03 1.52 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.6.62 1.05 1.2 1.08H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></symbol>
-<symbol id="i-overview" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol><symbol id="i-graph" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="12" cy="19" r="2"/><path d="m6.5 10.5 4-4M13.5 6.5l4 4M17.5 13.5l-4 4M10.5 17.5l-4-4"/></symbol><symbol id="i-impact" viewBox="0 0 24 24"><path d="M4 12h5l3-8 3 16 3-8h2"/></symbol><symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19Z"/><path d="M12 9v4M12 17h.01"/></symbol><symbol id="i-package" viewBox="0 0 24 24"><path d="m12 2 9 5-9 5-9-5zM3 7v10l9 5 9-5V7M12 12v10"/></symbol><symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></symbol><symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 6v5h-5M4 18v-5h5"/><path d="M18.5 9A7 7 0 0 0 6 6.5L4 11M5.5 15A7 7 0 0 0 18 17.5l2-4.5"/></symbol>
-<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol><symbol id="i-stack" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5"/></symbol><symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></symbol><symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h3a3 3 0 0 0 3-3V9a3 3 0 0 1 3-3"/></symbol><symbol id="i-test" viewBox="0 0 24 24"><path d="M9 3h6M10 3v5l-5 10a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3L14 8V3M8 15h8"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol><symbol id="i-code" viewBox="0 0 24 24"><path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14"/></symbol><symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></symbol><symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></symbol><symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m4 17 5-5 4 4 2-2 5 5"/></symbol><symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></symbol><symbol id="i-focus" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-6 10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2L14 9V3M7 15h10"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
-</defs></svg>
-
-<script src="vendor/force-graph-1.51.4.min.js"></script>
-<script src="vendor/3d-force-graph-1.80.0.min.js"></script>
-<script src="api-client.js"></script>
-<script src="graph-2d.js"></script>
-<script src="graph-3d.js"></script>
-<script src="app.js"></script>
+  <div id="modalBackdrop" class="overlay" aria-hidden="true" hidden><div id="modal" class="modal" role="dialog" aria-modal="true" tabindex="-1"><h2 id="modalTitle">Сообщение</h2><div id="modalContent"></div><div id="modalActions"></div></div></div>
+  <script src="api-client.js"></script><script src="app.js"></script>
 </body>
 </html>

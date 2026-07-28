@@ -1,0 +1,11 @@
+{
+  "id": "lsp",
+  "display_name": "Local Language Server Protocol",
+  "version": "1.0",
+  "execution": "local-process",
+  "network_default": "disabled",
+  "inputs": ["local LSP executable", "workspace roots"],
+  "evidence_class": "LSP_RUNTIME",
+  "resource_profile": "optional",
+  "affects_review_ranking": false
+}

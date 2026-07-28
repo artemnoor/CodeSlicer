@@ -1,0 +1,26 @@
+{
+  "schema_version": "CodeSlicerScipGolden/v1",
+  "language": "typescript",
+  "indexer": "@sourcegraph/scip-typescript",
+  "indexer_version": "0.3.16",
+  "project_dir": "project",
+  "artifact": "index.scip",
+  "artifact_sha256": "52267253C85DD2BD0AA1D9B966956E23B6537327FD80768DE3AA14FD8DD57DC8",
+  "status": "materialized",
+  "generation": {
+    "command": "npm install --ignore-scripts --no-package-lock && npm exec --no -- @sourcegraph/scip-typescript@0.3.16 index",
+    "working_directory": "tests/fixtures/scip/golden/typescript/project",
+    "notes": "Run only as an explicit user action. The indexer writes project/index.scip."
+  },
+  "expected": {
+    "document_paths": ["src/service.ts", "src/main.ts"],
+    "symbol_names": ["Greeter", "greet", "useGreeting"],
+    "minimum_definitions": 3,
+    "minimum_references": 2,
+    "minimum_implementations": 0,
+    "minimum_ranges": 3,
+    "require_typed_ranges": false,
+    "range_encoding": "legacy_packed (official indexer 0.3.16)",
+    "utf16_safety_case": "emoji before greet definition and reference"
+  }
+}

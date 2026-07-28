@@ -1,0 +1,15 @@
+{
+  "schema_version": "review-ranking-golden/v1",
+  "scenario": "csharp_dotnet_structural_fallback",
+  "golden_status": "manual",
+  "changed_entities": ["file:Api.cs", "method:Sample.Api.OrdersController.Get"],
+  "expected_top_5_entities": ["method:Sample.Api.OrdersController.Get", "class:Sample.Api.OrdersController", "route:httpget:api/orders/{id}"],
+  "allowed_top_10_entities": ["method:Sample.Api.OrdersController.Get", "class:Sample.Api.OrdersController", "route:httpget:api/orders/{id}", "class:Sample.Application.OrderHandler", "class:Sample.Application.OrderService", "class:Sample.Application.SampleDbContext"],
+  "forbidden_noise_entities": ["CALL_EXPR", "EXTERNAL_LIBRARY", "ASSIGNMENT", "bin", "obj"],
+  "expected_tests": ["test:Sample.Tests.OrderTests.Handler_uses_service"],
+  "expected_chain_status": "partial_or_limited",
+  "expected_risk": "UNKNOWN",
+  "expected_confidence": "low",
+  "explanation_evidence_requirements": ["Api.cs", "Application.cs", "OrderTests.cs"],
+  "notes": "Literal route and explicit registrations are evidence-backed; compiler binding, runtime MediatR dispatch and dynamic route composition remain limited."
+}

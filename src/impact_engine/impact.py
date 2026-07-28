@@ -81,6 +81,8 @@ def impact_query(
     scoring_config: dict | None = None,
     full_context_tokens: int | None = None,
     selected_context_tokens: int | None = None,
+    max_nodes: int | None = None,
+    max_edges: int | None = None,
 ) -> dict:
     # 1. Parse GraphDocument if it is a dictionary
     if isinstance(graph, dict):
@@ -121,6 +123,8 @@ def impact_query(
     explanation_chain = []
     impact_paths = []
     warnings = []
+    truncated = False
+    truncation_reasons: list[str] = []
 
     # Seed queue with matched node IDs
     for n in matched_nodes:
@@ -160,12 +164,23 @@ def impact_query(
             if edge in affected_edges:
                 continue
 
+            if max_edges is not None and len(affected_edges) >= max_edges:
+                truncated = True
+                if "max_edges" not in truncation_reasons:
+                    truncation_reasons.append("max_edges")
+                continue
+
             affected_edges.append(edge)
 
             arrow = "->" if dir_type == "downstream" else "<-"
             new_path_str = f"{path_str} {arrow} ({edge.kind}, c={edge.confidence}) {arrow} {next_id}"
 
             if next_id not in visited_nodes:
+                if max_nodes is not None and len(visited_nodes) >= max_nodes:
+                    truncated = True
+                    if "max_nodes" not in truncation_reasons:
+                        truncation_reasons.append("max_nodes")
+                    continue
                 visited_nodes.add(next_id)
                 queue.append((next_id, depth + 1, new_path_str, path_edges + [edge]))
                 node_obj = graph._node_index.get(next_id) if isinstance(graph, GraphDocument) else next((node for node in graph.nodes if node.id == next_id), None)
@@ -298,6 +313,19 @@ def impact_query(
             "active_edge_count": len(affected_edges),
             "isolated": isolated,
             "reason": isolation_reason,
+            "visited_nodes": len(visited_nodes),
+            "visited_edges": len(affected_edges),
+            "truncated": truncated,
+            "truncation_reasons": truncation_reasons,
+        },
+        "traversal": {
+            "truncated": truncated,
+            "truncation_reasons": truncation_reasons,
+            "max_depth": max_depth,
+            "max_nodes": max_nodes,
+            "max_edges": max_edges,
+            "visited_nodes": len(visited_nodes),
+            "visited_edges": len(affected_edges),
         },
         # Backward compatibility fields:
         "upstream": upstream_direct,

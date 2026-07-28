@@ -21,17 +21,23 @@ from impact_engine.incremental_index import affected_closure
 from impact_engine.resolver_registry import list_resolver_contracts
 from impact_engine.selective_execution import ResolverExecutionPlan, ResolverContextBuilder
 from impact_engine.security import validate_project_path
+from impact_engine.persistence import CancellationToken
 
 
-def project_snapshot(project_path: str | Path) -> dict[str, str]:
+def project_snapshot(project_path: str | Path, scope: str | None = None) -> dict[str, str]:
     root = validate_project_path(project_path)
     snapshot: dict[str, str] = {}
-    ignored = {".git", ".impact_engine", "__pycache__", "node_modules", ".venv"}
-    for path in sorted(root.rglob("*")):
+    ignored = {".git", ".impact_engine", ".codeslicer", "graphify-out", "__pycache__", "node_modules", ".venv"}
+    prefix = (scope or "").replace("\\", "/").strip("/")
+    if prefix == ".":
+        prefix = ""
+    scan_root = root / prefix if prefix and (root / prefix).is_dir() else root
+    for path in sorted(scan_root.rglob("*")):
         if not path.is_file() or any(part in ignored for part in path.parts):
             continue
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        snapshot[str(path.relative_to(root)).replace("\\", "/")] = digest
+        relative = str(path.relative_to(root)).replace("\\", "/")
+        snapshot[relative] = digest
     return snapshot
 
 
@@ -58,15 +64,22 @@ def incremental_update(
     previous_snapshot: dict[str, str] | None = None,
     out_path: str | None = None,
     previous_graph_path: str | None = None,
+    cancellation: CancellationToken | None = None,
+    forced_changed: list[str] | None = None,
+    scope: str | None = None,
 ) -> dict[str, Any]:
-    current_snapshot = project_snapshot(project_path)
+    if cancellation is not None:
+        cancellation.check()
+    current_snapshot = project_snapshot(project_path, scope)
     changed = sorted(set(current_snapshot) ^ set(previous_snapshot or {}) | {
         path for path in current_snapshot if previous_snapshot and current_snapshot[path] != previous_snapshot.get(path)
-    })
+    } | {str(item).replace("\\", "/") for item in (forced_changed or [])})
     if not changed and previous_graph_path and Path(previous_graph_path).exists():
+        if cancellation is not None:
+            cancellation.check()
         graph = GraphDocument.from_json(Path(previous_graph_path).read_text(encoding="utf-8"))
         annotate_graph_quality(graph)
-        return {
+        result = {
             "status": "ok",
             "graph": graph.to_dict(),
             "graph_path": str(Path(previous_graph_path).resolve()),
@@ -83,8 +96,19 @@ def incremental_update(
                 "files_reanalyzed": 0,
             },
         }
+        result["cache"] = {
+            "status": "hit", "reason": "cache_hit", "scope": scope or ".",
+            "files_reused": len(current_snapshot), "files_reanalyzed": 0,
+            "facts_reused": 0, "facts_rebuilt": 0,
+        }
+        result["progress"] = {"phase": "cache", "completed": 1, "total": 1, "elapsed_seconds": 0.0, "eta_seconds": None, "cancellable": cancellation is not None}
+        result["coverage"] = []
+        result["incomplete"] = False
+        return result
     parameters = inspect.signature(analyzer).parameters
     result = analyzer(changed) if parameters else analyzer()
+    if cancellation is not None:
+        cancellation.check()
     graph = GraphDocument.from_dict(result.get("graph", {}))
     new_facts = FactDocument.from_graph(graph)
     old_facts = FactDocument.from_graph(GraphDocument.from_json(Path(previous_graph_path).read_text(encoding="utf-8"))) if previous_graph_path and Path(previous_graph_path).exists() else FactDocument()
@@ -117,19 +141,30 @@ def incremental_update(
         edges_to_remove=closure["affected_edge_ids"],
         nodes_to_refresh=closure["affected_node_ids"],
         required_context_fact_ids=[str(fact.get("fact_id")) for fact in context_facts],
-        fallback_reasons=["resolver handlers are not yet wired to the existing semantic pipeline"],
+        fallback_reasons=[] if graph.metadata.get("selective_execution", {}).get("selective_execution_proven") else [
+            "no safe selective plugin execution proof was emitted by the analyzer"
+        ],
     )
     result["resolver_execution_plan"] = plan.to_dict()
     result["resolver_context"] = {"fact_count": len(context_facts), "fact_ids": plan.required_context_fact_ids}
-    result["selective_execution"] = {"execution_mode": "planning_only", "full_pipeline_called": True, "executed_resolvers": [], "unexpected_resolvers_executed": [], "reason": "existing analyzer callback still invokes compatibility semantic orchestration"}
+    selective_meta = dict(graph.metadata.get("selective_execution") or {})
+    result["selective_execution"] = {
+        **selective_meta,
+        "executed_resolvers": closure["affected_resolver_ids"],
+        "skipped_resolvers": closure["skipped_resolver_ids"],
+        "unexpected_resolvers_executed": [],
+        "resolver_plan_applied": bool(selective_meta.get("selective_execution_proven")),
+        "reason": selective_meta.get("fallback_reason"),
+    }
     result["selective_resolver"] = {
         "all_resolvers_total": len(list_resolver_contracts()),
         "resolvers_rerun": closure["affected_resolver_ids"],
         "resolvers_skipped": closure["skipped_resolver_ids"],
         "semantic_edges_invalidated": closure["affected_edge_ids"],
         "semantic_edges_reused": max(0, len(graph.edges) - len(closure["affected_edge_ids"])),
-        "execution_mode": "full_pipeline_compatibility",
-        "selective_execution_proven": False,
+        "execution_mode": selective_meta.get("execution_mode", "resolver_plan_only"),
+        "selective_execution_proven": bool(selective_meta.get("selective_execution_proven")),
+        "fallback_reason": selective_meta.get("fallback_reason"),
     }
     graph.metadata["selective_resolver"] = result["selective_resolver"]
     annotate_graph_quality(graph)
@@ -157,6 +192,28 @@ def incremental_update(
     if out_path:
         atomic_write_graph(graph, out_path)
         result["graph_path"] = str(Path(out_path).resolve())
+    cache_meta = graph.metadata.get("cache", {}) if isinstance(graph.metadata, dict) else {}
+    result["cache"] = {
+        "status": cache_meta.get("cache_status", "miss"),
+        "reason": cache_meta.get("cache_reason", "incremental_update"),
+        "branch": cache_meta.get("branch"), "snapshot": cache_meta.get("source_snapshot_hash"),
+        "scope": scope or cache_meta.get("scan_scope", "."),
+        "plugins": cache_meta.get("selected_plugins", []),
+        "files_reused": result["incremental"]["files_reused"],
+        "files_reanalyzed": result["incremental"]["files_reanalyzed"],
+        "facts_reused": result["incremental"]["facts_reused"],
+        "facts_rebuilt": result["incremental"]["facts_rebuilt"],
+    }
+    progress_meta = graph.metadata.get("analysis_progress", {}) if isinstance(graph.metadata, dict) else {}
+    current = progress_meta.get("current", {}) if isinstance(progress_meta, dict) else {}
+    result["progress"] = {
+        "phase": current.get("phase", current.get("stage", "completed")),
+        "completed": current.get("completed", current.get("processed", 1)),
+        "total": current.get("total", 1), "elapsed_seconds": current.get("elapsed_seconds", 0.0),
+        "eta_seconds": current.get("eta_seconds"), "cancellable": cancellation is not None,
+    }
+    result["coverage"] = graph.metadata.get("resolution_coverage", [])
+    result["incomplete"] = bool(graph.metadata.get("incomplete", False))
     return result
 
 

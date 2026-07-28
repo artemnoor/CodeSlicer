@@ -28,3 +28,15 @@ def test_scan_plan_is_reusable(tmp_path):
 
     assert data["schema_version"] == "impact_engine.scan_plan.v1"
     assert data["included_files"] == 1
+
+
+def test_scope_prunes_tooling_and_hidden_work_directories(tmp_path):
+    (tmp_path / "app.py").write_text("print('app')\n", encoding="utf-8")
+    for directory in ("external_tools", "output", ".playwright-cli"):
+        target = tmp_path / directory
+        target.mkdir()
+        (target / "generated.py").write_text("print('skip')\n", encoding="utf-8")
+
+    files = {path.relative_to(tmp_path).as_posix() for path in iter_project_files(tmp_path)}
+
+    assert files == {"app.py"}

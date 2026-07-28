@@ -56,6 +56,35 @@ Expected registry mode:
 sqlite
 ```
 
+## Connect a new project
+
+Use onboarding for an existing local folder. It builds a canonical CodeSlicer
+graph for impact and a separate optional Graphify graph for architecture; the
+Graphify artifact never changes CodeSlicer ranking.
+
+```bash
+impact-engine --json onboard /path/to/project --graphify auto
+```
+
+For a repository URL, cloning is an explicit network action:
+
+```bash
+impact-engine --json onboard https://github.com/AlekseyYudin-161/JunMate.git \
+  --allow-network --graphify auto
+```
+
+The output contains stack detection, language coverage, graph paths, and every
+known limitation. Artifacts remain local under `.impact_engine/` and
+`.codeslicer/artifacts/`.
+
+Use `impact-engine --json review /path/to/project --run-tests suggested` to
+select tests for a real Git diff. It does not execute them. Execute a selected
+command only after confirmation, for example:
+
+```bash
+impact-engine ci /path/to/project --run-tests --test-command pytest tests/test_example.py
+```
+
 ## One-message setup for an AI agent
 
 If an AI agent is already connected to the project, you can give it the whole

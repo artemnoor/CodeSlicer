@@ -1,0 +1,6 @@
+diff --git a/service.py b/service.py
+--- a/service.py
++++ b/service.py
+@@ -4,2 +4,2 @@
+-    return save()
++    return save()

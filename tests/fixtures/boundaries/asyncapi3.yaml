@@ -1,0 +1,27 @@
+asyncapi: 3.0.0
+info: {title: Orders, version: 1.0.0}
+channels:
+  orders:
+    address: orders.created
+    messages:
+      orderCreated:
+        $ref: '#/components/messages/OrderCreated'
+operations:
+  receiveOrder:
+    action: receive
+    channel:
+      $ref: '#/channels/orders'
+    messages:
+      - $ref: '#/channels/orders/messages/orderCreated'
+  sendOrder:
+    action: send
+    channel:
+      $ref: '#/channels/orders'
+components:
+  messages:
+    OrderCreated:
+      name: OrderCreated
+      payload:
+        type: object
+        properties:
+          id: {type: string}

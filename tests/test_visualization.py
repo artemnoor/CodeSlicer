@@ -17,7 +17,8 @@ def test_render_graph_html_is_self_contained(tmp_path):
     assert output.exists()
     assert "OrderService" in content
     assert "Minimum confidence" in content
-    assert "cdn.jsdelivr.net/npm/d3@7" in content
+    assert "cdn.jsdelivr.net/npm/d3@7" not in content
+    assert "<script src=\"http" not in content
 
 
 def test_render_graphify_links_without_changing_core_graph(tmp_path):

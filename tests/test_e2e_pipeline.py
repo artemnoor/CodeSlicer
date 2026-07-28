@@ -79,7 +79,7 @@ def test_polyglot_e2e_pipeline():
     graph = GraphDocument.from_json(json.dumps(res["graph"]))
     
     # Python DI/resolver edges remain high confidence (e.g. >= 0.80)
-    di_edges = [e for e in graph.edges if e.source == "INFERRED" and e.kind == "CALLS"]
+    di_edges = [e for e in graph.edges if e.source == "INFERRED" and e.kind == "CALLS" and e.properties.get("extractor_id") != "tree_sitter"]
     assert len(di_edges) >= 1
     for de in di_edges:
         assert de.confidence >= 0.80

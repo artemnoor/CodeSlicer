@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Impact Engine ranking benchmark report",
+  "type": "object",
+  "required": ["schema_version", "status", "metrics", "policy"],
+  "properties": {
+    "schema_version": {"const": "impact-engine.ranking-report.v1"},
+    "status": {"enum": ["ok", "corpus_unavailable", "regression", "error"]},
+    "corpus": {"type": "object"},
+    "policy": {"type": "object", "required": ["ranking_policy_version", "review_projection_policy_version", "test_selection_policy_version"]},
+    "metrics": {"type": "object", "properties": {
+      "top_5_precision": {"type": "number"},
+      "top_10_recall": {"type": "number"},
+      "test_recommendation_precision": {"type": "number"},
+      "noise_ratio": {"type": "number"},
+      "review_time_seconds": {"type": "number"}
+    }},
+    "quality_gates": {"type": "object", "required": ["status", "checks", "policy_independent"]},
+    "comparison": {"type": "object"}
+  },
+  "additionalProperties": true
+}

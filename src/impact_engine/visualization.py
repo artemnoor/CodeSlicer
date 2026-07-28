@@ -87,8 +87,7 @@ main{position:relative;overflow:hidden;background:radial-gradient(circle at 50% 
 <label for="min">Minimum confidence: <span id="minValue">0.00</span></label><input id="min" type="range" min="0" max="1" step="0.05" value="0">
 __VIEW_TOGGLE__<div class="stat" id="stats"></div><div class="hint">Click a node to highlight its chain. Click a line to inspect the edge. Drag to pan and use the wheel to zoom.</div>
 <div class="legend" id="legend"></div></aside><main><svg id="canvas"><defs><marker id="arrow" viewBox="0 -5 10 10" refX="20" refY="0" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,-5L10,0L0,5" fill="#91a5bd"></path></marker></defs><g id="viewport"><g id="links"></g><g id="nodes"></g></g></svg><div id="details"><span class="close" onclick="details.style.display='none'">Close</span><div id="detailText"></div></div></main>
-<script id="graph-data" type="application/json">__GRAPH_DATA__</script>
-<script src="https://cdn.jsdelivr.net/npm/d3@7"></script><script>
+<script id="graph-data" type="application/json">__GRAPH_DATA__</script><script>
 const graphSet=JSON.parse(document.getElementById('graph-data').textContent), viewName=new URLSearchParams(location.search).get('view')||'default', graph=graphSet[viewName]||graphSet.default||graphSet, rawNodes=graph.nodes||[], rawEdges=graph.edges||[];
 const nodeById=new Map(rawNodes.map(n=>[n.id,n])), edgeData=rawEdges.map(e=>({...e,source:e.from_node||e.from,target:e.to_node||e.to})).filter(e=>nodeById.has(e.source)&&nodeById.has(e.target));
 const svg=document.getElementById('canvas'), viewport=document.getElementById('viewport'), linksLayer=document.getElementById('links'), nodesLayer=document.getElementById('nodes'), details=document.getElementById('details'), detailText=document.getElementById('detailText');

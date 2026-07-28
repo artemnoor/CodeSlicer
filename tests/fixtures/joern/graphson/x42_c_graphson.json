@@ -1,0 +1,23 @@
+{
+  "@type": "g:Graph",
+  "@value": {
+    "vertices": [
+      {"id": {"@type": "g:Int64", "@value": 1}, "label": "FILE", "properties": {"NAME": [{"@type": "g:VertexProperty", "@value": {"id": 101, "value": "src/x42.c"}}]}},
+      {"id": {"@type": "g:Int64", "@value": 2}, "label": "METHOD", "properties": {"NAME": [{"@value": {"id": 102, "value": "read_input"}}], "FILENAME": [{"@value": {"id": 103, "value": "src/x42.c"}}], "LINE_NUMBER": [{"@value": {"id": 104, "value": 4}}], "LINE_NUMBER_END": [{"@value": {"id": 105, "value": 8}}], "CODE": [{"@value": {"id": 106, "value": "read_input()"}}]}},
+      {"id": {"@type": "g:Int64", "@value": 3}, "label": "METHOD_PARAMETER_IN", "properties": {"NAME": [{"@value": {"id": 107, "value": "input"}}], "FILENAME": [{"@value": {"id": 108, "value": "src/x42.c"}}], "LINE_NUMBER": [{"@value": {"id": 109, "value": 5}}]}},
+      {"id": {"@type": "g:Int64", "@value": 4}, "label": "IDENTIFIER", "properties": {"NAME": [{"@value": {"id": 110, "value": "input"}}], "FILENAME": [{"@value": {"id": 111, "value": "src/x42.c"}}], "LINE_NUMBER": [{"@value": {"id": 112, "value": 6}}]}},
+      {"id": {"@type": "g:Int64", "@value": 5}, "label": "CALL", "properties": {"NAME": [{"@value": {"id": 113, "value": "system"}}], "FILENAME": [{"@value": {"id": 114, "value": "src/x42.c"}}], "LINE_NUMBER": [{"@value": {"id": 115, "value": 7}}], "CODE": [{"@value": {"id": 116, "value": "system(input)"}}]}},
+      {"id": {"@type": "g:Int64", "@value": 6}, "label": "LITERAL", "properties": {"CODE": [{"@value": {"id": 117, "value": "\"x42\""}}], "FILENAME": [{"@value": {"id": 118, "value": "src/x42.c"}}], "LINE_NUMBER": [{"@value": {"id": 119, "value": 7}}]}},
+      {"id": {"@type": "g:Int64", "@value": 7}, "label": "CONTROL_STRUCTURE", "properties": {"NAME": [{"@value": {"id": 120, "value": "if"}}], "FILENAME": [{"@value": {"id": 121, "value": "src/x42.c"}}], "LINE_NUMBER": [{"@value": {"id": 122, "value": 6}}]}}
+    ],
+    "edges": [
+      {"id": {"@value": 201}, "label": "AST", "outV": {"@value": 2}, "inV": {"@value": 3}},
+      {"id": {"@value": 202}, "label": "CFG", "outV": {"@value": 4}, "inV": {"@value": 5}},
+      {"id": {"@value": 203}, "label": "REACHING_DEF", "outV": {"@value": 4}, "inV": {"@value": 5}},
+      {"id": {"@value": 204}, "label": "CDG", "outV": {"@value": 7}, "inV": {"@value": 5}},
+      {"id": {"@value": 205}, "label": "CALL", "outV": {"@value": 2}, "inV": {"@value": 5}},
+      {"id": {"@value": 206}, "label": "REF", "outV": {"@value": 4}, "inV": {"@value": 3}}
+    ],
+    "taint_paths": [{"id": {"@value": "x42-c-taint"}, "source": {"@value": 3}, "steps": [{"@value": 3}, {"@value": 4}], "sink": {"@value": 5}, "confidence": "confirmed"}]
+  }
+}

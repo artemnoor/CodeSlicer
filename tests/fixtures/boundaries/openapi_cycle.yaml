@@ -1,0 +1,7 @@
+openapi: 3.0.3
+info: {title: Cycle, version: 1}
+paths: {}
+components:
+  schemas:
+    A: {$ref: '#/components/schemas/B'}
+    B: {$ref: '#/components/schemas/A'}

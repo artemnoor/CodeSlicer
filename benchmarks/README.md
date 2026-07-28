@@ -7,7 +7,6 @@ Generated reports are intentionally excluded from the main repository.
 benchmarks/
   fixtures/python/     # Python semantic resolver fixtures
   fixtures/polyglot/   # Go, Java, and cross-language fixtures
-  latest_summary.json  # latest compact benchmark summary
 ```
 
 Run the focused benchmark tests from the repository root:

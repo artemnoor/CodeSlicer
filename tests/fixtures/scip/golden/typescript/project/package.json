@@ -1,0 +1,8 @@
+{
+  "name": "codeslicer-scip-typescript-golden",
+  "private": true,
+  "devDependencies": {
+    "@sourcegraph/scip-typescript": "0.3.16",
+    "typescript": "5.4.5"
+  }
+}

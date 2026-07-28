@@ -1,0 +1,19 @@
+{
+  "schema_version": "impact-engine.performance-report.v1",
+  "corpus": {
+    "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\tests\\corpus\\mamAI",
+    "scope": ".",
+    "available": false
+  },
+  "status": "corpus_unavailable",
+  "timings": {},
+  "cache": {},
+  "correctness": {
+    "differential_status": "not_run"
+  },
+  "incomplete": true,
+  "diagnostics": [
+    "corpus_unavailable",
+    "reproduce locally with: python benchmarks/performance/runner.py --corpus C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\tests\\corpus\\mamAI --scope ."
+  ]
+}

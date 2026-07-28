@@ -1,0 +1,24 @@
+{
+  "schema_version": "CodeSlicerJoernGoldenCase/v1",
+  "cases": [
+    {
+      "case_id": "cpp-orders",
+      "language": "C++",
+      "project_path": "C:\\absolute\\path\\to\\local-project",
+      "artifact_path": "C:\\absolute\\path\\to\\joern-interchange.json",
+      "source_artifact_fingerprint": "sha256-of-the-user-provided-export",
+      "expected": {
+        "confirmed_path_ids": ["cpp-path-1"],
+        "likely_path_ids": [],
+        "unresolved_path_ids": [],
+        "dangerous_call_node_ids": ["cpp-sink"],
+        "source_node_ids": ["cpp-source"],
+        "sink_node_ids": ["cpp-sink"],
+        "step_node_ids": ["cpp-source", "cpp-call", "cpp-sink"]
+      },
+      "expected_resolutions": {"cpp-path-1": "confirmed"},
+      "prohibited_false_positive_paths": ["cpp-unrelated-path"],
+      "required_evidence_locations": true
+    }
+  ]
+}

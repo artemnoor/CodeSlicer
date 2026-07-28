@@ -1,0 +1,22 @@
+{
+  "schema_version": "impact-engine.ranking-report.v1",
+  "status": "corpus_unavailable",
+  "corpus": {
+    "scenario": "ImpactLens",
+    "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\tests\\corpus\\ImpactLens",
+    "diff": null,
+    "available": false
+  },
+  "policy": {
+    "ranking_policy_version": "review-ranking/v1.2",
+    "test_selection_policy_version": "review-tests/v1",
+    "review_schema_version": "ReviewProjection/v1"
+  },
+  "metrics": {},
+  "comparison": {
+    "status": "not_run"
+  },
+  "diagnostics": [
+    "corpus_unavailable"
+  ]
+}

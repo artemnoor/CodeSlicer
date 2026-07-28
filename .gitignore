@@ -1,6 +1,11 @@
 # Python and local tooling
 __pycache__/
 *.py[cod]
+build/
+dist/
+/*.whl
+/*.tar.gz
+*.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -11,9 +16,12 @@ env/
 # Impact Engine runtime state and generated graphs
 .impact_engine/
 **/.impact_engine/
+.codeslicer/
+**/.codeslicer/
 output/
 graph.json
 graph_*.json
+graphify-out/
 *.runtime.json
 *.sqlite
 *.db
@@ -21,6 +29,7 @@ graph_*.json
 # Browser and local UI artifacts
 .playwright-cli/
 frontend/.cache/
+sources-*.png
 
 # Generated benchmark reports and copied real-project outputs
 benchmarks/**/cli_*.json
@@ -31,6 +40,8 @@ benchmarks/*_report.json
 benchmarks/sprint*_*.json
 benchmarks/*_benchmark_summary.json
 benchmarks/*_breakdown.json
+benchmarks/benchmark_summary.json
+benchmarks/latest_summary.json
 benchmarks/sprint6_1/*.json
 benchmarks/sprint6/
 benchmarks/sprint6_real_projects/
@@ -52,3 +63,12 @@ benchmarks/sprint5_fixtures/**/.impact_engine/
 *.swp
 .DS_Store
 Thumbs.db
+# .NET build output from local SCIP golden fixtures and other local builds
+obj/
+bin/
+# Joern CLI working copies/CPGs created by explicit local validation
+workspace/
+src/impact_engine.egg-info/
+
+# Optional local checkouts of third-party acceptance corpora
+tests/corpus/

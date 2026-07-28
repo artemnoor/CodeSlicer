@@ -10,6 +10,7 @@ def _write(path: Path, text: str) -> None:
 
 def test_semantic_layer_resolves_nested_router_and_frontend_endpoint(tmp_path):
     project = tmp_path / "semantic_project"
+    _write(project / "package.json", '{"dependencies":{"react":"18.2.0"}}')
     _write(project / "backend" / "app" / "api" / "orders.py", """
 from fastapi import APIRouter
 

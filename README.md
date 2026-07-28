@@ -17,6 +17,24 @@
 
 ![Семантический граф CodeSlicer](docs/images/codeslicer-hero.png)
 
+## 🤖 Быстрый старт для AI-Агентов (Скиллы и Инструменты)
+
+Если вы — **AI-агент** (Antigravity, Cursor, Windsurf, Claude), начните с двухуровневой схемы скиллов из директории `.agents/skills/`. Это инструкции репозитория, а не автоматически активируемая функция любого AI-клиента: подключите их способом, который поддерживает ваш клиент.
+
+1. **Главный маршрутизатор (ЧИТАТЬ ПЕРВЫМ)**:
+   - [`code-intelligence-orchestrator`](.agents/skills/code-intelligence-orchestrator/SKILL.md) — классифицирует запрос пользователя и выбирает между точным анализом вызовов и архитектурным обзором.
+2. **Специализированные скиллы**:
+   - 🚀 [`project-onboarding-workflow`](.agents/skills/project-onboarding-workflow/SKILL.md) — подключает папку или явно разрешённый Git URL, строит отдельные архитектурный и impact-графы, ведёт до review и подтверждённого запуска тестов.
+   - 🎯 [`codeslicer-impact-analysis`](.agents/skills/codeslicer-impact-analysis/SKILL.md) — **CodeSlicer**: evidence-gated статический анализ влияния, оценка рисков PR и выбор тестов.
+   - 🗺️ [`graphify-architecture-analysis`](.agents/skills/graphify-architecture-analysis/SKILL.md) — **Graphify**: отдельный инструмент для обзора архитектуры и сообществ.
+
+При установке пакета эти skills также поставляются как `impact_engine/agent_skills/`; извлечь их путь можно через `importlib.resources`. Это делает инструкции доступными офлайн, но не отменяет необходимость явно зарегистрировать их в используемом AI-клиенте.
+
+### 🌐 Интерфейсы взаимодействия (Web UI & MCP)
+- **Веб-интерфейс**: Запуск через `impact-engine-local-api` ➔ откройте **`http://127.0.0.1:8001/`**.
+  - В UI намеренно оставлены две понятные поверхности: интерактивная **карта CodeSlicer** для точных локальных связей и отдельный оригинальный viewer **Graphify** для архитектурного обзора. Graphify появляется только при наличии его собственного `graphify-out/graph.json` и не подменяет graph CodeSlicer.
+- **MCP-сервер для ИИ**: Запуск через `impact-engine-mcp` или `python -m impact_engine.mcp.server`. Реальные имена инструментов: `impact_query`, `pr_review`, `analyze_project` (полный список выдаёт MCP-метод `tools/list`).
+
 ## Содержание
 
 - [Возможности](#возможности)
@@ -25,6 +43,7 @@
 - [Быстрый старт](#быстрый-старт)
 - [Анализ проекта](#анализ-проекта)
 - [Визуальный интерфейс](#визуальный-интерфейс)
+- [Что изменено в этом релизе](#что-изменено-в-этом-релизе)
 - [MCP](#mcp)
 - [Неизвестные библиотеки](#неизвестные-библиотеки)
 - [Персонализация для проекта](#персонализация-для-проекта)
@@ -135,7 +154,7 @@ sequenceDiagram
 - выбор связанных тестов;
 - дополнительная runtime-проверка Python-связей;
 - локальный SQLite registry и JSON cache;
-- CLI, MCP-сервер и локальный 2D/3D graph viewer.
+- CLI, MCP-сервер, интерактивная локальная карта и оригинальный Graphify viewer.
 
 ## Быстрый старт
 
@@ -159,6 +178,15 @@ python -m pip install --upgrade pip
 pip install -e .
 ```
 
+Для проверки именно будущей установки соберите wheel и установите его в чистое
+окружение. Wheel включает и web UI, и manifest-backed plugins:
+
+```bash
+python -m pip install build
+python -m build --wheel
+python -m pip install dist/impact_engine-0.4.0-py3-none-any.whl
+```
+
 ### Linux или macOS
 
 ```bash
@@ -178,6 +206,32 @@ impact-engine --json registry status
 ```
 
 Registry должен работать в режиме `sqlite`.
+
+### Подключить новый проект
+
+Для локальной папки одна команда строит два отдельных графа: canonical
+CodeSlicer graph для impact/review и optional Graphify graph для широкого
+архитектурного обзора. Graphify никогда не меняет ranking CodeSlicer.
+
+```bash
+impact-engine --json onboard /path/to/project --graphify auto
+```
+
+Git URL требует явного разрешения на сеть; клон остаётся в локальном
+workspace, а исходный код не отправляется в CodeSlicer:
+
+```bash
+impact-engine --json onboard https://github.com/AlekseyYudin-161/JunMate.git \
+  --allow-network --graphify auto
+```
+
+После изменения кода сначала получите рекомендации, а запуск тестов выполняйте
+только отдельным подтверждённым действием:
+
+```bash
+impact-engine --json review /path/to/project --run-tests suggested
+impact-engine ci /path/to/project --run-tests --test-command pytest tests/test_example.py
+```
 
 ### Установка через AI-агента
 
@@ -233,12 +287,13 @@ workspace просмотрите список включённых файлов.
 
 ```bash
 impact-engine analyze /path/to/project \
-  --use-scan-plan \
-  --out /path/to/project/.impact_engine/graph.json
+  --use-scan-plan
 ```
 
-Граф лучше сохранять именно в `.impact_engine/graph.json`: его автоматически
-подхватит локальный визуальный интерфейс. Во время обычного запуска CLI
+По умолчанию CLI сохраняет граф в
+`<project>/.impact_engine/graph.json`; его автоматически подхватит локальный
+визуальный интерфейс. `--out` нужен только для явного нестандартного пути.
+Во время обычного запуска CLI
 показывает прогресс по этапам. При `--json` структурированный результат
 остаётся в stdout, а прогресс выводится в stderr.
 
@@ -296,30 +351,53 @@ GET /api/graph   -> непустые nodes и edges
 ```
 
 Интерфейс работает с реальным локальным GraphDocument. Mock-графа, Supabase и
-другой hosted database в UI нет.
+другой hosted database в UI нет. Он не дублирует CLI/MCP-настройки: сложные
+режимы остаются в CLI и agent skills, а UI отвечает за быстрый визуальный
+контроль проекта.
 
-### Пример интерфейса
+### Карта CodeSlicer
 
-Обзор проекта показывает количество файлов, узлов, рёбер, маршрутов,
-библиотек, качество графа и обнаруженные технологии:
+Маршрут `#map` показывает граф CodeSlicer. Точки — сущности проекта, линии —
+связи с evidence. Карту можно перетаскивать, масштабировать колесом или
+кнопками, а выбор узла открывает его тип, ближайшие связи, источник и
+доказательство. Это удобная отправная точка для понимания незнакомого кода и
+последствий изменения.
 
-![Обзор проекта CodeSlicer](docs/images/codeslicer-overview.png)
+![Интерактивная карта CodeSlicer и инспектор узла](docs/images/codeslicer-map-inspector.png)
 
-Сам граф отображается в 2D и 3D режимах. Узлы можно искать, фильтровать,
-выбирать и исследовать через панель доказательств:
+### Отдельная карта Graphify
 
-![Визуализация графа CodeSlicer](docs/images/codeslicer-graph.png)
+Маршрут `#graphify` не перерисовывает данные Graphify собственным SVG-кодом.
+При наличии `<project>/graphify-out/graph.json` CodeSlicer локально запускает
+оригинальный HTML renderer Graphify в отдельном iframe: поиск по узлам,
+комьюнити и поведение графа остаются возможностями самого Graphify. Этот
+граф помогает исследовать общую архитектуру; canonical graph и ranking
+CodeSlicer от него не изменяются.
 
-Impact analysis ранжирует затронутые узлы и разделяет подтверждённые,
-вероятные и подозрительные цепочки, чтобы агент или разработчик видел не
-просто список файлов, а приоритет проверки:
+![Оригинальный viewer Graphify внутри локального CodeSlicer](docs/images/codeslicer-graphify-native.png)
 
-![Анализ влияния CodeSlicer](docs/images/codeslicer-impact.png)
+Если Graphify ещё не строился, UI честно показывает, что отдельная карта не
+подключена, и не подставляет вместо неё граф CodeSlicer. Создайте её явно:
 
-Диагностика не маскирует пробелы в знаниях: unresolved и ambiguous области
-остаются локализованными, вместе с рекомендуемым следующим действием:
+```bash
+impact-engine --json onboard /path/to/project --graphify auto
+```
 
-![Диагностика CodeSlicer](docs/images/codeslicer-diagnostics.png)
+## Что изменено в этом релизе
+
+- минимальный local-first UI сфокусирован на двух задачах: понять карту
+  CodeSlicer и открыть независимую карту Graphify;
+- у карты появились панорамирование, zoom, клавиатурное управление и
+  инспектор evidence для выбранного узла;
+- Graphify отображается своим upstream HTML renderer, а не адаптированной
+  SVG-картой CodeSlicer;
+- полный анализ получил более честный прогресс и кооперативную отмену между
+  файлами, а default scan исключает generated/tool-runtime директории;
+- wheel теперь включает frontend и manifest-backed language/framework plugins;
+- GitHub Actions собирает wheel и проверяет его в чистой venv: UI, API и
+  discovery Python/TypeScript/C# plugins.
+
+Подробное описание изменения, границы и E2E-матрица: [docs/PR_DESCRIPTION.md](docs/PR_DESCRIPTION.md).
 
 ## MCP
 
@@ -440,6 +518,30 @@ impact-engine pr-review C:\path\to\project `
 Отчёт содержит изменённые файлы и символы, risk score, confirmed/likely/
 suspicious impact, unresolved boundaries и рекомендуемые тесты.
 
+## Четыре режима CodeSlicer
+
+CLI, local API и MCP используют единый локальный контракт:
+
+```text
+review → inspect → investigate → ci
+```
+
+```powershell
+impact-engine review . --max-results 10 --json
+impact-engine inspect . --entity "Cruxa.Api.Features.Routes.RoutesController.Create" --json
+impact-engine investigate . --entity "route:httpget:api/orders" --direction downstream --depth 8 --json
+impact-engine ci . --base origin/main --format json --out .impact_engine/ci-report.json
+```
+
+`review` сохраняет `ReviewReport/v1`; остальные mode-ответы используют
+`CodeSlicerModeReport/v1`, а общий `contract_version` —
+`CodeSlicerModeContract/v1`. CI по умолчанию advisory и завершает процесс с
+кодом 0; policy violation — 1, invalid input/config — 2, невозможность
+анализа — 3. Тесты и runtime validation запускаются только по явному флагу.
+Исходный код, graph, diff и telemetry не отправляются наружу. IDE, PR,
+GitHub/GitLab и release delivery будут тонкими клиентами поверх этого
+контракта на следующем этапе.
+
 ## Формат графа
 
 Анализ создаёт JSON-артефакт `GraphDocument`:
@@ -517,6 +619,64 @@ impact-engine --json registry status
 
 Проект распространяется по лицензии [MIT](LICENSE).
 
+## Localhost Visual Intelligence Hub
+
+Локальный Hub даёт четыре изолированных режима: Review, Inspect,
+Investigate и Architecture. Review остаётся bounded и объясняет risk через
+evidence chains; Investigate запускает только явные ограниченные запросы;
+Architecture показывает canonical CodeSlicer graph и supplemental overlays
+Graphify, CodeGraph, SCIP, LSP, OTel, Boundary и Security/SBOM.
+
+Главный экран показывает freshness, coverage, cache/daemon health и
+исключённые generated/vendor/dependency paths, не выдавая размер графа за его
+качество. Progressive graph lens сначала показывает modules/files, а symbols
+и edges раскрывает только после explicit bounded action. Внешние overlays не
+меняют canonical graph, Review risk, ranking или test recommendations.
+
+Hub работает local-first: API same-origin localhost, `network_used=false`,
+артефакты импортируются только по absolute local path, без upload, telemetry,
+скачиваний и скрытого запуска инструментов.
+
+## Опциональные адаптеры
+
+Все 11 интеграций доступны, но изначально выключены: Graphify, CodeGraph,
+SCIP, LSP, OpenAPI, AsyncAPI, OpenTelemetry, CycloneDX, SPDX, SARIF и
+Joern/CPG. Они добавляют только отдельный evidence overlay для Architecture
+или Investigate: canonical CodeSlicer graph, risk, review ranking и подбор
+тестов от них не меняются.
+
+Перед подключением покажите единый локальный план действий:
+
+```bash
+impact-engine --json adapters preflight /path/to/project
+```
+
+Для адаптера с готовым локальным артефактом импорт и включение — одно
+явное действие. Артефакт копируется в `<project>/.codeslicer/artifacts/`,
+проверяется fingerprint и не отправляется наружу:
+
+```bash
+impact-engine --json adapters import /path/to/project graphify \
+  /absolute/path/to/graphify-out/graph.json --enable
+
+impact-engine --json adapters import /path/to/project cyclonedx \
+  /absolute/path/to/bom.json --enable
+```
+
+LSP — единственное исключение: это явно выбранный локальный процесс, а не
+файл. Его надо настроить с абсолютным путём к уже установленному серверу:
+
+```bash
+impact-engine --json adapters lsp configure /path/to/project \
+  --executable /absolute/path/to/language-server \
+  --workspace-root /path/to/project
+```
+
+Joern также не устанавливается и не запускается автоматически: он принимает
+только уже созданный пользователем локальный interchange-экспорт. Проверить
+состояние любого подключения можно через
+`impact-engine --json adapters status /path/to/project <adapter-id>`.
+
 ## Дополнительная документация
 
 - [Getting Started](docs/GETTING_STARTED.md)
@@ -524,3 +684,4 @@ impact-engine --json registry status
 - [MCP](docs/MCP.md)
 - [Support Packs](docs/SUPPORT_PACKS.md)
 - [Limitations](docs/LIMITATIONS.md)
+- [Joern / CPG adapter](docs/adapters-joern.md)

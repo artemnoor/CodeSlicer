@@ -1,0 +1,8 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "metadata": {"tools": [{"name": "dotnet-bom-fixture", "version": "1.0"}]},
+  "components": [{"type": "library", "bom-ref": "pkg:nuget/Newtonsoft.Json@13.0.3", "name": "Newtonsoft.Json", "version": "13.0.3", "purl": "pkg:nuget/Newtonsoft.Json@13.0.3", "properties": [{"name": "codeslicer.lockfile", "value": "packages.lock.json"}], "licenses": [{"license": {"id": "MIT"}}]}],
+  "dependencies": [],
+  "vulnerabilities": [{"id": "GHSA-0000-0000-0000", "ratings": [{"severity": "medium"}], "affects": [{"ref": "pkg:nuget/Newtonsoft.Json@13.0.3"}], "description": "private report text"}]
+}

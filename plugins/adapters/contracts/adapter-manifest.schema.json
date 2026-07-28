@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "CodeSlicerAdapterManifest/v1",
+  "type": "object",
+  "required": ["id", "display_name", "version", "execution", "network_default", "inputs", "evidence_class", "resource_profile", "affects_review_ranking"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+    "display_name": {"type": "string"},
+    "version": {"type": "string"},
+    "execution": {"enum": ["local-artifact", "local-process"]},
+    "network_default": {"const": "disabled"},
+    "inputs": {"type": "array", "items": {"type": "string"}},
+    "evidence_class": {"type": "string"},
+    "resource_profile": {"type": "string"},
+    "affects_review_ranking": {"const": false}
+  },
+  "additionalProperties": true
+}

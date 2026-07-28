@@ -45,7 +45,8 @@ def test_extract_ts_project():
     assert len(create_order_calls) >= 2
     
     targets = {e.to_node for e in create_order_calls}
-    assert "this.saveOrder" in targets
+    assert any(nodes[target].properties.get("call_name") == "this.saveOrder" for target in targets)
+    assert all(target in nodes for target in targets)
     assert not any(".." in t for t in targets)
     
     # Assert evidence
@@ -80,8 +81,9 @@ def test_extract_go_project():
     calls_edges = [e for e in graph.edges if e.kind == "CALLS" and e.from_node == "main.Service.Process"]
     assert len(calls_edges) > 0
     targets = {e.to_node for e in calls_edges}
-    assert "lib.Call" in targets
-    assert "s.Save" in targets
+    assert any(nodes[target].properties.get("call_name") == "lib.Call" for target in targets)
+    assert all(target in nodes for target in targets)
+    assert any(nodes[target].properties.get("call_name") == "s.Save" for target in targets)
     assert not any(".." in t for t in targets)
 
 

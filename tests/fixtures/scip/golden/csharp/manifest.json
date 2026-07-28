@@ -1,0 +1,28 @@
+{
+  "schema_version": "CodeSlicerScipGolden/v1",
+  "language": "csharp",
+  "indexer": "scip-dotnet",
+  "indexer_version": "0.2.14",
+  "embedded_metadata_version": "0.1.0-SNAPSHOT",
+  "project_dir": "project",
+  "artifact": "index.scip",
+  "artifact_sha256": "824ED7793B3AC8D037105092FCB949BC024390AEDBD8E27945DA4513E293FAC8",
+  "status": "materialized",
+  "generation": {
+    "command": "dotnet tool install --global scip-dotnet --version 0.2.14; scip-dotnet index Golden.csproj --allow-global-symbol-definitions --exclude obj/**",
+    "working_directory": "tests/fixtures/scip/golden/csharp/project",
+    "notes": "The tool install and index command are explicit user actions; CodeSlicer never performs either automatically."
+  },
+  "expected": {
+    "document_paths": ["Clock.cs"],
+    "symbol_names": ["IClock", "SystemClock", "Now", "ReadNow"],
+    "minimum_definitions": 4,
+    "minimum_references": 2,
+    "minimum_implementations": 1,
+    "minimum_ranges": 4,
+    "require_typed_ranges": false,
+    "range_encoding": "legacy_packed (official indexer 0.2.14)",
+    "utf16_safety_case": "emoji before ReadNow reference",
+    "lint_status": "fails with one upstream scip-dotnet global-namespace occurrence diagnostic"
+  }
+}

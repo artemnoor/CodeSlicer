@@ -1,0 +1,43 @@
+{
+  "schema_version": "impact-engine.ranking-report.v1",
+  "status": "ok",
+  "corpus": {
+    "scenario": "Cruxa",
+    "path": "C:\\Users\\Артём\\Documents\\KodikWinWin\\impact_engine_mcp_library_research_pack_v0_4\\tests\\corpus\\Cruxa",
+    "diff_sha256": "54daad66c76fb10e930148aa1f636831c2e839363e1c7ac05aed48e439106d78",
+    "available": true
+  },
+  "policy": {
+    "ranking_policy_version": "review-ranking/v1.2",
+    "test_selection_policy_version": "review-tests/v1",
+    "review_schema_version": "ReviewProjection/v1"
+  },
+  "metrics": {
+    "top_5_precision": 1.0,
+    "top_10_recall": 1.0,
+    "test_recommendation_precision": 1.0,
+    "noise_ratio": 0.0,
+    "explanation_completeness": 1.0,
+    "review_entity_count": 1,
+    "default_entities_are_actionable": 1.0,
+    "developer_time_to_decision_proxy": 14,
+    "chain_status": "no_cross_file_impact_proven",
+    "risk": "UNKNOWN",
+    "confidence": "low"
+  },
+  "comparison": {
+    "status": "no_baseline"
+  },
+  "golden_checks": {
+    "status": "passed",
+    "failures": []
+  },
+  "golden": {
+    "changed_entities": [],
+    "expected_top_5_entities": [
+      "backend/src/Cruxa.Api/Features/Routes/RoutesController.cs"
+    ],
+    "allowed_top_10_entities": [],
+    "expected_tests": []
+  }
+}

@@ -160,6 +160,49 @@ def test_mcp_server_info_and_health_check(monkeypatch):
     assert si_content["version"] == "0.4.0"
 
 
+def test_mcp_managed_upstream_tool_catalog_is_available_to_agents(tmp_path, monkeypatch):
+    """MCP must expose the complete-tool runtime, not just its graph adapters."""
+    import subprocess
+    from impact_engine.mcp import server
+    from impact_engine.tool_runtime import ManagedToolDefinition, ToolRuntime
+
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    for command in (
+        ["git", "init"],
+        ["git", "config", "user.email", "tests@example.invalid"],
+        ["git", "config", "user.name", "Tests"],
+    ):
+        completed = subprocess.run(command, cwd=upstream, text=True, capture_output=True, timeout=30, check=False)
+        assert completed.returncode == 0, completed.stderr
+    (upstream / "README.md").write_text("# Upstream\n\nThe real command is `demo inspect`.\n", encoding="utf-8")
+    completed = subprocess.run(["git", "add", "."], cwd=upstream, text=True, capture_output=True, timeout=30, check=False)
+    assert completed.returncode == 0, completed.stderr
+    completed = subprocess.run(["git", "commit", "-m", "fixture"], cwd=upstream, text=True, capture_output=True, timeout=30, check=False)
+    assert completed.returncode == 0, completed.stderr
+
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.setenv("CODESLICER_TOOL_RUNTIME_ROOT", str(tmp_path / "runtime"))
+    definition = ManagedToolDefinition("demo", "Demo", str(upstream), "fixture")
+    monkeypatch.setattr(server, "ToolRuntime", lambda project_path: ToolRuntime(project_path, [definition]))
+    messages = [
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "list_managed_tools", "arguments": {"project_path": str(project)}}},
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "connect_managed_tool", "arguments": {"project_path": str(project), "tool_id": "demo", "confirmed": True}}},
+        {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "read_managed_tool_docs", "arguments": {"project_path": str(project), "tool_id": "demo", "query": "inspect"}}},
+    ]
+    responses = run_mcp_messages(messages, monkeypatch)
+    tool_names = {tool["name"] for tool in responses[0]["result"]["tools"]}
+    assert {"list_managed_tools", "connect_managed_tool", "read_managed_tool_docs", "run_managed_tool"}.issubset(tool_names)
+    listed = json.loads(responses[1]["result"]["content"][0]["text"])
+    assert listed["tools"][0]["id"] == "demo"
+    connected = json.loads(responses[2]["result"]["content"][0]["text"])
+    assert connected["managed_tool"]["repository"]["cloned"] is True
+    docs = json.loads(responses[3]["result"]["content"][0]["text"])
+    assert docs["documents"][0]["path"] == "README.md"
+
+
 def test_mcp_analyze_project_timeout(monkeypatch):
     res = run_mcp_messages([{
         "jsonrpc": "2.0",

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <graph id="G" edgedefault="directed">
+    <node id="app.py"><data key="name">app.py</data><data key="kind">file</data><data key="file_path">app.py</data><data key="language">python</data></node>
+    <node id="app.py::create_app"><data key="name">create_app</data><data key="qual_name">app.py::create_app</data><data key="kind">function</data><data key="file_path">app.py</data><data key="start_line">12</data><data key="language">python</data></node>
+    <node id="core/config.py"><data key="name">config.py</data><data key="kind">file</data><data key="file_path">core/config.py</data><data key="language">python</data></node>
+    <edge id="e0" source="app.py" target="app.py::create_app"><data key="edge_kind">defines</data><data key="confidence_label">EXTRACTED</data><data key="origin">ast_resolved</data><data key="edge_file_path">app.py</data></edge>
+    <edge id="e1" source="app.py::create_app" target="core/config.py"><data key="edge_kind">imports</data><data key="confidence">0.9</data><data key="confidence_label">INFERRED</data></edge>
+  </graph>
+</graphml>

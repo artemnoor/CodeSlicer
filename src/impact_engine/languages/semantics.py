@@ -105,6 +105,26 @@ JAVA_SEMANTICS = LanguageSemanticProvider(
     diagnostics_label="Java structural semantics",
 )
 
+CSHARP_SEMANTICS = LanguageSemanticProvider(
+    language_id="csharp",
+    provider_id="csharp_structural_local",
+    capabilities=LanguageSemanticCapabilities(
+        structural_extraction=True,
+        import_resolution=True,
+        call_resolution="limited",
+        endpoint_resolution="limited",
+        framework_rules=True,
+        production_semantic_baseline=False,
+        notes=(
+            "Local deterministic C# structural provider; no SDK, Roslyn restore, or network is required.",
+            "Supports namespaces, declarations, members, calls, project references and framework evidence packs.",
+            "Roslyn/compiler binding, overload resolution, source generators and reflection remain unresolved or limited.",
+        ),
+    ),
+    confidence_policy="direct syntax and exact local references are confirmed; heuristic receiver/framework bindings are capped at likely",
+    diagnostics_label="C# local structural semantics",
+)
+
 PROVIDERS = {
     provider.language_id: provider
     for provider in (
@@ -113,6 +133,7 @@ PROVIDERS = {
         TYPESCRIPT_SEMANTICS,
         GO_SEMANTICS,
         JAVA_SEMANTICS,
+        CSHARP_SEMANTICS,
     )
 }
 

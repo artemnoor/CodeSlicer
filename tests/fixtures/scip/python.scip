@@ -1,0 +1,9 @@
+{
+  "schema_version": "CodeSlicerScipInterchange/v1",
+  "index": {"tool": "fixture-scip-indexer", "version": "0.1", "created_at": "2026-07-25T00:00:00Z"},
+  "documents": [{
+    "relative_path": "app/util.py",
+    "symbols": [{"symbol": "py/app/util.py#add().", "display_name": "add", "kind": "function"}],
+    "occurrences": [{"symbol": "py/app/util.py#add().", "symbol_name": "add", "kind": "function", "role": "definition", "range": [1, 0, 1, 15]}, {"symbol": "py/app/util.py#add().", "symbol_name": "add", "kind": "function", "role": "reference", "range": [4, 8, 4, 11]}]
+  }]
+}

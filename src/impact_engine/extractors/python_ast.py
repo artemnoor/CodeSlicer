@@ -345,7 +345,13 @@ class ASTFactExtractor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def extract_project(path: str | Path, files: list[str] | None = None) -> GraphDocument:
+def extract_project(
+    path: str | Path,
+    files: list[str] | None = None,
+    *,
+    cancellation=None,
+    progress_callback=None,
+) -> GraphDocument:
     root_path = Path(path).resolve()
     doc = GraphDocument(metadata={"extractor": "python_ast", "status": "extracted", "path": str(root_path)})
     
@@ -354,9 +360,22 @@ def extract_project(path: str | Path, files: list[str] | None = None) -> GraphDo
         if root_path.suffix == ".py":
             py_files.append(root_path)
     else:
-        selected = {str(item).replace("\\", "/") for item in files or []}
-        from impact_engine.scope import iter_project_files
-        for p in iter_project_files(root_path, {".py"}):
+        selected = set()
+        for item in files or []:
+            candidate = Path(str(item).replace("\\", "/"))
+            if candidate.is_absolute():
+                try:
+                    candidate = candidate.resolve().relative_to(root_path)
+                except (OSError, ValueError):
+                    continue
+            selected.add(candidate.as_posix())
+        from impact_engine.scope import iter_project_files, iter_selected_project_files
+        candidates = (
+            iter_selected_project_files(root_path, list(files or []), {".py"})
+            if files is not None
+            else iter_project_files(root_path, {".py"})
+        )
+        for p in candidates:
             parts = p.relative_to(root_path).parts
             if any(part.startswith(".") or part in _SKIP_DIRS for part in parts):
                 continue
@@ -366,7 +385,14 @@ def extract_project(path: str | Path, files: list[str] | None = None) -> GraphDo
             
     py_files.sort()
     
-    for filepath in py_files:
+    total_files = len(py_files)
+    for index, filepath in enumerate(py_files, start=1):
+        if cancellation is not None:
+            check = getattr(cancellation, "check", None)
+            if callable(check):
+                check()
+            elif getattr(cancellation, "is_set", lambda: False)():
+                raise TimeoutError("python extraction cancelled")
         if root_path.is_file():
             rel_path = filepath.name
             module_name = filepath.stem
@@ -416,5 +442,12 @@ def extract_project(path: str | Path, files: list[str] | None = None) -> GraphDo
             extractor.visit(tree)
         except Exception as e:
             doc.metadata[f"error_{rel_path}"] = str(e)
+        if progress_callback is not None:
+            progress_callback(
+                file=rel_path,
+                processed=index,
+                total=total_files,
+                message=f"Python: {rel_path}",
+            )
             
     return doc

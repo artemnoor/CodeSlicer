@@ -1,0 +1,23 @@
+name: Release verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  release-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Create clean virtual environment
+        run: python -m venv .venv
+      - name: Install validation dependencies
+        run: .venv/bin/python -m pip install ".[dev]" build
+      - name: Run regression suite
+        run: .venv/bin/python -m pytest -q
+      - name: Build wheel and run isolated UI/plugin E2E
+        run: .venv/bin/python scripts/check_wheel_e2e.py

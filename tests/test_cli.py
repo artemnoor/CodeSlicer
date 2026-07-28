@@ -47,6 +47,42 @@ def test_cli_analyze_writes_graph(tmp_path):
     assert main_edge["confidence"] >= 0.80
 
 
+def test_cli_default_graph_is_project_local_and_ignores_graphify_outputs(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+    generated = project / "graphify-out" / "cache"
+    generated.mkdir(parents=True)
+    (generated / "noise.py").write_text("def must_not_be_indexed():\n    return 0\n", encoding="utf-8")
+
+    res = run_cli(["--json", "analyze", str(project), "--no-research-requests"], cwd=tmp_path)
+
+    summary = json.loads(res.stdout)
+    expected = project / ".impact_engine" / "graph.json"
+    assert summary["graph_path"] == str(expected)
+    assert expected.is_file()
+    assert not (tmp_path / "graph.json").exists()
+    inventory = summary["inventory"]
+    assert "app.py" in inventory["files"]
+    assert not any("graphify-out" in path for path in inventory["files"])
+
+
+def test_cli_generic_adapter_preflight_and_import(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    artifact = tmp_path / "graph.json"
+    artifact.write_text(json.dumps({"nodes": [], "edges": []}), encoding="utf-8")
+
+    preflight = run_cli(["--json", "adapters", "preflight", str(project)], cwd=tmp_path)
+    assert "graphify" in {item["id"] for item in json.loads(preflight.stdout)["adapters"]}
+
+    imported = run_cli([
+        "--json", "adapters", "import", str(project), "graphify", str(artifact.resolve()), "--enable",
+    ], cwd=tmp_path)
+    payload = json.loads(imported.stdout)
+    assert payload["adapter"]["status"] == "ready"
+
+
 def test_cli_impact_outputs_json(tmp_path):
     graph_path = tmp_path / "graph.json"
     run_cli(["--json", "analyze", str(PROJECT_PATH), "--out", str(graph_path)], cwd=tmp_path)

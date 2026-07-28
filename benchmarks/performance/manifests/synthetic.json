@@ -1,0 +1,10 @@
+{
+  "id": "synthetic-python-small",
+  "language": "python",
+  "scope": ".",
+  "regression_budget_seconds": {
+    "warm_no_change": 1.0,
+    "one_file_incremental": 2.0,
+    "top_impact_p95": 0.5
+  }
+}

@@ -102,6 +102,7 @@ def normalize_external_graph(data: dict, source_name: str = "external") -> Graph
         
     graph.metadata["skipped_nodes"] = skipped_nodes
     graph.metadata["skipped_edges"] = skipped_edges
+    _materialize_unresolved_endpoints(graph)
     return graph
 
 
@@ -110,7 +111,89 @@ def normalize_graph_document(graph: GraphDocument) -> GraphDocument:
         graph.metadata = {}
     graph.metadata["normalized"] = True
     graph.metadata["normalizer"] = "impact_engine.normalization.graph"
+    _canonicalize_scope_endpoints(graph)
+    _materialize_unresolved_endpoints(graph)
     return graph
+
+
+def _materialize_unresolved_endpoints(graph: GraphDocument) -> None:
+    """Make unresolved CALLS/DEPENDS_ON endpoints explicit graph nodes.
+
+    Extractors may know a display name but not a canonical declaration ID.
+    Keeping the edge without an endpoint makes the GraphDocument internally
+    inconsistent; an explicit suppressed external node preserves provenance
+    while allowing every edge to satisfy the graph schema.
+    """
+    graph._ensure_indexes()
+    node_ids = {node.id for node in graph.nodes}
+    created = 0
+    for edge in graph.edges:
+        if edge.kind not in {"CALLS", "DEPENDS_ON"}:
+            continue
+        for endpoint in (edge.from_node, edge.to_node):
+            if endpoint in node_ids:
+                continue
+            graph.add_node(Node(
+                id=endpoint,
+                kind="EXTERNAL_LIBRARY",
+                name=endpoint,
+                properties={
+                    "unresolved_endpoint": True,
+                    "resolution_status": "unresolved",
+                    "original_endpoint": endpoint,
+                    "normalizer": "impact_engine.normalization.graph",
+                },
+            ))
+            node_ids.add(endpoint)
+            created += 1
+    graph.metadata["materialized_unresolved_endpoint_nodes"] = created
+
+
+def _canonicalize_scope_endpoints(graph: GraphDocument) -> None:
+    """Map resolver display scopes to canonical node IDs before integrity checks."""
+    node_ids = {node.id for node in graph.nodes}
+    aliases: dict[str, str] = {}
+    for node in graph.nodes:
+        for key in ("scope", "qualified_name", "canonical_name"):
+            value = node.properties.get(key)
+            if value and str(value) not in aliases:
+                aliases[str(value)] = node.id
+        if node.name and node.name not in aliases:
+            aliases[node.name] = node.id
+    changed = 0
+    for edge in graph.edges:
+        for endpoint_name, side in ((edge.from_node, "from"), (edge.to_node, "to")):
+            if endpoint_name not in node_ids and endpoint_name in aliases:
+                target_id = aliases[endpoint_name]
+                # Legacy extractors/resolvers historically exposed scope names.
+                # Preserve that serialized endpoint through an explicit alias,
+                # while modern plugin extractors can emit canonical IDs. This
+                # keeps old API consumers working without dangling nodes and
+                # records the compatibility boundary in provenance.
+                if edge.source == "SUPPORT_PACK":
+                    original = next((node for node in graph.nodes if node.id == target_id), None)
+                    if original is not None:
+                        graph.add_node(Node(
+                            id=endpoint_name,
+                            kind=original.kind,
+                            name=original.name,
+                            properties={**original.properties, "compatibility_alias_for": target_id},
+                        ))
+                        node_ids.add(endpoint_name)
+                        changed += 1
+                else:
+                    original = next((node for node in graph.nodes if node.id == target_id), None)
+                    if original is not None:
+                        graph.add_node(Node(
+                            id=endpoint_name,
+                            kind=original.kind,
+                            name=original.name,
+                            properties={**original.properties, "compatibility_alias_for": target_id},
+                        ))
+                        node_ids.add(endpoint_name)
+                        changed += 1
+    graph._rebuild_edge_indexes()
+    graph.metadata["canonicalized_endpoint_rewrites"] = changed
 
 
 def merge_graph_documents(graphs: list[GraphDocument], source_labels: list[str] | None = None) -> GraphDocument:
@@ -143,6 +226,24 @@ def merge_graph_documents(graphs: list[GraphDocument], source_labels: list[str] 
                         merged.metadata[key].extend(graph.metadata[key])
                     else:
                         merged.metadata[key] = graph.metadata[key]
+            # Manifest-owned language providers may carry raw, evidence-backed
+            # relation facts into framework hooks. Preserve namespaced
+            # metadata instead of silently dropping it during multi-language
+            # merge (for example C# generic MediatR base relations).
+            for key, value in graph.metadata.items():
+                if not str(key).startswith("csharp_"):
+                    continue
+                if isinstance(value, list):
+                    merged.metadata.setdefault(key, [])
+                    for item in value:
+                        if item not in merged.metadata[key]:
+                            merged.metadata[key].append(item)
+                elif isinstance(value, dict):
+                    merged.metadata.setdefault(key, {})
+                    if isinstance(merged.metadata[key], dict):
+                        merged.metadata[key].update(value)
+                else:
+                    merged.metadata[key] = value
                 
         for node in graph.nodes:
             existing = merged._node_index.get(node.id)

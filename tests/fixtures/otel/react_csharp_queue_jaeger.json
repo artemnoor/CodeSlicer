@@ -1,0 +1,12 @@
+{
+  "data": [{
+    "traceID": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "processes": {"p1": {"serviceName": "react-client"}, "p2": {"serviceName": "orders-dotnet"}, "p3": {"serviceName": "queue-worker"}},
+    "spans": [
+      {"traceID": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "spanID": "1000000000000001", "operationName": "POST /api/orders", "references": [], "startTime": 2000000, "duration": 50000, "processID": "p1", "tags": [{"key": "span.kind", "type": "string", "value": "client"}, {"key": "http.method", "type": "string", "value": "POST"}, {"key": "http.route", "type": "string", "value": "/api/orders"}]},
+      {"traceID": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "spanID": "1000000000000002", "operationName": "POST /api/orders", "references": [{"refType": "CHILD_OF", "traceID": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "spanID": "1000000000000001"}], "startTime": 2010000, "duration": 30000, "processID": "p2", "tags": [{"key": "span.kind", "type": "string", "value": "server"}, {"key": "http.method", "type": "string", "value": "POST"}, {"key": "http.route", "type": "string", "value": "/api/orders"}]},
+      {"traceID": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "spanID": "1000000000000003", "operationName": "publish orders.created", "references": [{"refType": "CHILD_OF", "traceID": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "spanID": "1000000000000002"}], "startTime": 2020000, "duration": 5000, "processID": "p2", "tags": [{"key": "span.kind", "type": "string", "value": "producer"}, {"key": "messaging.destination.name", "type": "string", "value": "orders.created"}, {"key": "messaging.operation.type", "type": "string", "value": "publish"}]},
+      {"traceID": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "spanID": "1000000000000004", "operationName": "consume orders.created", "references": [{"refType": "FOLLOWS_FROM", "traceID": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "spanID": "1000000000000003"}], "startTime": 2030000, "duration": 12000, "processID": "p3", "tags": [{"key": "span.kind", "type": "consumer"}, {"key": "messaging.destination.name", "type": "string", "value": "orders.created"}, {"key": "messaging.operation.type", "type": "string", "value": "receive"}]}
+    ]
+  }]
+}

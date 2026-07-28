@@ -1,0 +1,20 @@
+{
+  "@type": "g:Graph",
+  "@value": {
+    "vertices": [
+      {"id": {"@type": "g:Int64", "@value": 11}, "label": "FILE", "properties": {"NAME": [{"@value": {"id": 301, "value": "src/X42.java"}}]}},
+      {"id": {"@type": "g:Int64", "@value": 12}, "label": "METHOD", "properties": {"NAME": [{"@value": {"id": 302, "value": "readInput"}}], "FILENAME": [{"@value": {"id": 303, "value": "src/X42.java"}}], "LINE_NUMBER": [{"@value": {"id": 304, "value": 10}}], "LINE_NUMBER_END": [{"@value": {"id": 305, "value": 16}}]}},
+      {"id": {"@type": "g:Int64", "@value": 13}, "label": "IDENTIFIER", "properties": {"NAME": [{"@value": {"id": 306, "value": "request"}}], "FILENAME": [{"@value": {"id": 307, "value": "src/X42.java"}}], "LINE_NUMBER": [{"@value": {"id": 308, "value": 12}}]}},
+      {"id": {"@type": "g:Int64", "@value": 14}, "label": "CALL", "properties": {"NAME": [{"@value": {"id": 309, "value": "executeQuery"}}], "FILENAME": [{"@value": {"id": 310, "value": "src/X42.java"}}], "LINE_NUMBER": [{"@value": {"id": 311, "value": 15}}], "LINE_NUMBER_END": [{"@value": {"id": 312, "value": 15}}]}},
+      {"id": {"@type": "g:Int64", "@value": 15}, "label": "CONTROL_STRUCTURE", "properties": {"NAME": [{"@value": {"id": 313, "value": "if"}}], "FILENAME": [{"@value": {"id": 314, "value": "src/X42.java"}}], "LINE_NUMBER": [{"@value": {"id": 315, "value": 13}}]}}
+    ],
+    "edges": [
+      {"id": {"@value": 401}, "label": "AST", "outV": {"@value": 12}, "inV": {"@value": 13}},
+      {"id": {"@value": 402}, "label": "CALL", "outV": {"@value": 12}, "inV": {"@value": 14}},
+      {"id": {"@value": 403}, "label": "REACHING_DEF", "outV": {"@value": 13}, "inV": {"@value": 14}},
+      {"id": {"@value": 404}, "label": "CDG", "outV": {"@value": 15}, "inV": {"@value": 14}},
+      {"id": {"@value": 405}, "label": "REF", "outV": {"@value": 13}, "inV": {"@value": 12}}
+    ],
+    "taint_paths": [{"id": {"@value": "x42-java-taint"}, "source": {"@value": 13}, "steps": [{"@value": 13}], "sink": {"@value": 14}, "confidence": "confirmed"}]
+  }
+}

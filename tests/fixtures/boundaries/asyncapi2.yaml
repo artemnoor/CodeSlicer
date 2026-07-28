@@ -1,0 +1,26 @@
+asyncapi: 2.6.0
+info: {title: Events, version: 1.0.0}
+servers:
+  local:
+    url: kafka://localhost:9092
+channels:
+  user.created:
+    publish:
+      operationId: consumeUserCreated
+      message:
+        $ref: '#/components/messages/UserCreated'
+    subscribe:
+      operationId: produceUserCreated
+      message:
+        $ref: '#/components/messages/UserCreated'
+components:
+  messages:
+    UserCreated:
+      name: UserCreated
+      payload:
+        $ref: '#/components/schemas/User'
+  schemas:
+    User:
+      type: object
+      properties:
+        id: {type: string}

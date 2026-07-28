@@ -1,0 +1,2209 @@
+{
+  "schema_version": "impact-engine.performance-report.v1",
+  "corpus": {
+    "path": "<local-corpus>",
+    "scope": "src/impact_engine/analysis",
+    "available": true,
+    "working_copy": true,
+    "snapshot_fingerprint": "eea81a6665dd62108e4ea6b5ec9a5aa547938f693f5dadd4e4e7b4677ddca68b",
+    "files": 3,
+    "loc_context": 1283
+  },
+  "machine": {
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python": "3.11.9",
+    "processor": "AMD64 Family 25 Model 33 Stepping 0, AuthenticAMD"
+  },
+  "status": "ok",
+  "timings": {
+    "initial_scan_wall_seconds": 16.500711,
+    "warm_no_change_wall_seconds": 0.285869,
+    "one_file_incremental_wall_seconds": 0.707575,
+    "manifest_change_incremental_wall_seconds": 1.217423,
+    "top_impact_query": {
+      "p50": 0.067697,
+      "p95": 0.071391,
+      "samples": 5
+    },
+    "review": {
+      "p50": 0.172776,
+      "p95": 0.189761,
+      "samples": 3
+    }
+  },
+  "memory": {
+    "peak_bytes": 108379750
+  },
+  "profiling": {
+    "initial": {
+      "stage_timings_seconds": {
+        "inventory": 0.32941,
+        "cache_lookup": 0.000528,
+        "snapshot_hashing": 0.004683,
+        "plugin_selection": 0.229862,
+        "extraction": 0.551256,
+        "normalization": 0.77321,
+        "semantic_binding": 0.439014,
+        "framework_hooks": 0.000197,
+        "precision_resolution": 9.78623,
+        "frontend_backend_projection": 0.234083,
+        "graph_quality": 0.768466,
+        "review_projection": 0.0,
+        "serialization": 2.292249
+      },
+      "work": {
+        "files_seen": 3,
+        "files_reused": 0,
+        "files_reparsed": 0,
+        "facts_reused": 0,
+        "facts_rebuilt": 0,
+        "edges_reused": 0,
+        "edges_rebuilt": 0,
+        "plugins_executed": [
+          "language.python"
+        ],
+        "plugins_skipped": [
+          "framework.go.gin",
+          "framework.java.spring",
+          "framework.javascript.express",
+          "framework.javascript.react",
+          "framework.python.celery",
+          "framework.python.dependency-injector",
+          "framework.python.fastapi",
+          "framework.python.sqlalchemy",
+          "language.go",
+          "language.java",
+          "language.javascript",
+          "language.typescript"
+        ]
+      }
+    },
+    "warm": {
+      "stage_timings_seconds": {
+        "inventory": 0.0,
+        "cache_lookup": 0.237245,
+        "snapshot_hashing": 0.002501,
+        "plugin_selection": 0.0,
+        "extraction": 0.0,
+        "normalization": 0.0,
+        "semantic_binding": 0.0,
+        "framework_hooks": 0.0,
+        "precision_resolution": 0.0,
+        "frontend_backend_projection": 0.0,
+        "graph_quality": 0.0,
+        "review_projection": 0.0,
+        "serialization": 8e-06
+      },
+      "work": {
+        "files_seen": 3,
+        "files_reused": 3,
+        "files_reparsed": 0,
+        "facts_reused": 1096,
+        "facts_rebuilt": 0,
+        "edges_reused": 0,
+        "edges_rebuilt": 0,
+        "plugins_executed": [],
+        "plugins_skipped": []
+      }
+    },
+    "incremental": {
+      "stage_timings_seconds": {
+        "inventory": 0.366564,
+        "cache_lookup": 0.187671,
+        "snapshot_hashing": 0.007176,
+        "plugin_selection": 0.027931,
+        "extraction": 0.2017,
+        "normalization": 0.0,
+        "semantic_binding": 0.0,
+        "framework_hooks": 0.0,
+        "precision_resolution": 0.0,
+        "frontend_backend_projection": 0.0,
+        "graph_quality": 0.0,
+        "review_projection": 0.0,
+        "serialization": 1.2e-05
+      },
+      "work": {
+        "files_seen": 3,
+        "files_reused": 2,
+        "files_reparsed": 1,
+        "facts_reused": 1096,
+        "facts_rebuilt": 0,
+        "edges_reused": 1167,
+        "edges_rebuilt": 0,
+        "plugins_executed": [
+          "language.python"
+        ],
+        "plugins_skipped": [
+          "framework.go.gin",
+          "framework.java.spring",
+          "framework.javascript.express",
+          "framework.javascript.react",
+          "framework.python.celery",
+          "framework.python.dependency-injector",
+          "framework.python.fastapi",
+          "framework.python.sqlalchemy",
+          "language.go",
+          "language.java",
+          "language.javascript",
+          "language.typescript"
+        ]
+      }
+    },
+    "review": {
+      "stage_timings_seconds": {
+        "inventory": 0.0,
+        "cache_lookup": 0.0,
+        "snapshot_hashing": 0.0,
+        "plugin_selection": 0.0,
+        "extraction": 0.0,
+        "normalization": 0.0,
+        "semantic_binding": 0.0,
+        "framework_hooks": 0.0,
+        "precision_resolution": 0.0,
+        "frontend_backend_projection": 0.0,
+        "graph_quality": 0.0,
+        "review_projection": 0.16752,
+        "serialization": 0.0
+      },
+      "work": {
+        "files_seen": 0,
+        "files_reused": 1,
+        "files_reparsed": 0,
+        "facts_reused": 0,
+        "facts_rebuilt": 0,
+        "edges_reused": 0,
+        "edges_rebuilt": 0,
+        "plugins_executed": [],
+        "plugins_skipped": []
+      }
+    },
+    "review_projection_seconds": {
+      "p50": 0.172776,
+      "p95": 0.189761,
+      "samples": 3
+    }
+  },
+  "plugins": {
+    "selected": [
+      {
+        "id": "language.python",
+        "kind": "language",
+        "language": "python",
+        "version": "1.0.0",
+        "cache_key": "python-ast-v1",
+        "capabilities": {
+          "structural_extraction": true,
+          "semantic_resolution": true
+        }
+      }
+    ],
+    "rejected": [
+      {
+        "id": "language.go",
+        "kind": "language",
+        "version": "1.0.0",
+        "cache_key": "tree-sitter-go-v1",
+        "reason": "language not present in inventory"
+      },
+      {
+        "id": "language.java",
+        "kind": "language",
+        "version": "1.0.0",
+        "cache_key": "tree-sitter-java-v1",
+        "reason": "language not present in inventory"
+      },
+      {
+        "id": "language.javascript",
+        "kind": "language",
+        "version": "1.0.0",
+        "cache_key": "tree-sitter-javascript-v1",
+        "reason": "language not present in inventory"
+      },
+      {
+        "id": "language.typescript",
+        "kind": "language",
+        "version": "1.0.0",
+        "cache_key": "tree-sitter-typescript-v1",
+        "reason": "language not present in inventory"
+      },
+      {
+        "id": "framework.go.gin",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.go.gin-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.java.spring",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.java.spring-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.javascript.express",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.javascript.express-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.javascript.react",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.javascript.react-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.python.celery",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.python.celery-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.python.dependency-injector",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.python.dependency-injector-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.python.fastapi",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.python.fastapi-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      },
+      {
+        "id": "framework.python.sqlalchemy",
+        "kind": "framework",
+        "version": "1.0.0",
+        "cache_key": "framework.python.sqlalchemy-compat-v1",
+        "reason": "no declared dependency or confirmed import evidence",
+        "evidence": []
+      }
+    ],
+    "diagnostics": [
+      {
+        "plugin_id": "framework.go.gin",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.java.spring",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.javascript.express",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.javascript.react",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.python.celery",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.python.dependency-injector",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.python.fastapi",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      },
+      {
+        "plugin_id": "framework.python.sqlalchemy",
+        "severity": "info",
+        "code": "plugin_rejected",
+        "message": "no declared dependency or confirmed import evidence",
+        "details": {}
+      }
+    ]
+  },
+  "cache": {
+    "hit_rate": 0.666667,
+    "files_reused": 2,
+    "files_reanalyzed": 1,
+    "facts_reused": 1096,
+    "facts_rebuilt": 0,
+    "graph_delta": "none",
+    "invalidated_nodes": [],
+    "snapshot_files": 3
+  },
+  "correctness": {
+    "differential_status": "passed",
+    "clean_vs_incremental_equal": true,
+    "deterministic_signature": true
+  },
+  "slo": {
+    "warm_no_change_lt_1s": true,
+    "one_file_incremental_lt_2s": true,
+    "top_impact_p95_lt_500ms": true
+  },
+  "incomplete": false,
+  "diagnostics": {
+    "normal_analyze_requires_internet": false,
+    "language_semantic_capabilities": {
+      "python": {
+        "language_id": "python",
+        "provider_id": "python_ast_precision",
+        "capabilities": {
+          "structural_extraction": true,
+          "import_resolution": true,
+          "call_resolution": "semantic",
+          "endpoint_resolution": true,
+          "framework_rules": true,
+          "production_semantic_baseline": true,
+          "notes": [
+            "Production-supported semantic baseline.",
+            "Supports Python AST facts, DI/self.attr/call receiver resolution, and support-pack framework hooks."
+          ]
+        },
+        "confidence_policy": "high-confidence semantic resolver; inferred edges may reach production confidence when evidence is complete",
+        "diagnostics_label": "Python semantic baseline"
+      }
+    },
+    "semantic_binding_diagnostics": [
+      "conflicting binding for 'self.legacy[key]': 'message' vs 'values'; kept existing",
+      "conflicting binding for 'self.legacy[key]': 'message' vs 'value'; kept existing",
+      "conflicting binding for 'extraction_files': 'self.options.changed_files' vs 'list'; kept existing",
+      "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'self.reusable_final_graph'; kept existing",
+      "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs 'graph.to_dict'; kept existing",
+      "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'merge_graph_documents(raw_graphs) if raw_graphs else GraphDocument()'; kept existing",
+      "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'impact_engine.normalization.graph.normalize_graph_document'; kept existing",
+      "conflicting binding for 'eta': 'None' vs 'round'; kept existing",
+      "conflicting binding for 'result': 'self._refresh_changed_files' vs '{}'; kept existing",
+      "conflicting binding for 'selected': 'selected_compatibility_packs(self.selection_plan) if self.selection_plan else []' vs '[plugin_id for plugin_id in plan.selected_language_ids if changed_suffixes.intersection(set(plan.registry.manifests[plugin_id].file_extensions))] if plan.registry else []'; kept existing",
+      "conflicting binding for 'selected': 'selected_compatibility_packs(self.selection_plan) if self.selection_plan else []' vs 'list'; kept existing",
+      "conflicting binding for 'self.prefetched_incremental_graphs': 'early_rebuilt' vs 'None'; kept existing",
+      "conflicting binding for 'previous_final': 'self.cache_load if self.cache_load and self.cache_load.hit else self.cache_store.load()' vs 'self.cache_store.load'; kept existing",
+      "conflicting binding for 'self.incremental_cache_stats': \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': len(cached.nodes), 'facts_rebuilt': 0, 'nodes_reused': len(cached.nodes), 'edges_reused': len(cached.edges), 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\" vs \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': max(0, len(cached.nodes) - len(node_ids_to_remove)), 'facts_rebuilt': len(node_ids_to_remove), 'nodes_reused': max(0, len(cached.nodes) - len(node_ids_to_remove)), 'edges_reused': sum((1 for edge in cached.edges if not any(((ev.file or '').replace('\\\\\\\\', '/') in changed for ev in edge.evidence)))), 'invalidated_nodes': sorted(node_ids_to_remove), 'invalidated_edges': sorted(invalidated_edge_ids), 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'evidence_and_receiver_subgraph'}\"; kept existing",
+      "conflicting binding for 'prefix': \"(self.options.scope or '').replace('\\\\\\\\', '/').strip\" vs ''; kept existing",
+      "conflicting binding for 'result': 'self._refresh_changed_files' vs 'dataclasses.asdict'; kept existing",
+      "conflicting binding for 'metadata': 'dict' vs 'loaded.metadata or {}'; kept existing",
+      "conflicting binding for 'stats': 'self.incremental_cache_stats' vs \"loaded.artifacts.get('snapshot_stats.json') if loaded.hit else None\"; kept existing",
+      "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs 'loaded.artifacts.get'; kept existing",
+      "conflicting binding for 'event': \"{'phase': stage, 'stage': stage, 'message': message, 'processed': processed, 'total': total, 'stage_percent': round(stage_percent, 1), 'overall_percent': round(overall * 100.0, 1), 'elapsed_seconds': round(elapsed, 3), 'eta_seconds': eta, 'cancellable': self.cancellation is not None}\" vs \"{'phase': 'cache', 'stage': 'cache', 'message': 'Persistent cache reused', 'completed': 1, 'processed': 1, 'total': 1, 'stage_percent': 100.0, 'overall_percent': 100.0, 'elapsed_seconds': 0.0, 'eta_seconds': None, 'cancellable': False}\"; kept existing",
+      "conflicting binding for 'progress': \"{'status': 'completed', 'events': self.progress_events, 'current': self.progress_events[-1]}\" vs \"{'status': 'completed', 'events': [event], 'current': event}\"; kept existing",
+      "conflicting binding for 'selected': 'selected_compatibility_packs(self.selection_plan) if self.selection_plan else []' vs 'metadata.get'; kept existing",
+      "conflicting binding for 'raw_fragments': \"cached.metadata.get('raw_file_fragments', {}) if isinstance(cached.metadata, dict) else {}\" vs 'None'; kept existing",
+      "conflicting binding for 'raw_fragments': \"cached.metadata.get('raw_file_fragments', {}) if isinstance(cached.metadata, dict) else {}\" vs 'fragment_cache.artifacts.get'; kept existing",
+      "conflicting binding for 'raw_fragments': \"cached.metadata.get('raw_file_fragments', {}) if isinstance(cached.metadata, dict) else {}\" vs \"legacy_cache.artifacts.get('raw_file_fragments.json') if legacy_cache.hit else None\"; kept existing",
+      "conflicting binding for 'previous_graph': \"previous_final.artifacts.get('graph.json') if previous_final.hit else None\" vs \"final_cache.artifacts.get('graph.json') if final_cache.hit else None\"; kept existing",
+      "conflicting binding for 'self.incremental_cache_stats': \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': len(cached.nodes), 'facts_rebuilt': 0, 'nodes_reused': len(cached.nodes), 'edges_reused': len(cached.edges), 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\" vs \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': node_count, 'facts_rebuilt': 0, 'nodes_reused': node_count, 'edges_reused': edge_count, 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\"; kept existing",
+      "conflicting binding for 'nodes': 'len' vs \"[node.to_dict() for node in document.nodes if relative(node.properties.get('file') or node.properties.get('path') or node.properties.get('source_file')) in changed]\"; kept existing",
+      "conflicting binding for 'edges': 'len' vs '[edge.to_dict() for edge in document.edges if any((relative(ev.file) in changed for ev in edge.evidence)) or edge.from_node in affected_ids or edge.to_node in affected_ids]'; kept existing",
+      "conflicting binding for 'text': \"str(value or '').replace\" vs 'path.resolve().relative_to(Path(self.project_path).resolve()).as_posix'; kept existing",
+      "conflicting binding for 'self.cache_metadata': 'dataclasses.replace' vs 'CacheMetadata.from_project'; kept existing",
+      "conflicting binding for 'self.cache_load': 'None' vs 'self.cache_store.load'; kept existing",
+      "conflicting binding for 'progress': \"{'status': 'completed', 'events': self.progress_events, 'current': self.progress_events[-1]}\" vs \"{'status': 'completed', 'events': [progress_event], 'current': progress_event}\"; kept existing",
+      "conflicting binding for 'languages': 'sorted' vs 'self.selection_plan.languages'; kept existing",
+      "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'self._merge_and_normalize'; kept existing",
+      "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'self._apply_semantic_layer'; kept existing",
+      "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'self._apply_post_hygiene_layer'; kept existing",
+      "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.normalization.graph.normalize_graph_document'; kept existing",
+      "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_quality.apply_quality_guard'; kept existing",
+      "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.plugin_architecture.integrity.annotate_plugin_provenance'; kept existing",
+      "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.plugin_architecture.integrity.plugin_graph_integrity_gate'; kept existing",
+      "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.community.annotate_communities'; kept existing",
+      "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_identity.annotate_stable_identities'; kept existing",
+      "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_quality.annotate_edge_contracts'; kept existing",
+      "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_quality.annotate_graph_quality'; kept existing",
+      "conflicting binding for \"resolved.metadata['selective_execution']\": \"{'execution_mode': 'selective_plugin_execution', 'full_pipeline_called': False, 'selective_execution_proven': True, 'selected_language_plugins': list(self.selective_language_ids), 'skipped_language_plugins': [item for item in (self.selection_plan.selected_language_ids if self.selection_plan else []) if item not in self.selective_language_ids], 'fallback_reason': self.selective_execution_fallback}\" vs \"{'execution_mode': 'full_initial_scan', 'full_pipeline_called': True, 'selective_execution_proven': False, 'fallback_reason': 'initial_or_non_incremental_analysis'}\"; kept existing",
+      "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs 'resolved.to_dict'; kept existing",
+      "conflicting binding for 'result': 'self._refresh_changed_files' vs 'pipeline.run'; kept existing",
+      "conflicting binding for 'self.options': 'options' vs 'src.impact_engine.analysis.contracts.AnalysisOptions'; kept existing",
+      "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'GraphDocument.from_dict'; kept existing",
+      "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs \"previous_final.artifacts.get('graph.json') if previous_final.hit else None\"; kept existing",
+      "conflicting binding for 'stats': 'self.incremental_cache_stats' vs \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': len(cached.nodes), 'facts_rebuilt': 0, 'nodes_reused': len(cached.nodes), 'edges_reused': len(cached.edges), 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\"; kept existing",
+      "binding cycle detected at 'time'",
+      "binding cycle detected at 'json'",
+      "binding cycle detected at 'hashlib'",
+      "unresolved receiver type for self.items.append",
+      "unresolved receiver type for item.get",
+      "unresolved receiver type for item.to_dict",
+      "unresolved receiver type for __import__('time').perf_counter",
+      "unresolved receiver type for report.get",
+      "unresolved receiver type for report.get('research_selection', {}).get",
+      "unresolved receiver type for Path(self.project_path).is_dir",
+      "unresolved receiver type for raw_graphs.append",
+      "unresolved receiver type for self.extractors_used.append",
+      "unresolved receiver type for time.perf_counter",
+      "unresolved receiver type for self._progress",
+      "unresolved receiver type for self._try_reuse_final_graph_fragments",
+      "unresolved receiver type for self._load_raw_cache",
+      "unresolved receiver type for self._refresh_changed_files",
+      "unresolved receiver type for plan.selected_ids",
+      "unresolved receiver type for self.extractors_used.extend",
+      "unresolved receiver type for self.plugin_diagnostics.extend",
+      "unresolved receiver type for graph.to_dict",
+      "unresolved receiver type for graph_payload.get",
+      "unresolved receiver type for self.cache_metadata.to_dict",
+      "unresolved receiver type for self._record_profile_work",
+      "unresolved receiver type for self._write_graph_payload",
+      "unresolved receiver type for GraphDocument.from_dict",
+      "unresolved receiver type for self.support_pack_load_errors.extend",
+      "unresolved receiver type for pack.language.lower",
+      "unresolved receiver type for pack.library.lower",
+      "unresolved receiver type for loaded_keys.add",
+      "unresolved receiver type for support_packs.append",
+      "unresolved receiver type for self._inventory_data.get",
+      "unresolved receiver type for self._inventory_data.get('declared_dependencies_by_ecosystem', {}).get",
+      "unresolved receiver type for str(v).lower",
+      "unresolved receiver type for self._inventory_data.get('external_imports_by_ecosystem', {}).get",
+      "unresolved receiver type for name.startswith",
+      "unresolved receiver type for self.support_pack_load_errors.append",
+      "unresolved receiver type for ', '.join",
+      "unresolved receiver type for validation.get",
+      "unresolved receiver type for self._raw_file_fragments",
+      "unresolved receiver type for graph.nodes.sort",
+      "unresolved receiver type for graph.edges.sort",
+      "unresolved receiver type for graph._node_index.clear",
+      "unresolved receiver type for graph._edge_id_index.clear",
+      "unresolved receiver type for reverse_index.to_dict",
+      "unresolved receiver type for Path(self.options.raw_graph_cache_path).resolve",
+      "unresolved receiver type for cache_path.parent.mkdir",
+      "unresolved receiver type for ordered.index",
+      "unresolved receiver type for self.progress_events.append",
+      "unresolved receiver type for node.properties.get",
+      "unresolved receiver type for str(node.properties.get('file') or node.properties.get('path') or node.properties.get('source_file') or '').replace",
+      "unresolved receiver type for node_files.setdefault",
+      "unresolved receiver type for node_files.setdefault(file_name, set()).add",
+      "unresolved receiver type for fragments.setdefault",
+      "unresolved receiver type for fragments.setdefault(file_name, {'nodes': [], 'edges': []})['nodes'].append",
+      "unresolved receiver type for node.to_dict",
+      "unresolved receiver type for str(ev.file).replace",
+      "unresolved receiver type for node_files.items",
+      "unresolved receiver type for edge.to_dict",
+      "unresolved receiver type for fragments.setdefault(file_name, {'nodes': [], 'edges': []})['edges'].append",
+      "unresolved receiver type for fragments.items",
+      "unresolved receiver type for json.dumps",
+      "unresolved receiver type for hashlib.sha256",
+      "unresolved receiver type for hashlib.sha256(payload.encode('utf-8')).hexdigest",
+      "unresolved receiver type for payload.encode",
+      "unresolved receiver type for graph.metadata.get",
+      "unresolved receiver type for semantic_meta.get",
+      "unresolved receiver type for bridge_meta.get",
+      "unresolved receiver type for hygiene_meta.get",
+      "unresolved receiver type for pre_hygiene_meta.get",
+      "unresolved receiver type for stats.get",
+      "unresolved receiver type for Path(item).suffix.lower",
+      "unresolved receiver type for changed_suffixes.intersection",
+      "unresolved receiver type for cached.metadata.get",
+      "unresolved receiver type for current_fragments.get",
+      "unresolved receiver type for raw_fragments.get",
+      "unresolved receiver type for previous_final.artifacts.get",
+      "unresolved receiver type for node_ids_to_remove.add",
+      "unresolved receiver type for invalidated_edge_ids.add",
+      "unresolved receiver type for reverse_index.by_source.get",
+      "unresolved receiver type for invalidated_edge_ids.update",
+      "unresolved receiver type for (ev.file or '').replace",
+      "unresolved receiver type for Path(self.options.project_path).resolve",
+      "unresolved receiver type for (self.options.scope or '').replace",
+      "unresolved receiver type for (self.options.scope or '').replace('\\\\', '/').strip",
+      "unresolved receiver type for result.get",
+      "unresolved receiver type for project_root.as_posix",
+      "unresolved receiver type for loaded.artifacts.get",
+      "unresolved receiver type for (self.options.scope or '.').replace",
+      "unresolved receiver type for (self.options.scope or '.').replace('\\\\', '/').strip",
+      "unresolved receiver type for metadata.get",
+      "unresolved receiver type for current_git.get",
+      "unresolved receiver type for graph_payload.setdefault",
+      "unresolved receiver type for graph_metadata.get",
+      "unresolved receiver type for loaded.artifacts.get('facts.json', {}).get",
+      "unresolved receiver type for str(item.get('id', '')).removeprefix",
+      "unresolved receiver type for fragment_cache.artifacts.get",
+      "unresolved receiver type for legacy_cache.artifacts.get",
+      "unresolved receiver type for final_cache.artifacts.get",
+      "unresolved receiver type for previous_graph.get",
+      "unresolved receiver type for Path(self.options.out_path).resolve",
+      "unresolved receiver type for out_path.parent.mkdir",
+      "unresolved receiver type for str(value or '').replace",
+      "unresolved receiver type for Path(self.project_path).resolve",
+      "unresolved receiver type for path.resolve().relative_to",
+      "unresolved receiver type for path.resolve().relative_to(Path(self.project_path).resolve()).as_posix",
+      "unresolved receiver type for self._try_fast_cache_hit",
+      "unresolved receiver type for self._scan_inventory",
+      "unresolved receiver type for inventory_data.get",
+      "unresolved receiver type for self.selection_plan.selected_ids",
+      "unresolved receiver type for CacheMetadata.from_project",
+      "unresolved receiver type for self.cache_load.artifacts.get",
+      "unresolved receiver type for cached_graph.setdefault",
+      "unresolved receiver type for self.cache_load.artifacts.get('facts.json', {}).get",
+      "unresolved receiver type for cached_graph.get",
+      "unresolved receiver type for cached_graph.get('metadata', {}).get",
+      "unresolved receiver type for self._build_pre_hygiene",
+      "unresolved receiver type for self._extract_graphs",
+      "unresolved receiver type for self._finish_no_graph_delta_incremental",
+      "unresolved receiver type for self._extract_graphify",
+      "unresolved receiver type for self._merge_and_normalize",
+      "unresolved receiver type for FactDocument.from_graph",
+      "unresolved receiver type for fact_document.summary",
+      "unresolved receiver type for fact_path.parent.mkdir",
+      "unresolved receiver type for fact_document.to_dict",
+      "unresolved receiver type for fact_path.resolve",
+      "unresolved receiver type for self.selection_plan.to_dict",
+      "unresolved receiver type for self._load_support_packs",
+      "unresolved receiver type for pack.get",
+      "unresolved receiver type for self._apply_semantic_layer",
+      "unresolved receiver type for self._sync_local_registry",
+      "unresolved receiver type for self._apply_post_hygiene_layer",
+      "unresolved receiver type for self.plugin_diagnostics.append",
+      "unresolved receiver type for self._annotate_unknown_regions",
+      "unresolved receiver type for resolved.metadata['resolution_coverage'].get",
+      "unresolved receiver type for resolved.metadata['resolution_coverage'].get('accounting', {}).get",
+      "unresolved receiver type for self._record_graph_metadata",
+      "unresolved receiver type for resolved.to_dict",
+      "unresolved receiver type for build_reverse_dependency_index(resolved).to_dict",
+      "unresolved receiver type for facts.to_dict",
+      "unresolved receiver type for resolved.metadata.get",
+      "unresolved receiver type for pipeline.profiler.measure",
+      "unresolved receiver type for result.to_dict",
+      "unresolved receiver type for pipeline.profiler.snapshot"
+    ],
+    "project_hygiene_status": "applied",
+    "pre_project_hygiene_status": "applied",
+    "post_project_hygiene_status": "applied",
+    "project_hygiene_summary": {
+      "files.SOURCE": 3,
+      "dependencies.UNKNOWN_THIRD_PARTY": 1,
+      "nodes.UNKNOWN": 376,
+      "nodes.RUNTIME": 720,
+      "edges.RUNTIME": 1167,
+      "files.total": 3,
+      "dependencies.total": 1,
+      "routes.total": 0,
+      "nodes.total": 1096,
+      "edges.total": 1167,
+      "dependencies.requires_research": 1,
+      "files.generated": 0,
+      "files.tests": 0,
+      "files.contracts": 0,
+      "files.dead_candidates": 0
+    },
+    "pre_project_hygiene_summary": {
+      "files.SOURCE": 3,
+      "dependencies.UNKNOWN_THIRD_PARTY": 1,
+      "files.total": 3,
+      "dependencies.total": 1,
+      "routes.total": 0,
+      "nodes.total": 0,
+      "edges.total": 0,
+      "dependencies.requires_research": 1,
+      "files.generated": 0,
+      "files.tests": 0,
+      "files.contracts": 0,
+      "files.dead_candidates": 0
+    },
+    "items": [
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'self.legacy[key]': 'message' vs 'values'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'self.legacy[key]': 'message' vs 'values'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'self.legacy[key]': 'message' vs 'value'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'self.legacy[key]': 'message' vs 'value'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'extraction_files': 'self.options.changed_files' vs 'list'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'extraction_files': 'self.options.changed_files' vs 'list'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'self.reusable_final_graph'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'self.reusable_final_graph'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs 'graph.to_dict'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs 'graph.to_dict'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'merge_graph_documents(raw_graphs) if raw_graphs else GraphDocument()'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'merge_graph_documents(raw_graphs) if raw_graphs else GraphDocument()'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'impact_engine.normalization.graph.normalize_graph_document'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'impact_engine.normalization.graph.normalize_graph_document'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'eta': 'None' vs 'round'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'eta': 'None' vs 'round'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'result': 'self._refresh_changed_files' vs '{}'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'result': 'self._refresh_changed_files' vs '{}'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'selected': 'selected_compatibility_packs(self.selection_plan) if self.selection_plan else []' vs '[plugin_id for plugin_id in plan.selected_language_ids if changed_suffixes.intersection(set(plan.registry.manifests[plugin_id].file_extensions))] if plan.registry else []'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'selected': 'selected_compatibility_packs(self.selection_plan) if self.selection_plan else []' vs '[plugin_id for plugin_id in plan.selected_language_ids if changed_suffixes.intersection(set(plan.registry.manifests[plugin_id].file_extensions))] if plan.registry else []'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'selected': 'selected_compatibility_packs(self.selection_plan) if self.selection_plan else []' vs 'list'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'selected': 'selected_compatibility_packs(self.selection_plan) if self.selection_plan else []' vs 'list'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'self.prefetched_incremental_graphs': 'early_rebuilt' vs 'None'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'self.prefetched_incremental_graphs': 'early_rebuilt' vs 'None'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'previous_final': 'self.cache_load if self.cache_load and self.cache_load.hit else self.cache_store.load()' vs 'self.cache_store.load'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'previous_final': 'self.cache_load if self.cache_load and self.cache_load.hit else self.cache_store.load()' vs 'self.cache_store.load'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'self.incremental_cache_stats': \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': len(cached.nodes), 'facts_rebuilt': 0, 'nodes_reused': len(cached.nodes), 'edges_reused': len(cached.edges), 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\" vs \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': max(0, len(cached.nodes) - len(node_ids_to_remove)), 'facts_rebuilt': len(node_ids_to_remove), 'nodes_reused': max(0, len(cached.nodes) - len(node_ids_to_remove)), 'edges_reused': sum((1 for edge in cached.edges if not any(((ev.file or '').replace('\\\\\\\\', '/') in changed for ev in edge.evidence)))), 'invalidated_nodes': sorted(node_ids_to_remove), 'invalidated_edges': sorted(invalidated_edge_ids), 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'evidence_and_receiver_subgraph'}\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'self.incremental_cache_stats': \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': len(cached.nodes), 'facts_rebuilt': 0, 'nodes_reused': len(cached.nodes), 'edges_reused': len(cached.edges), 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\" vs \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': max(0, len(cached.nodes) - len(node_ids_to_remove)), 'facts_rebuilt': len(node_ids_to_remove), 'nodes_reused': max(0, len(cached.nodes) - len(node_ids_to_remove)), 'edges_reused': sum((1 for edge in cached.edges if not any(((ev.file or '').replace('\\\\\\\\', '/') in changed for ev in edge.evidence)))), 'invalidated_nodes': sorted(node_ids_to_remove), 'invalidated_edges': sorted(invalidated_edge_ids), 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'evidence_and_receiver_subgraph'}\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'prefix': \"(self.options.scope or '').replace('\\\\\\\\', '/').strip\" vs ''; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'prefix': \"(self.options.scope or '').replace('\\\\\\\\', '/').strip\" vs ''; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'result': 'self._refresh_changed_files' vs 'dataclasses.asdict'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'result': 'self._refresh_changed_files' vs 'dataclasses.asdict'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'metadata': 'dict' vs 'loaded.metadata or {}'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'metadata': 'dict' vs 'loaded.metadata or {}'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'stats': 'self.incremental_cache_stats' vs \"loaded.artifacts.get('snapshot_stats.json') if loaded.hit else None\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'stats': 'self.incremental_cache_stats' vs \"loaded.artifacts.get('snapshot_stats.json') if loaded.hit else None\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs 'loaded.artifacts.get'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs 'loaded.artifacts.get'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'event': \"{'phase': stage, 'stage': stage, 'message': message, 'processed': processed, 'total': total, 'stage_percent': round(stage_percent, 1), 'overall_percent': round(overall * 100.0, 1), 'elapsed_seconds': round(elapsed, 3), 'eta_seconds': eta, 'cancellable': self.cancellation is not None}\" vs \"{'phase': 'cache', 'stage': 'cache', 'message': 'Persistent cache reused', 'completed': 1, 'processed': 1, 'total': 1, 'stage_percent': 100.0, 'overall_percent': 100.0, 'elapsed_seconds': 0.0, 'eta_seconds': None, 'cancellable': False}\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'event': \"{'phase': stage, 'stage': stage, 'message': message, 'processed': processed, 'total': total, 'stage_percent': round(stage_percent, 1), 'overall_percent': round(overall * 100.0, 1), 'elapsed_seconds': round(elapsed, 3), 'eta_seconds': eta, 'cancellable': self.cancellation is not None}\" vs \"{'phase': 'cache', 'stage': 'cache', 'message': 'Persistent cache reused', 'completed': 1, 'processed': 1, 'total': 1, 'stage_percent': 100.0, 'overall_percent': 100.0, 'elapsed_seconds': 0.0, 'eta_seconds': None, 'cancellable': False}\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'progress': \"{'status': 'completed', 'events': self.progress_events, 'current': self.progress_events[-1]}\" vs \"{'status': 'completed', 'events': [event], 'current': event}\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'progress': \"{'status': 'completed', 'events': self.progress_events, 'current': self.progress_events[-1]}\" vs \"{'status': 'completed', 'events': [event], 'current': event}\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'selected': 'selected_compatibility_packs(self.selection_plan) if self.selection_plan else []' vs 'metadata.get'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'selected': 'selected_compatibility_packs(self.selection_plan) if self.selection_plan else []' vs 'metadata.get'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'raw_fragments': \"cached.metadata.get('raw_file_fragments', {}) if isinstance(cached.metadata, dict) else {}\" vs 'None'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'raw_fragments': \"cached.metadata.get('raw_file_fragments', {}) if isinstance(cached.metadata, dict) else {}\" vs 'None'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'raw_fragments': \"cached.metadata.get('raw_file_fragments', {}) if isinstance(cached.metadata, dict) else {}\" vs 'fragment_cache.artifacts.get'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'raw_fragments': \"cached.metadata.get('raw_file_fragments', {}) if isinstance(cached.metadata, dict) else {}\" vs 'fragment_cache.artifacts.get'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'raw_fragments': \"cached.metadata.get('raw_file_fragments', {}) if isinstance(cached.metadata, dict) else {}\" vs \"legacy_cache.artifacts.get('raw_file_fragments.json') if legacy_cache.hit else None\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'raw_fragments': \"cached.metadata.get('raw_file_fragments', {}) if isinstance(cached.metadata, dict) else {}\" vs \"legacy_cache.artifacts.get('raw_file_fragments.json') if legacy_cache.hit else None\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'previous_graph': \"previous_final.artifacts.get('graph.json') if previous_final.hit else None\" vs \"final_cache.artifacts.get('graph.json') if final_cache.hit else None\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'previous_graph': \"previous_final.artifacts.get('graph.json') if previous_final.hit else None\" vs \"final_cache.artifacts.get('graph.json') if final_cache.hit else None\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'self.incremental_cache_stats': \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': len(cached.nodes), 'facts_rebuilt': 0, 'nodes_reused': len(cached.nodes), 'edges_reused': len(cached.edges), 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\" vs \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': node_count, 'facts_rebuilt': 0, 'nodes_reused': node_count, 'edges_reused': edge_count, 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'self.incremental_cache_stats': \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': len(cached.nodes), 'facts_rebuilt': 0, 'nodes_reused': len(cached.nodes), 'edges_reused': len(cached.edges), 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\" vs \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': node_count, 'facts_rebuilt': 0, 'nodes_reused': node_count, 'edges_reused': edge_count, 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'nodes': 'len' vs \"[node.to_dict() for node in document.nodes if relative(node.properties.get('file') or node.properties.get('path') or node.properties.get('source_file')) in changed]\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'nodes': 'len' vs \"[node.to_dict() for node in document.nodes if relative(node.properties.get('file') or node.properties.get('path') or node.properties.get('source_file')) in changed]\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'edges': 'len' vs '[edge.to_dict() for edge in document.edges if any((relative(ev.file) in changed for ev in edge.evidence)) or edge.from_node in affected_ids or edge.to_node in affected_ids]'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'edges': 'len' vs '[edge.to_dict() for edge in document.edges if any((relative(ev.file) in changed for ev in edge.evidence)) or edge.from_node in affected_ids or edge.to_node in affected_ids]'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'text': \"str(value or '').replace\" vs 'path.resolve().relative_to(Path(self.project_path).resolve()).as_posix'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'text': \"str(value or '').replace\" vs 'path.resolve().relative_to(Path(self.project_path).resolve()).as_posix'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'self.cache_metadata': 'dataclasses.replace' vs 'CacheMetadata.from_project'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'self.cache_metadata': 'dataclasses.replace' vs 'CacheMetadata.from_project'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'self.cache_load': 'None' vs 'self.cache_store.load'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'self.cache_load': 'None' vs 'self.cache_store.load'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'progress': \"{'status': 'completed', 'events': self.progress_events, 'current': self.progress_events[-1]}\" vs \"{'status': 'completed', 'events': [progress_event], 'current': progress_event}\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'progress': \"{'status': 'completed', 'events': self.progress_events, 'current': self.progress_events[-1]}\" vs \"{'status': 'completed', 'events': [progress_event], 'current': progress_event}\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'languages': 'sorted' vs 'self.selection_plan.languages'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'languages': 'sorted' vs 'self.selection_plan.languages'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'self._merge_and_normalize'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'self._merge_and_normalize'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'self._apply_semantic_layer'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'self._apply_semantic_layer'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'self._apply_post_hygiene_layer'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'self._apply_post_hygiene_layer'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.normalization.graph.normalize_graph_document'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.normalization.graph.normalize_graph_document'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_quality.apply_quality_guard'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_quality.apply_quality_guard'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.plugin_architecture.integrity.annotate_plugin_provenance'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.plugin_architecture.integrity.annotate_plugin_provenance'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.plugin_architecture.integrity.plugin_graph_integrity_gate'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.plugin_architecture.integrity.plugin_graph_integrity_gate'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.community.annotate_communities'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.community.annotate_communities'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_identity.annotate_stable_identities'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_identity.annotate_stable_identities'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_quality.annotate_edge_contracts'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_quality.annotate_edge_contracts'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_quality.annotate_graph_quality'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'resolved': 'impact_engine.resolution.precision.resolve_precision' vs 'impact_engine.graph_quality.annotate_graph_quality'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for \"resolved.metadata['selective_execution']\": \"{'execution_mode': 'selective_plugin_execution', 'full_pipeline_called': False, 'selective_execution_proven': True, 'selected_language_plugins': list(self.selective_language_ids), 'skipped_language_plugins': [item for item in (self.selection_plan.selected_language_ids if self.selection_plan else []) if item not in self.selective_language_ids], 'fallback_reason': self.selective_execution_fallback}\" vs \"{'execution_mode': 'full_initial_scan', 'full_pipeline_called': True, 'selective_execution_proven': False, 'fallback_reason': 'initial_or_non_incremental_analysis'}\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for \"resolved.metadata['selective_execution']\": \"{'execution_mode': 'selective_plugin_execution', 'full_pipeline_called': False, 'selective_execution_proven': True, 'selected_language_plugins': list(self.selective_language_ids), 'skipped_language_plugins': [item for item in (self.selection_plan.selected_language_ids if self.selection_plan else []) if item not in self.selective_language_ids], 'fallback_reason': self.selective_execution_fallback}\" vs \"{'execution_mode': 'full_initial_scan', 'full_pipeline_called': True, 'selective_execution_proven': False, 'fallback_reason': 'initial_or_non_incremental_analysis'}\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs 'resolved.to_dict'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs 'resolved.to_dict'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'result': 'self._refresh_changed_files' vs 'pipeline.run'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'result': 'self._refresh_changed_files' vs 'pipeline.run'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'self.options': 'options' vs 'src.impact_engine.analysis.contracts.AnalysisOptions'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'self.options': 'options' vs 'src.impact_engine.analysis.contracts.AnalysisOptions'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'GraphDocument.from_dict'; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'graph': 'impact_engine.adapters.graphify.from_graphify_file' vs 'GraphDocument.from_dict'; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs \"previous_final.artifacts.get('graph.json') if previous_final.hit else None\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'graph_payload': 'self.reusable_final_graph_payload' vs \"previous_final.artifacts.get('graph.json') if previous_final.hit else None\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "conflicting binding for 'stats': 'self.incremental_cache_stats' vs \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': len(cached.nodes), 'facts_rebuilt': 0, 'nodes_reused': len(cached.nodes), 'edges_reused': len(cached.edges), 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\"; kept existing",
+        "actionable": false,
+        "details": "conflicting binding for 'stats': 'self.incremental_cache_stats' vs \"{'files_total': total_files, 'files_reused': max(0, total_files - len(changed)), 'files_reanalyzed': len(changed), 'facts_reused': len(cached.nodes), 'facts_rebuilt': 0, 'nodes_reused': len(cached.nodes), 'edges_reused': len(cached.edges), 'invalidated_nodes': [], 'invalidated_edges': [], 'cache_hit_rate': round(max(0, total_files - len(changed)) / total_files, 6) if total_files else 1.0, 'dependency_invalidation': 'none_raw_graph_delta', 'graph_delta': 'none'}\"; kept existing"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "binding cycle detected at 'time'",
+        "actionable": false,
+        "details": "binding cycle detected at 'time'"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "binding cycle detected at 'json'",
+        "actionable": false,
+        "details": "binding cycle detected at 'json'"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "binding cycle detected at 'hashlib'",
+        "actionable": false,
+        "details": "binding cycle detected at 'hashlib'"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.items.append",
+        "actionable": false,
+        "details": "unresolved receiver type for self.items.append"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for item.get",
+        "actionable": false,
+        "details": "unresolved receiver type for item.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for item.to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for item.to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for __import__('time').perf_counter",
+        "actionable": false,
+        "details": "unresolved receiver type for __import__('time').perf_counter"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for report.get",
+        "actionable": false,
+        "details": "unresolved receiver type for report.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for report.get('research_selection', {}).get",
+        "actionable": false,
+        "details": "unresolved receiver type for report.get('research_selection', {}).get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for Path(self.project_path).is_dir",
+        "actionable": false,
+        "details": "unresolved receiver type for Path(self.project_path).is_dir"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for raw_graphs.append",
+        "actionable": false,
+        "details": "unresolved receiver type for raw_graphs.append"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.extractors_used.append",
+        "actionable": false,
+        "details": "unresolved receiver type for self.extractors_used.append"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for time.perf_counter",
+        "actionable": false,
+        "details": "unresolved receiver type for time.perf_counter"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._progress",
+        "actionable": false,
+        "details": "unresolved receiver type for self._progress"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._try_reuse_final_graph_fragments",
+        "actionable": false,
+        "details": "unresolved receiver type for self._try_reuse_final_graph_fragments"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._load_raw_cache",
+        "actionable": false,
+        "details": "unresolved receiver type for self._load_raw_cache"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._refresh_changed_files",
+        "actionable": false,
+        "details": "unresolved receiver type for self._refresh_changed_files"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for plan.selected_ids",
+        "actionable": false,
+        "details": "unresolved receiver type for plan.selected_ids"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.extractors_used.extend",
+        "actionable": false,
+        "details": "unresolved receiver type for self.extractors_used.extend"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.plugin_diagnostics.extend",
+        "actionable": false,
+        "details": "unresolved receiver type for self.plugin_diagnostics.extend"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for graph.to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for graph.to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for graph_payload.get",
+        "actionable": false,
+        "details": "unresolved receiver type for graph_payload.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.cache_metadata.to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for self.cache_metadata.to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._record_profile_work",
+        "actionable": false,
+        "details": "unresolved receiver type for self._record_profile_work"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._write_graph_payload",
+        "actionable": false,
+        "details": "unresolved receiver type for self._write_graph_payload"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for GraphDocument.from_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for GraphDocument.from_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.support_pack_load_errors.extend",
+        "actionable": false,
+        "details": "unresolved receiver type for self.support_pack_load_errors.extend"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for pack.language.lower",
+        "actionable": false,
+        "details": "unresolved receiver type for pack.language.lower"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for pack.library.lower",
+        "actionable": false,
+        "details": "unresolved receiver type for pack.library.lower"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for loaded_keys.add",
+        "actionable": false,
+        "details": "unresolved receiver type for loaded_keys.add"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for support_packs.append",
+        "actionable": false,
+        "details": "unresolved receiver type for support_packs.append"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._inventory_data.get",
+        "actionable": false,
+        "details": "unresolved receiver type for self._inventory_data.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._inventory_data.get('declared_dependencies_by_ecosystem', {}).get",
+        "actionable": false,
+        "details": "unresolved receiver type for self._inventory_data.get('declared_dependencies_by_ecosystem', {}).get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for str(v).lower",
+        "actionable": false,
+        "details": "unresolved receiver type for str(v).lower"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._inventory_data.get('external_imports_by_ecosystem', {}).get",
+        "actionable": false,
+        "details": "unresolved receiver type for self._inventory_data.get('external_imports_by_ecosystem', {}).get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for name.startswith",
+        "actionable": false,
+        "details": "unresolved receiver type for name.startswith"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.support_pack_load_errors.append",
+        "actionable": false,
+        "details": "unresolved receiver type for self.support_pack_load_errors.append"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for ', '.join",
+        "actionable": false,
+        "details": "unresolved receiver type for ', '.join"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for validation.get",
+        "actionable": false,
+        "details": "unresolved receiver type for validation.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._raw_file_fragments",
+        "actionable": false,
+        "details": "unresolved receiver type for self._raw_file_fragments"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for graph.nodes.sort",
+        "actionable": false,
+        "details": "unresolved receiver type for graph.nodes.sort"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for graph.edges.sort",
+        "actionable": false,
+        "details": "unresolved receiver type for graph.edges.sort"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for graph._node_index.clear",
+        "actionable": false,
+        "details": "unresolved receiver type for graph._node_index.clear"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for graph._edge_id_index.clear",
+        "actionable": false,
+        "details": "unresolved receiver type for graph._edge_id_index.clear"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for reverse_index.to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for reverse_index.to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for Path(self.options.raw_graph_cache_path).resolve",
+        "actionable": false,
+        "details": "unresolved receiver type for Path(self.options.raw_graph_cache_path).resolve"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for cache_path.parent.mkdir",
+        "actionable": false,
+        "details": "unresolved receiver type for cache_path.parent.mkdir"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for ordered.index",
+        "actionable": false,
+        "details": "unresolved receiver type for ordered.index"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.progress_events.append",
+        "actionable": false,
+        "details": "unresolved receiver type for self.progress_events.append"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for node.properties.get",
+        "actionable": false,
+        "details": "unresolved receiver type for node.properties.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for str(node.properties.get('file') or node.properties.get('path') or node.properties.get('source_file') or '').replace",
+        "actionable": false,
+        "details": "unresolved receiver type for str(node.properties.get('file') or node.properties.get('path') or node.properties.get('source_file') or '').replace"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for node_files.setdefault",
+        "actionable": false,
+        "details": "unresolved receiver type for node_files.setdefault"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for node_files.setdefault(file_name, set()).add",
+        "actionable": false,
+        "details": "unresolved receiver type for node_files.setdefault(file_name, set()).add"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for fragments.setdefault",
+        "actionable": false,
+        "details": "unresolved receiver type for fragments.setdefault"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for fragments.setdefault(file_name, {'nodes': [], 'edges': []})['nodes'].append",
+        "actionable": false,
+        "details": "unresolved receiver type for fragments.setdefault(file_name, {'nodes': [], 'edges': []})['nodes'].append"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for node.to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for node.to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for str(ev.file).replace",
+        "actionable": false,
+        "details": "unresolved receiver type for str(ev.file).replace"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for node_files.items",
+        "actionable": false,
+        "details": "unresolved receiver type for node_files.items"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for edge.to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for edge.to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for fragments.setdefault(file_name, {'nodes': [], 'edges': []})['edges'].append",
+        "actionable": false,
+        "details": "unresolved receiver type for fragments.setdefault(file_name, {'nodes': [], 'edges': []})['edges'].append"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for fragments.items",
+        "actionable": false,
+        "details": "unresolved receiver type for fragments.items"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for json.dumps",
+        "actionable": false,
+        "details": "unresolved receiver type for json.dumps"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for hashlib.sha256",
+        "actionable": false,
+        "details": "unresolved receiver type for hashlib.sha256"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for hashlib.sha256(payload.encode('utf-8')).hexdigest",
+        "actionable": false,
+        "details": "unresolved receiver type for hashlib.sha256(payload.encode('utf-8')).hexdigest"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for payload.encode",
+        "actionable": false,
+        "details": "unresolved receiver type for payload.encode"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for graph.metadata.get",
+        "actionable": false,
+        "details": "unresolved receiver type for graph.metadata.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for semantic_meta.get",
+        "actionable": false,
+        "details": "unresolved receiver type for semantic_meta.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for bridge_meta.get",
+        "actionable": false,
+        "details": "unresolved receiver type for bridge_meta.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for hygiene_meta.get",
+        "actionable": false,
+        "details": "unresolved receiver type for hygiene_meta.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for pre_hygiene_meta.get",
+        "actionable": false,
+        "details": "unresolved receiver type for pre_hygiene_meta.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for stats.get",
+        "actionable": false,
+        "details": "unresolved receiver type for stats.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for Path(item).suffix.lower",
+        "actionable": false,
+        "details": "unresolved receiver type for Path(item).suffix.lower"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for changed_suffixes.intersection",
+        "actionable": false,
+        "details": "unresolved receiver type for changed_suffixes.intersection"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for cached.metadata.get",
+        "actionable": false,
+        "details": "unresolved receiver type for cached.metadata.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for current_fragments.get",
+        "actionable": false,
+        "details": "unresolved receiver type for current_fragments.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for raw_fragments.get",
+        "actionable": false,
+        "details": "unresolved receiver type for raw_fragments.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for previous_final.artifacts.get",
+        "actionable": false,
+        "details": "unresolved receiver type for previous_final.artifacts.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for node_ids_to_remove.add",
+        "actionable": false,
+        "details": "unresolved receiver type for node_ids_to_remove.add"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for invalidated_edge_ids.add",
+        "actionable": false,
+        "details": "unresolved receiver type for invalidated_edge_ids.add"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for reverse_index.by_source.get",
+        "actionable": false,
+        "details": "unresolved receiver type for reverse_index.by_source.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for invalidated_edge_ids.update",
+        "actionable": false,
+        "details": "unresolved receiver type for invalidated_edge_ids.update"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for (ev.file or '').replace",
+        "actionable": false,
+        "details": "unresolved receiver type for (ev.file or '').replace"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for Path(self.options.project_path).resolve",
+        "actionable": false,
+        "details": "unresolved receiver type for Path(self.options.project_path).resolve"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for (self.options.scope or '').replace",
+        "actionable": false,
+        "details": "unresolved receiver type for (self.options.scope or '').replace"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for (self.options.scope or '').replace('\\\\', '/').strip",
+        "actionable": false,
+        "details": "unresolved receiver type for (self.options.scope or '').replace('\\\\', '/').strip"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for result.get",
+        "actionable": false,
+        "details": "unresolved receiver type for result.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for project_root.as_posix",
+        "actionable": false,
+        "details": "unresolved receiver type for project_root.as_posix"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for loaded.artifacts.get",
+        "actionable": false,
+        "details": "unresolved receiver type for loaded.artifacts.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for (self.options.scope or '.').replace",
+        "actionable": false,
+        "details": "unresolved receiver type for (self.options.scope or '.').replace"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for (self.options.scope or '.').replace('\\\\', '/').strip",
+        "actionable": false,
+        "details": "unresolved receiver type for (self.options.scope or '.').replace('\\\\', '/').strip"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for metadata.get",
+        "actionable": false,
+        "details": "unresolved receiver type for metadata.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for current_git.get",
+        "actionable": false,
+        "details": "unresolved receiver type for current_git.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for graph_payload.setdefault",
+        "actionable": false,
+        "details": "unresolved receiver type for graph_payload.setdefault"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for graph_metadata.get",
+        "actionable": false,
+        "details": "unresolved receiver type for graph_metadata.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for loaded.artifacts.get('facts.json', {}).get",
+        "actionable": false,
+        "details": "unresolved receiver type for loaded.artifacts.get('facts.json', {}).get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for str(item.get('id', '')).removeprefix",
+        "actionable": false,
+        "details": "unresolved receiver type for str(item.get('id', '')).removeprefix"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for fragment_cache.artifacts.get",
+        "actionable": false,
+        "details": "unresolved receiver type for fragment_cache.artifacts.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for legacy_cache.artifacts.get",
+        "actionable": false,
+        "details": "unresolved receiver type for legacy_cache.artifacts.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for final_cache.artifacts.get",
+        "actionable": false,
+        "details": "unresolved receiver type for final_cache.artifacts.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for previous_graph.get",
+        "actionable": false,
+        "details": "unresolved receiver type for previous_graph.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for Path(self.options.out_path).resolve",
+        "actionable": false,
+        "details": "unresolved receiver type for Path(self.options.out_path).resolve"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for out_path.parent.mkdir",
+        "actionable": false,
+        "details": "unresolved receiver type for out_path.parent.mkdir"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for str(value or '').replace",
+        "actionable": false,
+        "details": "unresolved receiver type for str(value or '').replace"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for Path(self.project_path).resolve",
+        "actionable": false,
+        "details": "unresolved receiver type for Path(self.project_path).resolve"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for path.resolve().relative_to",
+        "actionable": false,
+        "details": "unresolved receiver type for path.resolve().relative_to"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for path.resolve().relative_to(Path(self.project_path).resolve()).as_posix",
+        "actionable": false,
+        "details": "unresolved receiver type for path.resolve().relative_to(Path(self.project_path).resolve()).as_posix"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._try_fast_cache_hit",
+        "actionable": false,
+        "details": "unresolved receiver type for self._try_fast_cache_hit"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._scan_inventory",
+        "actionable": false,
+        "details": "unresolved receiver type for self._scan_inventory"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for inventory_data.get",
+        "actionable": false,
+        "details": "unresolved receiver type for inventory_data.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.selection_plan.selected_ids",
+        "actionable": false,
+        "details": "unresolved receiver type for self.selection_plan.selected_ids"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for CacheMetadata.from_project",
+        "actionable": false,
+        "details": "unresolved receiver type for CacheMetadata.from_project"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.cache_load.artifacts.get",
+        "actionable": false,
+        "details": "unresolved receiver type for self.cache_load.artifacts.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for cached_graph.setdefault",
+        "actionable": false,
+        "details": "unresolved receiver type for cached_graph.setdefault"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.cache_load.artifacts.get('facts.json', {}).get",
+        "actionable": false,
+        "details": "unresolved receiver type for self.cache_load.artifacts.get('facts.json', {}).get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for cached_graph.get",
+        "actionable": false,
+        "details": "unresolved receiver type for cached_graph.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for cached_graph.get('metadata', {}).get",
+        "actionable": false,
+        "details": "unresolved receiver type for cached_graph.get('metadata', {}).get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._build_pre_hygiene",
+        "actionable": false,
+        "details": "unresolved receiver type for self._build_pre_hygiene"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._extract_graphs",
+        "actionable": false,
+        "details": "unresolved receiver type for self._extract_graphs"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._finish_no_graph_delta_incremental",
+        "actionable": false,
+        "details": "unresolved receiver type for self._finish_no_graph_delta_incremental"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._extract_graphify",
+        "actionable": false,
+        "details": "unresolved receiver type for self._extract_graphify"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._merge_and_normalize",
+        "actionable": false,
+        "details": "unresolved receiver type for self._merge_and_normalize"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for FactDocument.from_graph",
+        "actionable": false,
+        "details": "unresolved receiver type for FactDocument.from_graph"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for fact_document.summary",
+        "actionable": false,
+        "details": "unresolved receiver type for fact_document.summary"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for fact_path.parent.mkdir",
+        "actionable": false,
+        "details": "unresolved receiver type for fact_path.parent.mkdir"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for fact_document.to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for fact_document.to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for fact_path.resolve",
+        "actionable": false,
+        "details": "unresolved receiver type for fact_path.resolve"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.selection_plan.to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for self.selection_plan.to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._load_support_packs",
+        "actionable": false,
+        "details": "unresolved receiver type for self._load_support_packs"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for pack.get",
+        "actionable": false,
+        "details": "unresolved receiver type for pack.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._apply_semantic_layer",
+        "actionable": false,
+        "details": "unresolved receiver type for self._apply_semantic_layer"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._sync_local_registry",
+        "actionable": false,
+        "details": "unresolved receiver type for self._sync_local_registry"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._apply_post_hygiene_layer",
+        "actionable": false,
+        "details": "unresolved receiver type for self._apply_post_hygiene_layer"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self.plugin_diagnostics.append",
+        "actionable": false,
+        "details": "unresolved receiver type for self.plugin_diagnostics.append"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._annotate_unknown_regions",
+        "actionable": false,
+        "details": "unresolved receiver type for self._annotate_unknown_regions"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for resolved.metadata['resolution_coverage'].get",
+        "actionable": false,
+        "details": "unresolved receiver type for resolved.metadata['resolution_coverage'].get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for resolved.metadata['resolution_coverage'].get('accounting', {}).get",
+        "actionable": false,
+        "details": "unresolved receiver type for resolved.metadata['resolution_coverage'].get('accounting', {}).get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for self._record_graph_metadata",
+        "actionable": false,
+        "details": "unresolved receiver type for self._record_graph_metadata"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for resolved.to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for resolved.to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for build_reverse_dependency_index(resolved).to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for build_reverse_dependency_index(resolved).to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for facts.to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for facts.to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for resolved.metadata.get",
+        "actionable": false,
+        "details": "unresolved receiver type for resolved.metadata.get"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for pipeline.profiler.measure",
+        "actionable": false,
+        "details": "unresolved receiver type for pipeline.profiler.measure"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for result.to_dict",
+        "actionable": false,
+        "details": "unresolved receiver type for result.to_dict"
+      },
+      {
+        "component": "semantic_binding",
+        "severity": "info",
+        "code": "semantic_binding_diagnostics",
+        "message": "unresolved receiver type for pipeline.profiler.snapshot",
+        "actionable": false,
+        "details": "unresolved receiver type for pipeline.profiler.snapshot"
+      }
+    ]
+  },
+  "elapsed_harness_seconds": 54.658614,
+  "privacy": {
+    "mode": "local-only",
+    "raw_source_diagnostics_stored": false,
+    "redactions": {
+      "urls": 0,
+      "environment_names": 0,
+      "local_paths": 1
+    }
+  }
+}

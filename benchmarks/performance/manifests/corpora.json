@@ -1,0 +1,11 @@
+{
+  "schema_version": "impact-engine.corpus-manifest.v1",
+  "corpora": [
+    {"id": "codeslicer", "path": ".", "status": "available", "report": "baseline/CodeSlicer.analysis.json", "scope": "src/impact_engine/analysis"},
+    {"id": "mamAI", "path": "tests/corpus/mamAI", "status": "corpus_unavailable", "report": "baseline/mamAI.json", "run": "python benchmarks/performance/runner.py --corpus tests/corpus/mamAI"},
+    {"id": "Pixel Compressor", "path": "tests/corpus/Pixel Compressor", "status": "corpus_unavailable", "report": "baseline/Pixel Compressor.json", "run": "python benchmarks/performance/runner.py --corpus 'tests/corpus/Pixel Compressor'"},
+    {"id": "Cruxa", "path": "tests/corpus/Cruxa", "status": "available", "report": "baseline/Cruxa.frontend.json", "scope": "frontend"},
+    {"id": "JunMate", "path": "tests/corpus/JunMate", "status": "available", "report": "baseline/JunMate.json", "scope": "."},
+    {"id": "JevioFuseHack", "path": "tests/corpus/JevioFuseHack", "status": "available"}
+  ]
+}

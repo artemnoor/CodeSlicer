@@ -17,6 +17,19 @@ def test_normalize_graph_document_idempotent():
     assert len(res2.edges) == 0  # Creates zero new inferred edges
 
 
+def test_normalize_graph_document_materializes_unresolved_dependency_endpoint():
+    graph = GraphDocument()
+    graph.add_node(Node(id="scope", kind="FUNCTION", name="scope"))
+    graph.add_edge(Edge(id="dep", kind="DEPENDS_ON", from_node="scope", to_node="external.call"))
+
+    normalized = normalize_graph_document(graph)
+    unresolved = next(node for node in normalized.nodes if node.id == "external.call")
+    assert unresolved.kind == "EXTERNAL_LIBRARY"
+    assert unresolved.properties["unresolved_endpoint"] is True
+    assert unresolved.properties["resolution_status"] == "unresolved"
+    assert all(edge.from_node in {node.id for node in normalized.nodes} and edge.to_node in {node.id for node in normalized.nodes} for edge in normalized.edges)
+
+
 def test_merge_graph_documents_deduplicates():
     g1 = GraphDocument()
     g1.add_node(Node(id="A", kind="CLASS", name="A", properties={"x": 1}))

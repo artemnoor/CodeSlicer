@@ -8,8 +8,15 @@ from typing import Iterator
 
 
 DEFAULT_EXCLUDED_DIRS = {
-    ".git", ".impact_engine", "__pycache__", "venv", ".venv", "env",
-    "node_modules", "dist", "build", "target", ".next", "coverage",
+    ".git", ".impact_engine", ".codeslicer", "__pycache__", "venv", ".venv", "env",
+    "node_modules", "dist", "build", "target", ".next", "coverage", "bin", "obj", "vendor", "generated",
+    # Bundled parser repositories, browser artefacts and report directories
+    # are tooling outputs, not code belonging to the project under review.
+    "external_tools", "output", "artifacts",
+    # Adapter outputs are evidence inputs, never project source. In particular,
+    # Graphify keeps an AST cache below graphify-out/ that must not be indexed as
+    # JSON source by CodeSlicer on the next scan.
+    "graphify-out",
 }
 PLAN_NAME = "scan_plan.json"
 
@@ -38,7 +45,9 @@ def iter_project_files(root: str | Path, suffixes: set[str] | None = None) -> It
         for directory in directories:
             rel = f"{relative}/{directory}".strip("/")
             nested_repository = directory != ".git" and (current_path / directory / ".git").exists()
-            if directory in DEFAULT_EXCLUDED_DIRS or rel in extra or nested_repository:
+            # Prune hidden work directories here instead of yielding thousands
+            # of cache files and discarding them later in every extractor.
+            if directory.startswith(".") or directory in DEFAULT_EXCLUDED_DIRS or rel in extra or nested_repository:
                 continue
             kept.append(directory)
         directories[:] = kept
@@ -47,6 +56,38 @@ def iter_project_files(root: str | Path, suffixes: set[str] | None = None) -> It
             if suffixes and path.suffix.lower() not in suffixes:
                 continue
             yield path
+
+
+def iter_selected_project_files(
+    root: str | Path,
+    files: list[str] | tuple[str, ...] | set[str],
+    suffixes: set[str] | None = None,
+) -> Iterator[Path]:
+    """Yield only explicitly selected in-scope files without walking siblings."""
+    base = Path(root).resolve()
+    extra = _load_extra_exclusions(base)
+    candidates: dict[str, Path] = {}
+    for value in files:
+        candidate = Path(str(value).replace("\\", "/"))
+        if not candidate.is_absolute():
+            candidate = base / candidate
+        try:
+            candidate = candidate.resolve()
+            relative = candidate.relative_to(base).as_posix()
+        except (OSError, ValueError):
+            continue
+        if not candidate.is_file():
+            continue
+        parts = Path(relative).parts
+        if any(part in DEFAULT_EXCLUDED_DIRS or part.startswith(".") for part in parts):
+            continue
+        if any(relative == item or relative.startswith(item.rstrip("/") + "/") for item in extra):
+            continue
+        if suffixes and candidate.suffix.lower() not in suffixes:
+            continue
+        candidates[relative] = candidate
+    for relative in sorted(candidates):
+        yield candidates[relative]
 
 
 def build_scan_plan(root: str | Path) -> dict:

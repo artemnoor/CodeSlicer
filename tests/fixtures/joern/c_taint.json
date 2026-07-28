@@ -1,0 +1,16 @@
+{
+  "schema_version": "CodeSlicerJoernInterchange/v1",
+  "metadata": {"tool": "joern", "tool_version": "2.0.0", "project_path": "__PROJECT__", "created_at": "2026-07-26T00:00:00Z"},
+  "nodes": [
+    {"id": "c-source", "kind": "SOURCE", "name": "requestParam", "location": {"file": "src/handler.c", "range": {"start_line": 4, "start_character": 4, "end_line": 4, "end_character": 16}}},
+    {"id": "c-call", "kind": "CALL", "name": "buildQuery", "location": {"file": "src/handler.c", "range": {"start_line": 8, "start_character": 4, "end_line": 8, "end_character": 14}}},
+    {"id": "c-sink", "kind": "SINK", "name": "sqlite_exec", "location": {"file": "src/handler.c", "range": {"start_line": 12, "start_character": 4, "end_line": 12, "end_character": 14}}
+    }
+  ],
+  "edges": [
+    {"id": "c-flow-1", "from": "c-source", "to": "c-call", "kind": "DATA_FLOW", "confidence": "confirmed"},
+    {"id": "c-flow-2", "from": "c-call", "to": "c-sink", "kind": "DATA_FLOW", "confidence": "confirmed"}
+  ],
+  "taint_paths": [{"id": "c-path-1", "source": "c-source", "steps": ["c-source", "c-call", "c-sink"], "sink": "c-sink", "confidence": "confirmed", "locations": [{"file": "src/handler.c", "range": {"start_line": 4, "start_character": 4, "end_line": 4, "end_character": 16}}, {"file": "src/handler.c", "range": {"start_line": 12, "start_character": 4, "end_line": 12, "end_character": 14}}]}],
+  "findings": []
+}

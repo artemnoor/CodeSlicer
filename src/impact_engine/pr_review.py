@@ -10,6 +10,7 @@ from typing import Any
 from impact_engine.analysis.pipeline import analyze_project_core
 from impact_engine.impact import impact_query
 from impact_engine.models import GraphDocument
+from impact_engine.project_storage import is_codeslicer_artifact_path
 
 
 RISK_ORDER = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
@@ -19,9 +20,16 @@ RISK_ORDER = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
 class ChangedFile:
     path: str
     lines: set[int] = field(default_factory=set)
+    additions: int = 0
+    deletions: int = 0
 
     def to_dict(self) -> dict[str, Any]:
-        return {"path": self.path, "lines": sorted(self.lines)}
+        return {
+            "path": self.path,
+            "lines": sorted(self.lines),
+            "additions": self.additions,
+            "deletions": self.deletions,
+        }
 
 
 def pr_review_core(
@@ -30,8 +38,16 @@ def pr_review_core(
     diff_text: str | None = None,
     max_depth: int = 6,
     min_confidence: float = 0.0,
+    max_results: int = 10,
+    include_full_evidence: bool = False,
 ) -> dict[str, Any]:
-    """Create a structured PR impact report from git diff and impact graph."""
+    """Create a bounded PR report, with full evidence only on explicit opt-in.
+
+    ``impact_query`` intentionally returns the complete transitive closure for
+    investigation.  That is useful evidence, but it is not a useful default
+    review payload.  Keep the concise PR contract aligned with ``review`` and
+    let callers request the expensive/noisy closure explicitly.
+    """
 
     root = Path(project_path).resolve()
     if not root.exists():
@@ -39,48 +55,83 @@ def pr_review_core(
 
     graph = _load_or_analyze_graph(root, graph_path)
     diff = diff_text if diff_text is not None else _git_diff(root)
-    changed_files = parse_git_diff(diff)
-    changed_symbols = _changed_symbols(graph, changed_files)
+    # Import lazily: review imports a few legacy helpers from this module.
+    # At call time this module is fully initialized, so this avoids an import
+    # cycle while sharing the single, tested projection implementation.
+    from impact_engine.review import build_review_report
 
-    impact_results = []
-    seen_edges: dict[str, dict[str, Any]] = {}
-    seen_nodes: dict[str, dict[str, Any]] = {}
-    for symbol in changed_symbols:
-        result = impact_query(
-            graph,
-            target=symbol["id"],
-            direction="both",
-            max_depth=max_depth,
-            min_confidence=min_confidence,
-        )
-        impact_results.append({"changed_symbol": symbol, "impact": result})
-        for node in result.get("affected_nodes", []):
-            seen_nodes.setdefault(node["id"], node)
-        for edge in result.get("edges", []):
-            seen_edges.setdefault(edge["id"], edge)
-
-    changed_file_paths = {item.path for item in changed_files}
-    risk = score_pr_risk(changed_symbols, list(seen_nodes.values()), list(seen_edges.values()), changed_file_paths)
-    tests = recommend_tests(graph, list(seen_nodes.values()), list(seen_edges.values()), changed_file_paths)
-    sections = _output_sections(list(seen_edges.values()))
-
-    return {
+    concise = build_review_report(
+        str(root), graph=graph, diff_text=diff, refresh="never",
+        max_results=max(0, min(int(max_results), 10)), run_tests="suggested",
+    )
+    parsed_changed_files = parse_git_diff(diff)
+    generated_changes = [item.path for item in parsed_changed_files if is_codeslicer_artifact_path(item.path)]
+    changed_files = [item for item in parsed_changed_files if not is_codeslicer_artifact_path(item.path)]
+    changed_symbols = list(concise.get("changed", {}).get("symbols") or _changed_symbols(graph, changed_files))
+    visible = list(concise.get("top_impacts") or [])[:10]
+    chains = list(concise.get("chains") or [])[:3]
+    recommendations = list(concise.get("test_recommendations") or [])[:10]
+    required_categories = {"direct_changed_symbol", "symbol_call", "route_controller_integration", "frontend_backend_contract"}
+    tests = {
+        "required": [item for item in recommendations if item.get("category") in required_categories],
+        "recommended": [item for item in recommendations if item.get("category") not in required_categories],
+    }
+    result: dict[str, Any] = {
+        "schema_version": "PRReview/v2",
         "status": "ok",
         "project_path": str(root),
         "changed_files": [item.to_dict() for item in changed_files],
         "changed_symbols": changed_symbols,
-        "risk": risk,
+        "risk": concise.get("risk", {}),
         "suggested_tests": tests,
-        "impact_sections": sections,
-        "impact_results": impact_results,
+        "top_impacts": visible,
+        "test_recommendations": recommendations,
+        "chains": chains,
+        "review_projection": concise.get("review_projection", {}),
+        "warnings": list(concise.get("warnings") or []),
+        "full_evidence": {
+            "status": "not_requested",
+            "hint": "Pass include_full_evidence=true (or --full-evidence) for the complete impact closure.",
+            "max_depth": max_depth,
+            "min_confidence": min_confidence,
+        },
         "summary": {
             "changed_files": len(changed_files),
             "changed_symbols": len(changed_symbols),
-            "affected_nodes": len(seen_nodes),
-            "affected_edges": len(seen_edges),
-            "risk_level": risk["level"],
+            "top_impacts": len(visible),
+            "test_recommendations": len(recommendations),
+            "evidence_chains": len(chains),
+            "risk_level": concise.get("risk", {}).get("level", "UNKNOWN"),
         },
     }
+    if generated_changes:
+        result["warnings"].append(
+            f"{len(generated_changes)} generated CodeSlicer artifact changes excluded from PR review"
+        )
+    if include_full_evidence:
+        impact_results = []
+        seen_edges: dict[str, dict[str, Any]] = {}
+        seen_nodes: dict[str, dict[str, Any]] = {}
+        for symbol in changed_symbols:
+            impact = impact_query(
+                graph, target=symbol["id"], direction="both",
+                max_depth=max_depth, min_confidence=min_confidence,
+            )
+            impact_results.append({"changed_symbol": symbol, "impact": impact})
+            for node in impact.get("affected_nodes", []):
+                seen_nodes.setdefault(node["id"], node)
+            for edge in impact.get("edges", []):
+                seen_edges.setdefault(edge["id"], edge)
+        result["full_evidence"] = {
+            "status": "included_on_explicit_request",
+            "affected_nodes": len(seen_nodes),
+            "affected_edges": len(seen_edges),
+            "impact_sections": _output_sections(list(seen_edges.values())),
+            "impact_results": impact_results,
+            "max_depth": max_depth,
+            "min_confidence": min_confidence,
+        }
+    return result
 
 
 def parse_git_diff(diff_text: str) -> list[ChangedFile]:
@@ -112,8 +163,10 @@ def parse_git_diff(diff_text: str) -> list[ChangedFile]:
             continue
         if line.startswith("+") and not line.startswith("+++"):
             current.lines.add(new_line)
+            current.additions += 1
             new_line += 1
         elif line.startswith("-") and not line.startswith("---"):
+            current.deletions += 1
             continue
         else:
             new_line += 1
@@ -234,6 +287,7 @@ def _changed_symbols(graph: GraphDocument, changed_files: list[ChangedFile]) -> 
     changed_by_path = {item.path: item for item in changed_files}
     symbols: list[dict[str, Any]] = []
     seen = set()
+    declarations: dict[str, list[tuple[Any, ChangedFile]]] = {}
     for node in graph.nodes:
         file_name = str(node.properties.get("file") or node.properties.get("path") or "")
         if not file_name:
@@ -242,21 +296,46 @@ def _changed_symbols(graph: GraphDocument, changed_files: list[ChangedFile]) -> 
         if matched is None:
             continue
         line = node.properties.get("line")
-        if matched.lines and isinstance(line, int) and node.kind in {"METHOD", "FUNCTION", "CLASS"}:
-            # Keep symbols at or before the changed line in the same file. This
-            # is a conservative hunk mapping without requiring full AST ranges.
-            if all(abs(line - changed_line) > 80 and line > changed_line for changed_line in matched.lines):
+        is_csharp = str(node.properties.get("language") or "").lower() == "csharp" or file_name.lower().endswith(".cs")
+        allowed_kinds = {"METHOD", "FUNCTION", "CLASS", "FILE", "MODULE"}
+        if not is_csharp:
+            allowed_kinds.add("ROUTE")
+        if node.kind not in allowed_kinds:
+            continue
+        declarations.setdefault(file_name, []).append((node, matched))
+
+    # Resolve each changed hunk to the most specific declaration that contains
+    # it.  The previous broad +/-80-line window promoted neighbouring methods
+    # such as __init__ into independent anchors, crowding the actual changed
+    # method and its causal downstream calls out of concise Review.
+    specificity = {"METHOD": 0, "FUNCTION": 0, "ROUTE": 1, "CLASS": 2, "MODULE": 3, "FILE": 4}
+    for file_name, items in declarations.items():
+        matched = items[0][1]
+        line_items = [(node, line) for node, _ in items if isinstance((line := node.properties.get("line")), int)]
+        line_items.sort(key=lambda item: (item[1], specificity.get(item[0].kind, 9), item[0].id))
+        if not matched.lines or not line_items:
+            continue
+        for changed_line in sorted(matched.lines):
+            preceding = [item for item in line_items if item[1] <= changed_line]
+            if not preceding:
+                exact = [item for item in line_items if item[1] == changed_line]
+                preceding = exact
+            if not preceding:
                 continue
-        if node.kind not in {"METHOD", "FUNCTION", "CLASS", "ROUTE", "FILE", "MODULE"}:
-            continue
-        if node.id in seen:
-            continue
-        seen.add(node.id)
-        symbols.append({"id": node.id, "kind": node.kind, "file": file_name, "line": line})
+            nearest_line = max(item[1] for item in preceding)
+            nearest = [item for item in preceding if item[1] == nearest_line]
+            node = min(nearest, key=lambda item: (specificity.get(item[0].kind, 9), item[0].id))[0]
+            if node.id in seen:
+                continue
+            seen.add(node.id)
+            symbols.append({
+                "id": node.id, "kind": node.kind, "file": file_name,
+                "line": node.properties.get("line"), "changed_lines": sorted(matched.lines),
+            })
 
     if not symbols:
         for item in changed_files:
-            symbols.append({"id": item.path, "kind": "FILE", "file": item.path, "line": None})
+            symbols.append({"id": item.path, "kind": "FILE", "file": item.path, "line": None, "changed_lines": sorted(item.lines)})
     return symbols
 
 

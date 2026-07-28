@@ -1,0 +1,1 @@
+"""SARIF adapter manifest package."""

@@ -1,0 +1,50 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "frontend"}}]},
+      "scopeSpans": [{"spans": [
+        {"traceId": "cccccccccccccccccccccccccccccccc", "spanId": "link-client-1", "name": "GET /api/orders", "kind": 3, "attributes": [
+          {"key": "http.request.method", "value": {"stringValue": "GET"}},
+          {"key": "http.route", "value": {"stringValue": "/api/orders"}}
+        ]}
+      ]}]
+    },
+    {
+      "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "frontend"}}]},
+      "scopeSpans": [{"spans": [
+        {"traceId": "cccccccccccccccccccccccccccccccc", "spanId": "link-client-2", "name": "GET /api/orders", "kind": 3, "attributes": [
+          {"key": "http.request.method", "value": {"stringValue": "GET"}},
+          {"key": "http.route", "value": {"stringValue": "/api/orders"}}
+        ], "links": [{"traceId": "cccccccccccccccccccccccccccccccc"}]}
+      ]}]
+    },
+    {
+      "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "orders-api"}}]},
+      "scopeSpans": [{"spans": [
+        {"traceId": "cccccccccccccccccccccccccccccccc", "spanId": "link-server-1", "name": "GET /api/orders", "kind": 2, "attributes": [
+          {"key": "http.request.method", "value": {"stringValue": "GET"}},
+          {"key": "http.route", "value": {"stringValue": "/api/orders"}}
+        ], "links": [{
+          "traceId": "cccccccccccccccccccccccccccccccc",
+          "spanId": "link-client-1",
+          "attributes": [
+            {"key": "http.request.id", "value": {"stringValue": "request-1"}},
+            {"key": "authorization", "value": {"stringValue": "SHOULD_NOT_APPEAR"}}
+          ]
+        }]}
+      ]}]
+    },
+    {
+      "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "orders-api"}}]},
+      "scopeSpans": [{"spans": [
+        {"traceId": "cccccccccccccccccccccccccccccccc", "spanId": "link-server-2", "name": "GET /api/orders", "kind": 2, "attributes": [
+          {"key": "http.request.method", "value": {"stringValue": "GET"}},
+          {"key": "http.route", "value": {"stringValue": "/api/orders"}}
+        ], "links": [{
+          "traceId": "cccccccccccccccccccccccccccccccc",
+          "spanId": "link-client-2"
+        }]}
+      ]}]
+    }
+  ]
+}

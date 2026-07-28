@@ -61,7 +61,8 @@ def test_final_acceptance_pipeline():
     assert react_hook_edge.properties.get("support_pack_id") == "react"
     
     # useOrderSubmit -> postOrder
-    react_api_edge = next((e for e in graph.edges if e.from_node == "useOrderSubmit" and e.to_node == "postOrder"), None)
+    node_by_id = {node.id: node for node in graph.nodes}
+    react_api_edge = next((e for e in graph.edges if e.from_node == "useOrderSubmit" and node_by_id.get(e.to_node, None) and node_by_id[e.to_node].properties.get("call_name") == "postOrder"), None)
     assert react_api_edge is not None
     assert react_api_edge.properties.get("support_pack_id") == "react"
     

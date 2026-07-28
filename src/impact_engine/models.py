@@ -186,6 +186,11 @@ class GraphDocument:
                 if v not in vals:
                     vals.append(v)
 
+    def get_node(self, node_id: str) -> Optional[Node]:
+        """Return a node by stable id without exposing the internal index."""
+        self._ensure_indexes()
+        return self._node_index.get(str(node_id))
+
     def _merge_edge(self, existing: Edge, incoming: Edge) -> None:
         if SOURCE_PRIORITY.get(incoming.source, 0) > SOURCE_PRIORITY.get(existing.source, 0):
             existing.source = incoming.source
@@ -391,7 +396,7 @@ class FactDocument:
 
 def _fact_language(file_path: str) -> str:
     suffix = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else ""
-    return {"py": "python", "js": "javascript", "jsx": "javascript", "ts": "typescript", "tsx": "typescript", "go": "go", "java": "java"}.get(suffix, "unknown")
+    return {"py": "python", "js": "javascript", "jsx": "javascript", "ts": "typescript", "tsx": "typescript", "go": "go", "java": "java", "cs": "csharp"}.get(suffix, "unknown")
 
 
 @dataclass

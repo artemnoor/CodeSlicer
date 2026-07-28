@@ -1,0 +1,20 @@
+{
+  "schema_version": "CodeSlicerScipInterchange/v1",
+  "index": {"tool": "fixture-scip-indexer", "version": "0.1", "commit": "fixture-ts-commit", "created_at": "2026-07-25T00:00:00Z"},
+  "documents": [
+    {
+      "relative_path": "src/service.ts",
+      "symbols": [
+        {"symbol": "ts/service/Greeter#say().", "display_name": "say", "kind": "method"},
+        {"symbol": "ts/service/Greeter", "display_name": "Greeter", "kind": "class", "relationships": [{"symbol": "ts/service/GreeterImpl", "kind": "implementation"}]},
+        {"symbol": "ts/service/GreeterImpl", "display_name": "GreeterImpl", "kind": "class"}
+      ],
+      "occurrences": [
+        {"symbol": "ts/service/Greeter", "symbol_name": "Greeter", "kind": "class", "role": "definition", "range": [1, 0, 3, 1]},
+        {"symbol": "ts/service/Greeter#say().", "symbol_name": "say", "kind": "method", "role": "definition", "range": [2, 2, 2, 14]},
+        {"symbol": "ts/service/GreeterImpl", "symbol_name": "GreeterImpl", "kind": "class", "role": "definition", "range": [6, 0, 8, 1]},
+        {"symbol": "ts/service/Greeter#say().", "symbol_name": "say", "kind": "method", "role": "reference", "enclosing_symbol": "ts/service/GreeterImpl", "range": [7, 2, 7, 12]}
+      ]
+    }
+  ]
+}

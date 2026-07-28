@@ -1,0 +1,10 @@
+{
+  "schema": "CodeGraph/v1",
+  "nodes": [
+    {"id": "file:app.py", "kind": "file", "name": "app.py", "file": "app.py", "range": {"start": {"line": 0, "character": 0}, "end": {"line": 8, "character": 0}}},
+    {"id": "symbol:handler", "kind": "symbol", "name": "handler", "file": "app.py", "range": {"start": {"line": 2, "character": 0}, "end": {"line": 4, "character": 0}}}
+  ],
+  "edges": [
+    {"id": "contains-1", "from": "file:app.py", "to": "symbol:handler", "kind": "contains", "confidence": "extracted", "file": "app.py", "range": {"start": {"line": 2, "character": 0}, "end": {"line": 2, "character": 7}}}
+  ]
+}

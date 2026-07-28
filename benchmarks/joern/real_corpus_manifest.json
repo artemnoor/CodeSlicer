@@ -1,0 +1,93 @@
+{
+  "schema_version": "CodeSlicerJoernRealCorpusManifest/v1",
+  "cases": [
+    {
+      "case_id": "vul4c-cve-2017-7607",
+      "language": "C",
+      "url": "https://github.com/SoK-Vul4C/SoK",
+      "commit_sha": "88676eb20acfd6dee7678a4614944d3b5f323638",
+      "license": "No repository license file declared; verify upstream dataset and per-case terms before use",
+      "project_subpath": "materialized/elfutils-0.168",
+      "materialized_source": {
+        "url": "https://sourceware.org/pub/elfutils/0.168/elfutils-0.168.tar.bz2",
+        "artifact_sha256": "b88d07893ba1373c7dd69a7855974706d05377766568a7d9002706d5de72c276"
+      },
+      "materialization": {
+        "kind": "archive",
+        "input_relative": "Vul4C-Benchmark/elfutils/CVE-2017-7607/elfutils-0.168.tar.bz2",
+        "output_relative": "materialized/elfutils-0.168",
+        "artifact_sha256": "b88d07893ba1373c7dd69a7855974706d05377766568a7d9002706d5de72c276",
+        "instructions": ["Verify the archive SHA-256", "Extract the archive into materialized/elfutils-0.168", "Do not ask the runner to download or extract it"]
+      },
+      "source": {
+        "description": "crafted ELF input consumed while processing the readelf file",
+        "query": "cpg.call.nameExact(\"elf_getdata\")"
+      },
+      "sink": {
+        "description": "handle_gnu_hash in readelf.c, the documented vulnerable processing function",
+        "query": "cpg.method.nameExact(\"handle_gnu_hash\")"
+      },
+      "commands": {
+        "frontend_args": ["--language", "c", "--output", "{cpg_output}", "{project}"],
+        "query_file": "queries/vul4c_cve_2017_7607.sc",
+        "query_args": ["--script", "{query_file}", "--param", "\"cpgFile={cpg_output}\"", "--param", "\"output={query_output}\""]
+      },
+      "expected": {
+        "confirmed_paths": 1,
+        "source_selector": {"kinds": ["CALL"], "file_suffix": "readelf.c", "line": 3206},
+        "sink_selector": {"kinds": ["IDENTIFIER"], "file_suffix": "readelf.c", "line": 3268},
+        "min_steps": 1,
+        "dangerous_call_context": ["<operator>.indirectIndexAccess", "handle_gnu_hash"],
+        "prohibited_false_positive_paths": [],
+        "required_locations": true,
+        "freshness": "verified",
+        "privacy": {"mode": "local-only", "network_used": false}
+      },
+      "limitations": ["crafted binary input is represented by static parser calls", "macro and parser-generated control flow may be incomplete", "the benchmark case is not a claim that CodeSlicer independently discovered the CVE"]
+    },
+    {
+      "case_id": "vul4j-10-cve-2013-2186",
+      "language": "Java",
+      "url": "https://github.com/tuhh-softsec/Vul4J",
+      "commit_sha": "376411da11fa705019f731404de1d0679fe73537",
+      "license": "Apache-2.0 for apache/commons-fileupload; Vul4J framework GPL-3.0 and dataset CC-BY-4.0",
+      "project_subpath": "materialized/commons-fileupload",
+      "materialized_source": {
+        "url": "https://github.com/apache/commons-fileupload",
+        "commit_sha": "e685ae49df3ccb864493f51a14ddd884e86e7e03"
+      },
+      "materialization": {
+        "kind": "git-checkout",
+        "output_relative": "materialized/commons-fileupload",
+        "source_repo_url": "https://github.com/apache/commons-fileupload",
+        "source_commit_sha": "e685ae49df3ccb864493f51a14ddd884e86e7e03",
+        "instructions": ["Create a separate local checkout of the source repository", "Run git checkout e685ae49df3ccb864493f51a14ddd884e86e7e03", "Do not ask the runner to clone or fetch it"]
+      },
+      "source": {
+        "description": "ObjectInputStream parameter entering the real DiskFileItem deserialization hook",
+        "query": "cpg.method.nameExact(\"readObject\").parameter"
+      },
+      "sink": {
+        "description": "defaultReadObject call in the real DiskFileItem deserialization hook",
+        "query": "cpg.method.nameExact(\"readObject\").ast.isCall.nameExact(\"defaultReadObject\")"
+      },
+      "commands": {
+        "frontend_args": ["--language", "javasrc", "--output", "{cpg_output}", "{project}"],
+        "query_file": "queries/vul4j_10_cve_2013_2186.sc",
+        "query_args": ["--script", "{query_file}", "--param", "\"cpgFile={cpg_output}\"", "--param", "\"output={query_output}\""]
+      },
+      "expected": {
+        "confirmed_paths": 1,
+        "source_selector": {"kinds": ["METHOD_PARAMETER_IN"], "file_suffix": "DiskFileItem.java", "line": 654},
+        "sink_selector": {"kinds": ["CALL"], "name_exact": "defaultReadObject", "file_suffix": "DiskFileItem.java", "line": 657},
+        "min_steps": 1,
+        "dangerous_call_context": ["DiskFileItem.readObject"],
+        "prohibited_false_positive_paths": [],
+        "required_locations": true,
+        "freshness": "verified",
+        "privacy": {"mode": "local-only", "network_used": false}
+      },
+      "limitations": ["historical Maven dependencies can prevent frontend compilation", "the demonstrated path reaches the Java deserialization primitive inside the vulnerable class; framework dispatch and exploitability are not inferred", "the benchmark case is not a claim that CodeSlicer independently discovered the CVE"]
+    }
+  ]
+}

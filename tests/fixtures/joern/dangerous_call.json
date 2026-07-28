@@ -1,0 +1,8 @@
+{
+  "schema_version": "CodeSlicerJoernInterchange/v1",
+  "metadata": {"tool": "joern", "tool_version": "2.0.0", "project_path": "__PROJECT__"},
+  "nodes": [{"id": "danger", "kind": "DANGEROUS_CALL", "name": "system", "location": {"file": "src/legacy.c", "range": {"start_line": 3, "start_character": 2, "end_line": 3, "end_character": 8}}}],
+  "edges": [],
+  "taint_paths": [],
+  "findings": [{"id": "finding-system", "kind": "DANGEROUS_CALL", "node": "danger", "category": "command_execution", "severity": "high", "confidence": "likely"}]
+}

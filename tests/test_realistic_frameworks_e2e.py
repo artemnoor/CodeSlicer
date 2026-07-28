@@ -77,7 +77,8 @@ def test_react_realistic_e2e():
     assert edge_hook.properties.get("support_pack_id") == "react"
 
     # 2. Hook -> API: useOrders -> postOrder
-    edge_api = next((e for e in resolved.edges if e.from_node == "useOrders" and e.to_node == "postOrder"), None)
+    node_by_id = {node.id: node for node in resolved.nodes}
+    edge_api = next((e for e in resolved.edges if e.from_node == "useOrders" and node_by_id.get(e.to_node, None) and node_by_id[e.to_node].properties.get("call_name") == "postOrder"), None)
     assert edge_api is not None
     assert edge_api.source == "INFERRED"
     assert edge_api.confidence == 0.60

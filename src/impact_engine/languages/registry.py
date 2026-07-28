@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List, Optional
 from impact_engine.languages.models import LanguageProfile
 from impact_engine.languages.semantics import (
+    CSHARP_SEMANTICS,
     GO_SEMANTICS,
     JAVA_SEMANTICS,
     JAVASCRIPT_SEMANTICS,
@@ -65,12 +66,23 @@ JAVA_PROFILE = LanguageProfile(
     semantic_provider=JAVA_SEMANTICS,
 )
 
+CSHARP_PROFILE = LanguageProfile(
+    language_id="csharp",
+    display_name="C#",
+    file_extensions={".cs"},
+    package_manifest_files={".csproj", ".sln", ".slnx", "directory.build.props", "global.json"},
+    standard_library_modules={"System", "Microsoft", "mscorlib", "netstandard"},
+    default_extractor_id="csharp_structural",
+    semantic_provider=CSHARP_SEMANTICS,
+)
+
 PROFILES = {
     "python": PYTHON_PROFILE,
     "javascript": JAVASCRIPT_PROFILE,
     "typescript": TYPESCRIPT_PROFILE,
     "go": GO_PROFILE,
-    "java": JAVA_PROFILE
+    "java": JAVA_PROFILE,
+    "csharp": CSHARP_PROFILE,
 }
 
 

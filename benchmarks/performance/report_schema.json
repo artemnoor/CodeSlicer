@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "corpus", "status", "timings", "cache", "correctness", "incomplete", "diagnostics"],
+  "properties": {
+    "schema_version": {"const": "impact-engine.performance-report.v1"},
+    "corpus": {"type": "object"},
+    "status": {"type": "string", "enum": ["ok", "corpus_unavailable", "error"]},
+    "timings": {"type": "object"},
+    "cache": {"type": "object"},
+    "correctness": {"type": "object"},
+    "incomplete": {"type": "boolean"},
+    "diagnostics": {"type": "array"}
+  }
+}

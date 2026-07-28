@@ -1,0 +1,8 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {"created": "2026-07-25T10:00:00Z", "createdBy": ["fixture-generator"]},
+  "packages": [{"SPDXID": "SPDXRef-requests", "name": "requests", "versionInfo": "2.31.0", "packageFileName": "poetry.lock", "licenseDeclared": "Apache-2.0", "externalRefs": [{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl", "referenceLocator": "pkg:pypi/requests@2.31.0"}]}],
+  "files": [],
+  "relationships": []
+}

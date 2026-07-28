@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Onboarding Workflow"
+  short_description: "Connect a project, map it, review changes safely."
+  default_prompt: "Connect this local folder or Git URL and prepare the architecture and impact-analysis workflow."

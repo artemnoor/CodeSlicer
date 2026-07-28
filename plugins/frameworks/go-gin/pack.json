@@ -1,0 +1,19 @@
+{
+  "id": "framework.go.gin",
+  "kind": "framework",
+  "language": "go",
+  "version": "1.0.0",
+  "file_extensions": [],
+  "manifest_files": ["go.mod"],
+  "supported_versions": [],
+  "activation": {"dependencies": ["github.com/gin-gonic/gin", "gin-gonic/gin"], "imports": ["github.com/gin-gonic/gin"], "compat_source": "support_packs/go/gin/support_pack.json"},
+  "capabilities": {"declarative_rules": true},
+  "phases": ["resolve", "validate"],
+  "entrypoint": "impact_engine.plugin_architecture.manifest_runtime:create_framework_plugin",
+  "cache_key": "framework.go.gin-compat-v1",
+  "allowed_edge_kinds": ["ROUTE_HANDLES", "CALLS", "DEPENDS_ON"],
+  "confidence_policy": {"default": "evidence_capped"},
+  "evidence_requirements": {"requires_locations": true},
+  "fixtures": [],
+  "local_first": true
+}

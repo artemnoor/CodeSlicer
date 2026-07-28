@@ -1,0 +1,19 @@
+{
+  "id": "framework.csharp.aspnetcore",
+  "kind": "framework",
+  "language": "csharp",
+  "version": "1.0.0",
+  "file_extensions": [],
+  "manifest_files": [".csproj", ".sln", ".slnx"],
+  "activation": {"dependencies": ["Microsoft.AspNetCore"], "imports": ["Microsoft.AspNetCore", "Microsoft.AspNetCore.Mvc", "Microsoft.Extensions.Hosting"]},
+  "supported_versions": ["6.0+"],
+  "capabilities": {"declarative_rules": true, "optional_hook": true, "hook_entrypoints": {"csharp_aspnetcore_rules": "aspnetcore_rules"}, "hook_phases": {"csharp_aspnetcore_rules": "pre_resolution"}},
+  "phases": ["resolve", "validate"],
+  "entrypoint": "impact_engine.plugin_architecture.manifest_runtime:create_framework_plugin",
+  "cache_key": "framework.csharp.aspnetcore-v3",
+  "allowed_edge_kinds": ["ROUTE_HANDLES", "DEPENDS_ON", "HTTP_CALLS"],
+  "confidence_policy": {"default": "evidence_capped"},
+  "evidence_requirements": {"requires_locations": true},
+  "fixtures": ["tests/corpus/Cruxa"],
+  "local_first": true
+}

@@ -222,7 +222,7 @@ def _add_map_value(target: dict[str, set[str]], ecosystem: str, value: str) -> N
 
 
 def _is_ignored_path(parts: tuple[str, ...]) -> bool:
-    ignored = {"__pycache__", "venv", "env", "node_modules", "dist", "build", "target", ".next", "coverage"}
+    ignored = {"__pycache__", "venv", "env", ".codeslicer", "node_modules", "dist", "build", "target", ".next", "coverage", "bin", "obj", "vendor", "generated", "graphify-out", "external_tools", "output", "artifacts"}
     return any(part.startswith(".") or part in ignored for part in parts)
 
 
@@ -281,6 +281,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
     ts_files = []
     go_files = []
     java_files = []
+    csharp_files = []
     manifests = []
     local_modules = set()
     local_modules_by_ecosystem: dict[str, set[str]] = {}
@@ -300,7 +301,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
             files.append(rel_path)
 
             suffix = p.suffix.lower()
-            if suffix in [".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java"]:
+            if suffix in [".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".cs"]:
                 try:
                     content_for_counts = p.read_text(encoding="utf-8")
                     loc += len([line for line in content_for_counts.splitlines() if line.strip()])
@@ -356,11 +357,17 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
                     package_parts = package_name.split(".")
                     for size in range(2, len(package_parts) + 1):
                         _add_map_value(local_modules_by_ecosystem, "java", ".".join(package_parts[:size]))
+            elif suffix == ".cs":
+                csharp_files.append(p)
+                if parts:
+                    _add_map_value(local_modules_by_ecosystem, "csharp", parts[0].rsplit(".", 1)[0])
+                classes_count += len(re.findall(r"\b(?:class|interface|record|struct)\s+[A-Za-z_]\w*", content_for_counts))
+                methods_count += len(re.findall(r"\b[A-Za-z_]\w*\s*\([^;{}]*\)\s*(?:=>|\{)", content_for_counts))
 
             # Determine local modules
             if parts:
                 top_part = parts[0]
-                if top_part.endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java")):
+                if top_part.endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".cs")):
                     local_modules.add(top_part.rsplit(".", 1)[0])
                 else:
                     local_modules.add(top_part)
@@ -385,6 +392,17 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
         "build.gradle": ("java", parse_build_gradle),
         "tsconfig.json": ("typescript", lambda path: []),
     }
+    for csproj in iter_project_files(root):
+        if csproj.is_file() and csproj.suffix.lower() in {".csproj", ".sln", ".slnx"} and not _is_ignored_path(csproj.relative_to(root).parts):
+            manifests.append(csproj.relative_to(root).as_posix())
+            ecosystem = "csharp"
+            text = csproj.read_text(encoding="utf-8", errors="ignore")
+            deps = set(re.findall(r"<PackageReference\s+Include=[\"']([^\"']+)", text, flags=re.I))
+            declared_dependencies.update(deps)
+            declared_dependencies_by_ecosystem.setdefault(ecosystem, set()).update(deps)
+            refs = re.findall(r"<ProjectReference\s+Include=[\"']([^\"']+)", text, flags=re.I)
+            for ref in refs:
+                _add_map_value(local_modules_by_ecosystem, ecosystem, Path(ref).stem)
 
     for m_path in iter_project_files(root):
         if not m_path.is_file():
@@ -479,6 +497,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
     for f in js_files + ts_files:
         try:
             content = f.read_text(encoding="utf-8")
+            ecosystem = "typescript" if f.suffix.lower() in [".ts", ".tsx"] else "javascript"
             for match in js_ts_import_regex.finditer(content):
                 imp = match.group(1) or match.group(2) or match.group(3)
                 if imp and not imp.startswith("."):
@@ -490,7 +509,6 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
                     local_js = local_modules | local_modules_by_ecosystem.get(ecosystem, set())
                     if imp_root not in local_js and imp_root not in stdlib_ignored:
                         external_imports.add(imp_root)
-                        ecosystem = "typescript" if f.suffix.lower() in [".ts", ".tsx"] else "javascript"
                         _add_map_value(external_imports_by_ecosystem, ecosystem, imp_root)
         except Exception:
             pass
@@ -522,6 +540,19 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
                 if not imp.startswith(("java.", "javax.")) and not is_local:
                     external_imports.add(imp)
                     _add_map_value(external_imports_by_ecosystem, "java", imp)
+        except Exception:
+            pass
+
+    csharp_import_re = re.compile(r"^\s*using\s+(?:static\s+)?([A-Za-z_][\w.]*)\s*;", re.MULTILINE)
+    for f in csharp_files:
+        try:
+            for imp in csharp_import_re.findall(f.read_text(encoding="utf-8", errors="ignore")):
+                root_name = imp.split(".", 1)[0]
+                if root_name not in {"System", "Microsoft", "global"} and not any(imp.startswith(local) for local in local_modules_by_ecosystem.get("csharp", set())):
+                    external_imports.add(root_name)
+                    _add_map_value(external_imports_by_ecosystem, "csharp", root_name)
+                elif root_name == "Microsoft":
+                    _add_map_value(external_imports_by_ecosystem, "csharp", imp)
         except Exception:
             pass
 

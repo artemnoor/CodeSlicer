@@ -1,9 +1,11 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-from impact_engine.pr_review import parse_git_diff, pr_review_core
+from impact_engine.pr_review import ChangedFile, _changed_symbols, parse_git_diff, pr_review_core
+from impact_engine.models import GraphDocument, Node
 
 
 def _write_project(root: Path) -> None:
@@ -74,6 +76,18 @@ def test_parse_git_diff_extracts_changed_lines():
 
     assert files[0].path == "app/repositories.py"
     assert files[0].lines == {3, 4}
+    assert files[0].additions == 2
+    assert files[0].deletions == 0
+
+
+def test_changed_hunk_selects_nearest_callable_not_neighbouring_init():
+    graph = GraphDocument()
+    graph.add_node(Node("service.__init__", "METHOD", "__init__", {"file": "app/service.py", "line": 2}))
+    graph.add_node(Node("service.place_order", "METHOD", "place_order", {"file": "app/service.py", "line": 10}))
+    changed = ChangedFile("app/service.py", {12, 13})
+    symbols = _changed_symbols(graph, [changed])
+    assert [item["id"] for item in symbols] == ["service.place_order"]
+    assert symbols[0]["changed_lines"] == [12, 13]
 
 
 def test_pr_review_core_reports_risk_and_tests(tmp_path: Path):
@@ -96,6 +110,68 @@ def test_pr_review_core_reports_risk_and_tests(tmp_path: Path):
     assert any("test_orders.py" in str(item.get("file")) for item in required)
 
 
+def test_pr_review_default_is_bounded_and_hides_full_closure(tmp_path: Path):
+    _write_project(tmp_path)
+    diff = """diff --git a/app/repositories.py b/app/repositories.py
+--- a/app/repositories.py
++++ b/app/repositories.py
+@@ -3 +3 @@ class OrderRepository:
+-        return order
++        return {**order, "changed": True}
+"""
+
+    result = pr_review_core(str(tmp_path), diff_text=diff, max_results=99)
+
+    assert result["schema_version"] == "PRReview/v2"
+    assert len(result["top_impacts"]) <= 10
+    assert len(result["test_recommendations"]) <= 10
+    assert len(result["chains"]) <= 3
+    assert result["summary"]["top_impacts"] <= 10
+    assert result["full_evidence"]["status"] == "not_requested"
+    assert "impact_results" not in result
+    assert "impact_sections" not in result
+
+
+def test_pr_review_excludes_tracked_codeslicer_artifacts(tmp_path: Path):
+    _write_project(tmp_path)
+    diff = """diff --git a/app/repositories.py b/app/repositories.py
+--- a/app/repositories.py
++++ b/app/repositories.py
+@@ -3 +3 @@ class OrderRepository:
+-        return order
++        return {**order, "changed": True}
+diff --git a/.impact_engine/graph.json b/.impact_engine/graph.json
+--- a/.impact_engine/graph.json
++++ b/.impact_engine/graph.json
+@@ -1 +1 @@
+-old
++new
+"""
+
+    result = pr_review_core(str(tmp_path), diff_text=diff)
+
+    assert [item["path"] for item in result["changed_files"]] == ["app/repositories.py"]
+    assert any("generated CodeSlicer artifact changes excluded" in warning for warning in result["warnings"])
+
+
+def test_pr_review_full_closure_requires_explicit_opt_in(tmp_path: Path):
+    _write_project(tmp_path)
+    diff = """diff --git a/app/repositories.py b/app/repositories.py
+--- a/app/repositories.py
++++ b/app/repositories.py
+@@ -3 +3 @@ class OrderRepository:
+-        return order
++        return {**order, "changed": True}
+"""
+
+    result = pr_review_core(str(tmp_path), diff_text=diff, include_full_evidence=True)
+
+    assert result["full_evidence"]["status"] == "included_on_explicit_request"
+    assert "impact_results" in result["full_evidence"]
+    assert "impact_sections" in result["full_evidence"]
+    assert "impact_results" not in result
+
+
 def test_pr_review_cli_json(tmp_path: Path):
     _write_project(tmp_path)
     diff_file = tmp_path / "change.diff"
@@ -110,9 +186,13 @@ def test_pr_review_cli_json(tmp_path: Path):
         encoding="utf-8",
     )
 
+    repository_root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(repository_root / "src") + os.pathsep + environment.get("PYTHONPATH", "")
     proc = subprocess.run(
         [sys.executable, "-m", "impact_engine.cli", "--json", "pr-review", str(tmp_path), "--diff-file", str(diff_file)],
-        cwd=Path(__file__).resolve().parents[1],
+        cwd=repository_root,
+        env=environment,
         capture_output=True,
         text=True,
         timeout=30,
@@ -122,6 +202,8 @@ def test_pr_review_cli_json(tmp_path: Path):
     payload = json.loads(proc.stdout)
     assert payload["status"] == "ok"
     assert payload["summary"]["changed_symbols"] >= 1
+    assert payload["full_evidence"]["status"] == "not_requested"
+    assert len(payload["top_impacts"]) <= 10
 
 
 def test_pr_review_mcp_tool_wrapper(tmp_path: Path):

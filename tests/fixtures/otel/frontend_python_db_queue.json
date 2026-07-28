@@ -1,0 +1,15 @@
+{
+  "resourceSpans": [
+    {"resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "web-frontend"}}]}, "scopeSpans": [{"spans": [
+      {"traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "spanId": "0000000000000001", "name": "GET /api/orders", "kind": 3, "startTimeUnixNano": "1000000000", "endTimeUnixNano": "1100000000", "attributes": [{"key": "http.request.method", "value": {"stringValue": "GET"}}, {"key": "http.route", "value": {"stringValue": "/api/orders"}}, {"key": "authorization", "value": {"stringValue": "Bearer SHOULD_NOT_APPEAR"}}], "status": {"code": "STATUS_CODE_OK"}}
+    ]}]},
+    {"resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "orders-api"}}]}, "scopeSpans": [{"spans": [
+      {"traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "spanId": "0000000000000002", "parentSpanId": "0000000000000001", "name": "GET /api/orders", "kind": 2, "startTimeUnixNano": "1010000000", "endTimeUnixNano": "1090000000", "attributes": [{"key": "http.request.method", "value": {"stringValue": "GET"}}, {"key": "http.route", "value": {"stringValue": "/api/orders"}}, {"key": "code.function.name", "value": {"stringValue": "list_orders"}}], "status": {"code": "STATUS_CODE_OK"}},
+      {"traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "spanId": "0000000000000003", "parentSpanId": "0000000000000002", "name": "SELECT orders", "kind": 1, "startTimeUnixNano": "1020000000", "endTimeUnixNano": "1040000000", "attributes": [{"key": "db.system", "value": {"stringValue": "postgresql"}}, {"key": "db.operation", "value": {"stringValue": "SELECT"}}, {"key": "db.collection.name", "value": {"stringValue": "orders"}}]},
+      {"traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "spanId": "0000000000000004", "parentSpanId": "0000000000000002", "name": "publish order.loaded", "kind": 4, "startTimeUnixNano": "1050000000", "endTimeUnixNano": "1060000000", "attributes": [{"key": "messaging.system", "value": {"stringValue": "rabbitmq"}}, {"key": "messaging.destination.name", "value": {"stringValue": "order.loaded"}}, {"key": "messaging.operation.type", "value": {"stringValue": "publish"}}]}
+    ]}]},
+    {"resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "orders-worker"}}]}, "scopeSpans": [{"spans": [
+      {"traceId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "spanId": "0000000000000005", "name": "consume order.loaded", "kind": 5, "startTimeUnixNano": "1070000000", "endTimeUnixNano": "1090000000", "attributes": [{"key": "messaging.system", "value": {"stringValue": "rabbitmq"}}, {"key": "messaging.destination.name", "value": {"stringValue": "order.loaded"}}, {"key": "messaging.operation.type", "value": {"stringValue": "receive"}}]}
+    ]}]}
+  ]
+}

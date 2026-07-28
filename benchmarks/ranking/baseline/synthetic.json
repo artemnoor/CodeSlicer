@@ -1,0 +1,19 @@
+{
+  "schema_version": "impact-engine.ranking-report.v1",
+  "status": "ok",
+  "policy": {
+    "ranking_policy_version": "review-ranking/v1.2",
+    "test_selection_policy_version": "review-tests/v1",
+    "review_schema_version": "ReviewProjection/v1"
+  },
+  "metrics": {
+    "top_5_precision": 0.2,
+    "top_10_recall": 1.0,
+    "test_recommendation_precision": 1.0,
+    "noise_ratio": 0.0,
+    "explanation_completeness": 1.0,
+    "review_entity_count": 9,
+    "default_entities_are_actionable": 1.0,
+    "developer_time_to_decision_proxy": 11
+  }
+}
