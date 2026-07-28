@@ -1,12 +1,10 @@
 /* Same-origin client for the local-only CodeSlicer API. */
 (function (global) {
   let sessionToken = null;
-  const remoteToken = global.CODE_SLICER_REMOTE_TOKEN || null;
   async function request(path, options) {
     // All requests are deliberately relative: the local API and this SPA
     // share an origin, and the UI never sends source data to another host.
-    const remoteHeaders = path.startsWith('/api/') && remoteToken ? { 'X-CodeSlicer-Remote-Token': remoteToken } : {};
-    const response = await fetch(path, { cache: 'no-store', credentials: 'same-origin', ...options, headers: { ...remoteHeaders, ...(options?.headers || {}) } });
+    const response = await fetch(path, { cache: 'no-store', credentials: 'same-origin', ...options, headers: { ...(options?.headers || {}) } });
     const text = await response.text();
     let data = {};
     try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { error: text }; }
@@ -23,6 +21,22 @@
   const post = (path, payload) => request(path, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'X-CodeSlicer-Session': sessionToken } : {}) }, body: JSON.stringify(payload || {}),
   });
+  function requestApprovalToken(pending) {
+    return new Promise((resolve) => {
+      const approval = pending.approval || {}, details = approval.payload || {};
+      const dialog = document.createElement('dialog');
+      dialog.className = 'approval-dialog';
+      dialog.innerHTML = `<form method="dialog"><h2>Нужно локальное подтверждение</h2><dl><dt>Action</dt><dd></dd><dt>Expires</dt><dd></dd><dt>Exact payload</dt><dd><pre></pre></dd></dl><p>Проверьте параметры, выполните локальную команду и вставьте только выданный одноразовый токен.</p><code></code><label>approval_token<input autocomplete="off" required></label><menu><button value="cancel">Отмена</button><button value="confirm">Повторить действие</button></menu></form>`;
+      const values = dialog.querySelectorAll('dd');
+      values[0].textContent = approval.action || 'external action';
+      values[1].textContent = approval.expires_at || 'unknown';
+      dialog.querySelector('pre').textContent = JSON.stringify(details, null, 2);
+      dialog.querySelector('code').textContent = pending.next_step || pending.message || '';
+      document.body.append(dialog);
+      dialog.addEventListener('close', () => { const token = dialog.returnValue === 'confirm' ? dialog.querySelector('input').value.trim() : ''; dialog.remove(); resolve(token); });
+      dialog.showModal();
+    });
+  }
   async function executeApprovedAction(callback, payload) {
     const exactPayload = Object.freeze({ ...(payload || {}) });
     try {
@@ -33,10 +47,7 @@
       // A real host approval is still required. This small local dialog keeps
       // the exact original payload immutable and makes the retry path usable
       // in every existing action without granting browser-side approval.
-      const action = pending.approval?.action || 'external action';
-      const command = pending.next_step || pending.message || '';
-      const details = pending.approval?.payload || {};
-      const token = window.prompt(`Нужно локальное подтверждение: ${action}\n\nТочные параметры (они будут повторены без изменений):\n${JSON.stringify(details, null, 2)}\n\n${command}\n\nВыполните команду в терминале, проверьте эти параметры и вставьте одноразовый approval_token:`, '');
+      const token = await requestApprovalToken(pending);
       if (!token) throw error;
       const approvalId = pending.approval?.approval_id;
       if (!approvalId) throw error;

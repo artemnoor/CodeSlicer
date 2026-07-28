@@ -6,9 +6,8 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 COPY support_packs ./support_packs
 COPY frontend ./frontend
-COPY docker-entrypoint.sh /usr/local/bin/codeslicer-entrypoint
 
-RUN pip install --no-cache-dir . && chmod +x /usr/local/bin/codeslicer-entrypoint
+RUN pip install --no-cache-dir .
 
 ENV PYTHONUNBUFFERED=1 \
     IMPACT_REGISTRY_LOCAL_DB=/app/.impact_engine/impact_registry.sqlite \
@@ -16,5 +15,4 @@ ENV PYTHONUNBUFFERED=1 \
 
 EXPOSE 8001 8787
 
-ENTRYPOINT ["/usr/local/bin/codeslicer-entrypoint"]
 CMD ["impact-engine-local-api", "--host", "127.0.0.1", "--port", "8001"]

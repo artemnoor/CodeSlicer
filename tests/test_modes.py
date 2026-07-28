@@ -174,7 +174,7 @@ def test_mcp_and_local_api_use_the_same_mode_builders(tmp_path: Path):
             f"http://127.0.0.1:{server.server_port}/api/inspect",
             data=json.dumps({"project_path": str(tmp_path), "entity": "repo", "graph_path": str(graph_path)}).encode(),
             method="POST",
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token},
         )
         with urlopen(request, timeout=5) as response:
             payload = json.loads(response.read())

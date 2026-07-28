@@ -1,7 +1,7 @@
 services:
   impact-api:
     build: .
-    command: ["impact-engine-local-api", "--host", "0.0.0.0", "--allow-remote", "--remote-token", "${IMPACT_LOCAL_API_TOKEN:?set a high-entropy local token}", "--port", "8001", "--frontend-dir", "/app/frontend", "--default-project", "/workspace/project"]
+    command: ["impact-engine-local-api", "--host", "0.0.0.0", "--allow-remote", "--docker-local-ui", "--port", "8001", "--frontend-dir", "/app/frontend", "--default-project", "/workspace/project"]
     ports:
       - "127.0.0.1:8001:8001"
     volumes:

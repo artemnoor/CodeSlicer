@@ -158,23 +158,33 @@ def test_real_acceptance_mcp_tools_json_serializable(tmp_path, monkeypatch):
             server.create_library_research_request("fastapi", version="unknown", package_manager="pip"),
             workflow,
             server.prepare_library_research_input(wf_id, allow_network=True),
-            server.validate_library_research_candidate(wf_id, candidate),
-            server.install_library_support_pack(wf_id, candidate),
         ]
 
         for payload in tool_calls:
             encoded = json.dumps(payload)
             decoded = json.loads(encoded)
             assert isinstance(decoded, dict)
-            assert decoded.get("status") in {"ok", "imported", "already_exists", "installed", "error"}
+            assert decoded.get("status") in {"ok", "imported", "already_exists", "installed", "error", "pending_approval"}
 
         assert tool_calls[0]["status"] == "ok"
         assert tool_calls[1]["status"] == "ok"
         assert tool_calls[2]["status"] == "ok"
         assert tool_calls[7]["valid"] is True
         assert tool_calls[8]["status"] in {"imported", "already_exists"}
-        assert tool_calls[11]["status"] == "ok"
-        assert tool_calls[12]["valid"] is True
-        assert tool_calls[13]["status"] == "installed"
+        # Network-capable research now deliberately returns a pending record
+        # until the project owner grants a host-issued approval token.
+        assert tool_calls[11]["status"] == "pending_approval"
+        approved = server.approve_action_locally(str(tmp_path), tool_calls[11]["approval"]["approval_id"])
+        prepared = server.prepare_library_research_input(
+            wf_id, allow_network=True,
+            approval_id=approved["approval_id"], approval_token=approved["approval_token"],
+        )
+        validated = server.validate_library_research_candidate(wf_id, candidate)
+        installed = server.install_library_support_pack(wf_id, candidate)
+        for payload in (prepared, validated, installed):
+            assert isinstance(json.loads(json.dumps(payload)), dict)
+        assert prepared["status"] == "ok"
+        assert validated["valid"] is True
+        assert installed["status"] == "installed"
     finally:
         os.chdir(old_cwd)

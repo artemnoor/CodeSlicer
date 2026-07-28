@@ -113,3 +113,15 @@ def test_graphify_renderer_records_the_interpreter_from_its_own_environment(tmp_
     recorded = record_graphify_interpreter(graph, executable)
     assert recorded is not None
     assert recorded.read_text(encoding="utf-8").strip() == str(interpreter.resolve())
+
+
+def test_graphify_index_creates_viewer_once_and_reports_its_status(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("impact_engine.adapters.native.shutil.which", lambda value: "C:/tools/graphify.exe" if value == "graphify" else None)
+    monkeypatch.setattr("impact_engine.adapters.native.subprocess.run", lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="ok", stderr=""))
+    calls = []
+    viewer = tmp_path / ".codeslicer" / "artifacts" / "graphify" / "graphify-out" / ".codeslicer_graphify_viewer.html"
+    monkeypatch.setattr("impact_engine.adapters.native.cache_graphify_viewer", lambda project: calls.append(project) or viewer)
+    result = run_native_operation(tmp_path, "graphify", "index", confirmed=True)
+    assert calls == [tmp_path]
+    assert result["viewer_status"] == "ready"
+    assert result["viewer_artifact"] == str(viewer)

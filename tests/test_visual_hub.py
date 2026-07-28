@@ -105,7 +105,7 @@ def test_visual_hub_api_exposes_overview_and_projection(tmp_path):
         request = Request(
             f"http://127.0.0.1:{server.server_port}/api/graph/projection",
             data=json.dumps({"project_path": str(project), "level": "overview", "max_nodes": 2, "max_edges": 2}).encode(),
-            method="POST", headers={"Content-Type": "application/json"},
+            method="POST", headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token},
         )
         with urlopen(request, timeout=5) as response:
             projection = json.loads(response.read())

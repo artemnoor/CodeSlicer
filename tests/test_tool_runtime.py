@@ -10,6 +10,7 @@ from urllib.request import Request, urlopen
 import pytest
 
 from impact_engine.local_api import LocalApiState, create_server
+from impact_engine.approvals import ApprovalStore
 from impact_engine.tool_runtime import ManagedToolDefinition, ToolRuntime
 
 
@@ -85,12 +86,19 @@ def test_local_api_exposes_tool_catalog_and_explicit_connect(tmp_path: Path, mon
         monkeypatch.setattr(tool_runtime, "_BY_ID", {"demo": _definition(source)})
         port = server.server_address[1]
         def call(path: str, payload: dict):
-            request = Request(f"http://127.0.0.1:{port}{path}", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}, method="POST")
+            request = Request(f"http://127.0.0.1:{port}{path}", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token}, method="POST")
             with urlopen(request) as response:  # noqa: S310 - loopback test server
                 return json.loads(response.read().decode())
         catalog = call("/api/tools", {"project_path": str(project)})
         assert [item["id"] for item in catalog["tools"]] == ["demo"]
-        connected = call("/api/tools/demo/connect", {"project_path": str(project), "confirmed": True})
+        from urllib.error import HTTPError
+        try:
+            connected = call("/api/tools/demo/connect", {"project_path": str(project), "confirmed": True})
+        except HTTPError as error:
+            pending = json.loads(error.read().decode())
+            assert pending["status"] == "pending_approval"
+            approved = ApprovalStore(project).approve(pending["approval"]["approval_id"])
+            connected = call("/api/tools/demo/connect", {"project_path": str(project), "confirmed": True, **approved})
         assert connected["tool"]["connected"] is True
         documents = call("/api/tools/demo/docs", {"project_path": str(project), "query": "scan"})
         assert documents["documents"]

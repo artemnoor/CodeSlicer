@@ -103,7 +103,7 @@ def test_local_api_adapter_endpoints_and_architecture_overlay(tmp_path):
             f"http://127.0.0.1:{server.server_port}{path}",
             method="POST" if payload is not None else "GET",
             data=json.dumps(payload).encode() if payload is not None else None,
-            headers={"Content-Type": "application/json"} if payload is not None else {},
+            headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token} if payload is not None else {},
         )
         with urlopen(request, timeout=10) as response:
             return json.loads(response.read())

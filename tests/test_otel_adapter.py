@@ -153,7 +153,7 @@ def test_otel_api_lifecycle_and_privacy(tmp_path):
     thread.start()
 
     def call(path, payload=None):
-        request = Request(f"http://127.0.0.1:{server.server_port}{path}", method="POST" if payload is not None else "GET", data=json.dumps(payload).encode() if payload is not None else None, headers={"Content-Type": "application/json"} if payload is not None else {})
+        request = Request(f"http://127.0.0.1:{server.server_port}{path}", method="POST" if payload is not None else "GET", data=json.dumps(payload).encode() if payload is not None else None, headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token} if payload is not None else {})
         with urlopen(request, timeout=10) as response:
             return json.loads(response.read())
 
@@ -181,7 +181,7 @@ def test_otel_loopback_receiver_sanitizes_before_persisting(tmp_path):
     thread.start()
 
     def call(path, payload):
-        request = Request(f"http://127.0.0.1:{server.server_port}{path}", method="POST", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+        request = Request(f"http://127.0.0.1:{server.server_port}{path}", method="POST", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token})
         with urlopen(request, timeout=10) as response:
             return json.loads(response.read())
 

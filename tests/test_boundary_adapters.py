@@ -127,7 +127,7 @@ def test_boundary_api_lifecycle_architecture_and_bounded_context(tmp_path):
     thread.start()
 
     def call(path, payload=None):
-        req = Request(f"http://127.0.0.1:{server.server_port}{path}", method="POST" if payload is not None else "GET", data=json.dumps(payload).encode() if payload is not None else None, headers={"Content-Type": "application/json"} if payload is not None else {})
+        req = Request(f"http://127.0.0.1:{server.server_port}{path}", method="POST" if payload is not None else "GET", data=json.dumps(payload).encode() if payload is not None else None, headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token} if payload is not None else {})
         with urlopen(req, timeout=10) as response:
             return json.loads(response.read())
 

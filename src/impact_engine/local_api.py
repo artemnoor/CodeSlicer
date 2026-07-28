@@ -8,6 +8,7 @@ local distribution stays lightweight.
 from __future__ import annotations
 
 import argparse
+import hashlib
 from importlib.resources import files as package_files
 import ipaddress
 import json
@@ -43,7 +44,7 @@ from impact_engine.adapters.joern import bounded_joern_context
 from impact_engine.adapters.native import native_profile, run_native_operation
 from impact_engine.graph_workspaces import build_workspace
 from impact_engine.tool_runtime import ToolRuntime
-from impact_engine.adapters.graphify_paths import cache_graphify_viewer, find_graphify_graph, graphify_viewer_cache_path
+from impact_engine.adapters.graphify_paths import find_graphify_graph, graphify_viewer_cache_path
 from impact_engine.approvals import ApprovalStore
 
 
@@ -57,6 +58,18 @@ _PROJECTION_HIGH_LEVEL_KINDS = {"SERVICE", "MODULE", "FILE", "ROUTE", "DATABASE"
 # /api/tools on an older local-api process and presenting a misleading
 # "tool not found" state.
 LOCAL_API_CONTRACT_VERSION = "CodeSlicerLocalAPI/v2"
+
+
+def _project_identity(project: Path) -> str:
+    """Stable enough identity for Docker named state mounted at one path."""
+    digest = hashlib.sha256()
+    for relative in (".git/config", "pyproject.toml", "package.json", "package-lock.json", "pnpm-lock.yaml", "go.mod", "*.sln"):
+        candidates = list(project.glob(relative)) if "*" in relative else [project / relative]
+        for candidate in sorted(candidates):
+            if candidate.is_file():
+                digest.update(candidate.name.encode("utf-8"))
+                digest.update(candidate.read_bytes()[:1_000_000])
+    return digest.hexdigest()
 
 
 def _projection_values(value: Any) -> set[str]:
@@ -556,82 +569,16 @@ def _bounded_boundary_context(project_path: str, report: dict[str, Any], graph_p
     return result
 
 
-def _render_graphify_native_html(project_path: str | Path) -> str:
-    proj = Path(project_path).expanduser().resolve()
-    # This endpoint must never render the CodeSlicer canonical graph as if it
-    # were produced by Graphify.  The two graphs have different provenance and
-    # serve different questions.  A missing Graphify artifact is an honest
-    # empty state, not a reason to fall back to .impact_engine/graph.json.
-    graph_file = find_graphify_graph(proj)
-    if not graph_file.is_file():
-        return "<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>Нативный граф Graphify для этого проекта ещё не построен.</p><p>Настройте executable Graphify и явно выполните <strong>«Построить architecture graph»</strong>. Канонический граф CodeSlicer здесь намеренно не показывается.</p></body></html>"
-
-    runtime_status = ToolRuntime(proj).status("graphify")
-    repo_path = runtime_status.get("repository", {}).get("path")
-    repo = Path(str(repo_path or "")).expanduser()
-    if not repo.is_dir():
-        return "<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>Для оригинального renderer подключите локальный Graphify repository. CodeSlicer не импортирует upstream-код в процесс Local API.</p></body></html>"
-
-    # Keep upstream imports out of the Local API process. A Graphify run may
-    # live in another venv, so use the interpreter it recorded beside its
-    # artifact instead of silently importing it with CodeSlicer's Python.
-    interpreter_record = graph_file.parent / ".graphify_python"
-    if not interpreter_record.is_file():
-        return "<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>Не найден interpreter Graphify (<code>.graphify_python</code>) рядом с его graph. Перестройте Graphify graph его исходной командой или настройте его managed environment.</p></body></html>"
-    try:
-        interpreter = Path(interpreter_record.read_text(encoding="utf-8").strip()).expanduser().resolve()
-    except OSError:
-        interpreter = Path()
-    if not interpreter.is_file():
-        return "<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>Сохранённый interpreter Graphify больше недоступен. Перестройте его graph в актуальном Graphify environment.</p></body></html>"
-
-    # The renderer receives only the already-created local graph and returns
-    # bounded HTML over stdout.
-    renderer = """
-import json, sys, tempfile
-from pathlib import Path
-repo, graph_file = map(Path, sys.argv[1:3])
-sys.path.insert(0, str(repo))
-import networkx as nx
-from graphify.exporters.html import to_html
-data = json.loads(graph_file.read_text(encoding='utf-8'))
-links = [{'source': e.get('from', e.get('source')), 'target': e.get('to', e.get('target')), 'kind': e.get('kind', 'CALLS'), 'confidence': e.get('confidence', 1.0)} for e in (data.get('edges') or data.get('links') or [])]
-nodes = [{'id': str(n['id']), 'label': str(n.get('name', n['id'])), 'kind': str(n.get('kind', 'FUNCTION'))} for n in data.get('nodes', [])]
-graph = nx.node_link_graph({'directed': True, 'nodes': nodes, 'links': links}, edges='links')
-with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as handle:
-    output = Path(handle.name)
-try:
-    to_html(graph, {0: [node['id'] for node in nodes]}, output)
-    sys.stdout.write(output.read_text(encoding='utf-8'))
-finally:
-    output.unlink(missing_ok=True)
-"""
-    safe_env = {"PATH": os.environ.get("PATH", ""), "PYTHONNOUSERSITE": "1"}
-    if os.name == "nt":
-        safe_env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", "")
-    try:
-        completed = subprocess.run(
-            [str(interpreter), "-I", "-c", renderer, str(repo.resolve()), str(graph_file)],
-            cwd=repo, env=safe_env, capture_output=True, text=True, timeout=30, check=False,
-        )
-        if completed.returncode == 0 and completed.stdout:
-            return completed.stdout[:4 * 1024 * 1024]
-        detail = (completed.stderr or completed.stdout or "Graphify renderer did not produce HTML").strip()[:1200]
-        return f"<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><pre>Renderer failed in its isolated subprocess: {html.escape(detail)}</pre></body></html>"
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return f"<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><pre>Renderer unavailable: {html.escape(str(exc))}</pre></body></html>"
-
-
 def _graphify_viewer_cache_path(project_path: str | Path) -> Path:
     return graphify_viewer_cache_path(project_path)
 
 
-def _cache_graphify_native_html(project_path: str | Path) -> Path:
-    """Render only as part of an explicitly approved Graphify refresh."""
-    output = cache_graphify_viewer(project_path)
-    if output is None:
-        raise OSError("Graphify viewer cache could not be created in its configured environment")
-    return output
+def _render_graphify_native_html(project_path: str | Path) -> str:
+    """Compatibility reader for tests and callers; it never spawns a process."""
+    cache = _graphify_viewer_cache_path(project_path)
+    if cache.is_file():
+        return cache.read_text(encoding="utf-8")[:4 * 1024 * 1024]
+    return "<!DOCTYPE html><html><body><h2>Graphify Native Viewer</h2><p>Нативный граф Graphify для этого проекта ещё не построен.</p><p>Канонический граф CodeSlicer здесь намеренно не показывается.</p></body></html>"
 
 
 def _otel_evidence(project_path: str, report: dict[str, Any], graph_path: str | Path | None = None) -> dict[str, Any]:
@@ -782,7 +729,7 @@ def _test_command_for_file(project: Path, file_name: str) -> list[str] | None:
 
 
 class LocalApiState:
-    def __init__(self, default_project: str | None, support_pack_root: str, *, allow_remote: bool = False, remote_token: str | None = None) -> None:
+    def __init__(self, default_project: str | None, support_pack_root: str, *, allow_remote: bool = False, remote_token: str | None = None, docker_local_ui: bool = False, allowed_hosts: list[str] | None = None) -> None:
         self.default_project = default_project
         self.support_pack_root = support_pack_root
         self.project_path: str | None = default_project
@@ -796,12 +743,33 @@ class LocalApiState:
         self.session_token = secrets.token_urlsafe(32)
         self.allow_remote = allow_remote
         self.remote_token = remote_token
+        self.docker_local_ui = docker_local_ui
+        self.allowed_hosts = {host.lower() for host in (allowed_hosts or [])}
         if default_project:
             try:
                 ensure_project_storage(default_project)
             except (FileNotFoundError, OSError):
                 pass
         self._load_existing_graph()
+
+    def _identity_path(self, project: Path) -> Path:
+        return project / ".impact_engine" / "codeslicer-project-identity"
+
+    def _identity_matches(self, project: Path) -> bool:
+        path = self._identity_path(project)
+        if not path.is_file():
+            return not self.docker_local_ui
+        try:
+            return secrets.compare_digest(path.read_text(encoding="utf-8").strip(), _project_identity(project))
+        except OSError:
+            return False
+
+    def _write_identity(self, project: Path) -> None:
+        path = self._identity_path(project)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(_project_identity(project) + "\n", encoding="utf-8")
+        os.replace(temporary, path)
 
     def _load_existing_graph(self, graph_path: str | None = None) -> bool:
         """Hydrate API state from a graph produced by the CLI.
@@ -813,6 +781,8 @@ class LocalApiState:
         if not self.project_path:
             return False
         project = Path(self.project_path).expanduser().resolve()
+        if self.docker_local_ui and not self._identity_matches(project):
+            return False
         candidates = [Path(graph_path).expanduser().resolve()] if graph_path else [
             project / ".impact_engine" / "graph.json",
             project / "graph.json",
@@ -932,6 +902,8 @@ class LocalApiState:
             self.last_error = None
             self.analyzed_at = time.time()
             self.progress = result.get("progress", {"status": "completed"})
+        if self.docker_local_ui:
+            self._write_identity(path)
         return self.snapshot()
 
     def cancel_analysis(self) -> dict[str, Any]:
@@ -971,19 +943,29 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
             raise ValueError("Request body must be a JSON object")
         return value
 
+    def _host_allowed(self) -> bool:
+        """Apply the Host boundary to API *and* static routes."""
+        host = (urlsplit("//" + self.headers.get("Host", "")).hostname or "").lower()
+        if self.state.docker_local_ui or not self.state.allow_remote:
+            allowed = {"localhost", "127.0.0.1", "::1"}
+        else:
+            allowed = self.state.allowed_hosts
+        if host in allowed:
+            return True
+        self._send_json(403, {"status": "error", "error": "local_host_required"})
+        return False
+
     def _api_access_allowed(self) -> bool:
-        """Reject DNS-rebinding hosts; remote mode requires a startup secret."""
-        if self.state.allow_remote:
+        """Remote API is API-only and needs both allowlisted Host and secret."""
+        if not self._host_allowed():
+            return False
+        if self.state.allow_remote and not self.state.docker_local_ui:
             supplied = self.headers.get("X-CodeSlicer-Remote-Token", "")
             if self.state.remote_token and secrets.compare_digest(supplied, self.state.remote_token):
                 return True
             self._send_json(403, {"status": "error", "error": "remote_api_token_required"})
             return False
-        host = (urlsplit("//" + self.headers.get("Host", "")).hostname or "").lower()
-        if host in {"localhost", "127.0.0.1", "::1"}:
-            return True
-        self._send_json(403, {"status": "error", "error": "local_host_required"})
-        return False
+        return True
 
     def _process_approval(self, project_path: str, action: str, payload: dict[str, Any], body: dict[str, Any]) -> bool:
         """Consume an exact one-time approval or return an actionable pending record.
@@ -1012,6 +994,8 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         try:
             parsed = urlparse(self.path)
+            if not self._host_allowed():
+                return
             if parsed.path.startswith("/api/") and not self._api_access_allowed():
                 return
             if parsed.path == "/api/health":
@@ -1068,14 +1052,20 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                 cache = _graphify_viewer_cache_path(project_path) if project_path else None
                 viewer_available = bool(cache and cache.is_file())
                 viewer_stale = bool(viewer_available and graph_available and cache.stat().st_mtime < graph_file.stat().st_mtime)
+                viewer_status = (
+                    "missing" if not graph_available
+                    else "viewer_missing" if not viewer_available
+                    else "stale" if viewer_stale
+                    else "ready"
+                )
                 return self._send_json(200, {
-                    "status": "ready" if viewer_available and not viewer_stale else ("stale" if graph_available else "missing"),
+                    "status": viewer_status,
                     "available": viewer_available and not viewer_stale,
                     "graph_available": graph_available,
                     "viewer_available": viewer_available,
                     "viewer_stale": viewer_stale,
                     "artifact": str(graph_file) if graph_file else None,
-                    "artifact_bytes": graph_file.stat().st_size if available else 0,
+                    "artifact_bytes": graph_file.stat().st_size if graph_available else 0,
                     "renderer": "graphify-upstream-html",
                     "privacy": {"mode": "local-only", "network_used": False},
                 })
@@ -1111,6 +1101,8 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         try:
             parsed = urlparse(self.path)
+            if not self._host_allowed():
+                return
             if parsed.path.startswith("/api/") and not self._api_access_allowed():
                 return
             origin = self.headers.get("Origin")
@@ -1259,11 +1251,6 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                         configured_executable=registry._state(adapter_id).get("native_executable"),
                         timeout_seconds=timeout_seconds,
                     )
-                    if result.get("status") == "completed" and adapter_id == "graphify" and operation in {"index", "refresh", "extract"}:
-                        try:
-                            result["viewer_artifact"] = str(_cache_graphify_native_html(project_path))
-                        except OSError as exc:
-                            result["viewer_error"] = str(exc)
                     generated = result.get("generated_artifact")
                     if result.get("status") == "completed" and generated and adapter_id in {"openapi", "scip", "cyclonedx", "spdx", "sarif"}:
                         try:
@@ -1741,7 +1728,9 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="impact-engine-local-api")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--allow-remote", action="store_true", help="Allow a non-loopback bind; this exposes the local API to the network.")
-    parser.add_argument("--remote-token", default=None, help="Required secret for --allow-remote. It is never returned by /api/health.")
+    parser.add_argument("--remote-token", default=None, help="Required secret for generic --allow-remote API mode. It is never returned by /api/health.")
+    parser.add_argument("--allowed-host", action="append", default=[], help="Allowed Host in generic remote API mode; repeat for each host.")
+    parser.add_argument("--docker-local-ui", action="store_true", help="Permit a Docker-bound UI only through a loopback-published port; keeps loopback Host validation and uses no remote bearer token.")
     parser.add_argument("--port", type=int, default=8001)
     parser.add_argument("--frontend-dir", default=default_frontend_dir())
     parser.add_argument("--default-project", default=None)
@@ -1752,12 +1741,14 @@ def main(argv: list[str] | None = None) -> None:
         loopback = args.host.lower() == "localhost"
     if not loopback and not args.allow_remote:
         parser.error("non-loopback --host requires explicit --allow-remote")
-    if args.allow_remote and not args.remote_token:
-        parser.error("--allow-remote requires an explicit --remote-token; use a high-entropy secret")
+    if args.docker_local_ui and not args.allow_remote:
+        parser.error("--docker-local-ui requires --allow-remote because Docker binds 0.0.0.0 inside its network namespace")
+    if args.allow_remote and not args.docker_local_ui and (not args.remote_token or not args.allowed_host):
+        parser.error("generic --allow-remote requires both --remote-token and at least one --allowed-host")
     # This path must work from both a source checkout and an installed wheel.
     # ``local_api.py`` itself lives under site-packages in the latter case.
     from impact_engine.support_packs.paths import builtin_support_packs_root
-    state = LocalApiState(args.default_project, str(builtin_support_packs_root()), allow_remote=args.allow_remote, remote_token=args.remote_token)
+    state = LocalApiState(args.default_project, str(builtin_support_packs_root()), allow_remote=args.allow_remote, remote_token=args.remote_token, docker_local_ui=args.docker_local_ui, allowed_hosts=args.allowed_host)
     server = create_server(args.host, args.port, args.frontend_dir, state)
     print(f"Impact Engine local API: http://{args.host}:{args.port}/", flush=True)
     try:

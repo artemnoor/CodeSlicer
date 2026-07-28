@@ -406,6 +406,13 @@
 .native-graphify-viewer h2 { margin: 0; font-size: clamp(20px, 3vw, 30px); font-weight: 500; }
 .native-graphify-viewer p { margin: 0; }
 .graphify-native-frame { width: 100%; min-height: 720px; border: 1px solid var(--line); background: #08080b; }
+.approval-dialog { max-width: min(720px, calc(100vw - 32px)); color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px; }
+.approval-dialog::backdrop { background: rgba(0, 0, 0, .72); }
+.approval-dialog dl { display: grid; grid-template-columns: 130px 1fr; gap: 8px 14px; }
+.approval-dialog dt { color: var(--muted); }.approval-dialog dd { margin: 0; overflow-wrap: anywhere; }
+.approval-dialog pre, .approval-dialog code { display: block; max-height: 220px; overflow: auto; white-space: pre-wrap; padding: 10px; background: #08080b; border: 1px solid var(--line); }
+.approval-dialog label { display: grid; gap: 6px; margin-top: 14px; }.approval-dialog input { min-width: 100%; }
+.approval-dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; }
 .simple-hub .graph-canvas-note { margin: 12px 3px 3px; color: var(--muted); font: 500 10px/1.45 var(--mono); }
 .simple-hub .state-card { border-color: var(--line); border-radius: 0; background: #111; }
 .simple-hub .state-card.loading { border-color: #515151; background: #111; }

@@ -131,31 +131,44 @@ Local API применяет ту же границу. Поле `confirmed: true
 ## Local API и Docker
 
 `impact-engine-local-api` по умолчанию слушает только loopback. Он также
-проверяет `Host` у каждого `/api/*` запроса, поэтому DNS-rebinding host не
-может получить session token через `/api/health`. Параметр `--allow-remote`
+проверяет `Host` у каждого запроса — включая HTML, JavaScript и viewer —
+поэтому DNS-rebinding host не может получить session token через
+`/api/health`. Параметр `--allow-remote`
 предназначен только для явно управляемой инфраструктуры: вместе с ним
 обязателен `--remote-token <high-entropy-secret>`; этот секрет health endpoint
 не возвращает.
 
 Docker Compose поддерживает только **локальный** UI: он публикует API как
-`127.0.0.1:8001`, требует `IMPACT_LOCAL_API_TOKEN` и передаёт его только в
-локально отданный frontend. Исходный проект остаётся read-only; `.codeslicer`
+`127.0.0.1:8001`, но внутри Docker использует специальный
+`--docker-local-ui` профиль. Этот профиль всё равно принимает только
+`localhost`/`127.0.0.1`/`::1` в Host и не использует browser bearer token.
+Исходный проект остаётся read-only; `.codeslicer`
 и `.impact_engine` монтируются отдельными writable named volumes. Запуск:
 
 ```powershell
-$env:IMPACT_LOCAL_API_TOKEN = "длинный-случайный-секрет"
 $env:IMPACT_PROJECT_PATH = "C:\work\my-app"
 docker compose up --build
 ```
 
 Откройте `http://127.0.0.1:8001`. Эта конфигурация не является способом
-публикации UI в сеть: для удалённого доступа используйте отдельный
-аутентифицирующий reverse proxy и не раскрывайте runtime-config.js.
+публикации UI в сеть. Generic `--allow-remote` — API-only режим: он требует
+`--remote-token` и один или несколько `--allowed-host`; встроенный frontend
+для него намеренно не служит средством аутентификации.
+
+Named volumes переиспользуются между запусками, поэтому Docker profile перед
+загрузкой cache сверяет fingerprint смонтированного проекта (Git config и
+основные manifests). При смене проекта несовпавший state не будет показан как
+его graph: нужен новый анализ.
 
 Graphify viewer не запускает renderer при GET: общий Graphify runtime создаёт
 bounded HTML-артефакт после успешного index/refresh как из CLI, так и из Local
 API, а viewer только читает его. LSP probe/query аналогично требуют одноразового local approval,
 потому что запускают внешний language-server process.
+
+`GET /api/adapters/graphify/viewer/status` раздельно возвращает
+`graph_available`, `viewer_available` и `viewer_stale`. Если Graphify index
+успешен, но renderer не подготовил HTML, CLI и Local API сообщают отдельный
+`viewer_status: failed`, не выдавая пустой viewer за готовый.
 
 ```powershell
 impact-engine doctor --full

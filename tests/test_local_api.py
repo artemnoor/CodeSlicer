@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 from impact_engine.local_api import LOCAL_API_CONTRACT_VERSION, LocalApiState, _test_command_for_file, create_server
+from impact_engine.adapters.graphify_paths import graphify_graph_path, graphify_viewer_cache_path
 from impact_engine.models import GraphDocument, Node
 
 
@@ -63,6 +64,43 @@ def test_local_api_can_load_explicit_graph_path(tmp_path):
     state.project_path = str(project)
     assert state._load_existing_graph(str(graph_path)) is True
     assert state.snapshot(include_graph=False)["has_analysis"] is True
+
+
+def test_graphify_viewer_status_separates_graph_and_cache_availability(tmp_path):
+    graph_path = graphify_graph_path(tmp_path)
+    graph_path.parent.mkdir(parents=True)
+    graph_path.write_text('{"nodes": [], "edges": []}', encoding="utf-8")
+    state = LocalApiState(str(tmp_path), "support_packs")
+    server = create_server("127.0.0.1", 0, str(tmp_path), state)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urlopen(f"http://127.0.0.1:{server.server_port}/api/adapters/graphify/viewer/status", timeout=5) as response:
+            missing = json.loads(response.read())
+        assert missing["graph_available"] is True
+        assert missing["viewer_available"] is False
+        assert missing["viewer_stale"] is False
+        assert missing["status"] == "viewer_missing"
+
+        cache = graphify_viewer_cache_path(tmp_path)
+        cache.write_text("<!doctype html><html><body>viewer</body></html>", encoding="utf-8")
+        with urlopen(f"http://127.0.0.1:{server.server_port}/api/adapters/graphify/viewer/status", timeout=5) as response:
+            ready = json.loads(response.read())
+        assert ready["viewer_available"] is True
+        assert ready["viewer_stale"] is False
+        assert ready["status"] == "ready"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_docker_local_ui_rejects_graph_cache_without_matching_project_identity(tmp_path):
+    _write_graph(tmp_path)
+    state = LocalApiState(str(tmp_path), "support_packs", docker_local_ui=True)
+    assert state.snapshot(include_graph=False)["has_analysis"] is False
+    state._write_identity(tmp_path)
+    assert state._load_existing_graph() is True
 
 
 def test_local_api_does_not_enable_wildcard_cors_for_review(tmp_path):
@@ -126,6 +164,83 @@ def test_local_api_rejects_dns_rebinding_style_host_header(tmp_path):
             assert json.loads(error.read())["error"] == "local_host_required"
         else:
             raise AssertionError("non-loopback Host must never receive a session token")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_local_api_rejects_rebinding_host_for_static_assets_too(tmp_path):
+    from urllib.error import HTTPError
+
+    state = LocalApiState(str(tmp_path), "support_packs")
+    server = create_server("127.0.0.1", 0, str(Path(__file__).parents[1] / "frontend"), state)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        request = Request(f"http://127.0.0.1:{server.server_port}/api-client.js", headers={"Host": "attacker.example"})
+        try:
+            urlopen(request, timeout=5)
+        except HTTPError as error:
+            assert error.code == 403
+            assert json.loads(error.read())["error"] == "local_host_required"
+        else:
+            raise AssertionError("static files must use the same Host boundary")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_graphify_viewer_status_reports_cache_independently(tmp_path):
+    state = LocalApiState(str(tmp_path), "support_packs")
+    server = create_server("127.0.0.1", 0, str(tmp_path), state)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urlopen(f"http://127.0.0.1:{server.server_port}/api/adapters/graphify/viewer/status", timeout=5) as response:
+            payload = json.loads(response.read())
+        assert payload["graph_available"] is False
+        assert payload["viewer_available"] is False
+        assert payload["viewer_stale"] is False
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_docker_local_ui_uses_loopback_host_boundary_without_browser_bearer(tmp_path):
+    state = LocalApiState(str(tmp_path), "support_packs", allow_remote=True, docker_local_ui=True)
+    server = create_server("127.0.0.1", 0, str(Path(__file__).parents[1] / "frontend"), state)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urlopen(f"http://127.0.0.1:{server.server_port}/api/health", timeout=5) as response:
+            assert json.loads(response.read())["status"] == "ok"
+        with urlopen(f"http://127.0.0.1:{server.server_port}/api-client.js", timeout=5) as response:
+            assert b"CODE_SLICER_REMOTE_TOKEN" not in response.read()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_generic_remote_api_requires_allowed_host_and_secret(tmp_path):
+    from urllib.error import HTTPError
+
+    state = LocalApiState(str(tmp_path), "support_packs", allow_remote=True, remote_token="secret", allowed_hosts=["trusted.example"])
+    server = create_server("127.0.0.1", 0, str(tmp_path), state)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        request = Request(f"http://127.0.0.1:{server.server_port}/api/health", headers={"Host": "trusted.example"})
+        try:
+            urlopen(request, timeout=5)
+        except HTTPError as error:
+            assert error.code == 403
+            assert json.loads(error.read())["error"] == "remote_api_token_required"
+        else:
+            raise AssertionError("generic remote API must require its startup secret")
     finally:
         server.shutdown()
         server.server_close()

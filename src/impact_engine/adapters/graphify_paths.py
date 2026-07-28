@@ -1,10 +1,11 @@
 """One authoritative location for project-local Graphify artifacts."""
 from __future__ import annotations
 
-import html
+import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 
 
 def graphify_artifact_root(project_path: str | Path) -> Path:
@@ -37,6 +38,7 @@ def record_graphify_interpreter(graph_path: str | Path, executable: str | Path) 
     if not interpreter:
         return None
     target = Path(graph_path).resolve().parent / ".graphify_python"
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(str(interpreter) + "\n", encoding="utf-8")
     return target
 
@@ -58,28 +60,48 @@ def cache_graphify_viewer(project_path: str | Path) -> Path | None:
     interpreter = Path(interpreter_file.read_text(encoding="utf-8").strip())
     if not interpreter.is_file():
         return None
+    try:
+        raw = json.loads(graph.read_text(encoding="utf-8"))
+        max_nodes, max_edges = 750, 2_000
+        nodes = list(raw.get("nodes") or [])[:max_nodes]
+        node_ids = {str(item.get("id")) for item in nodes if item.get("id") is not None}
+        edges = [edge for edge in (raw.get("edges") or raw.get("links") or []) if str(edge.get("from", edge.get("source"))) in node_ids and str(edge.get("to", edge.get("target"))) in node_ids][:max_edges]
+        limited = {**raw, "nodes": nodes, "edges": edges, "links": edges, "codeslicer_viewer": {"truncated": len(nodes) < len(raw.get("nodes") or []) or len(edges) < len(raw.get("edges") or raw.get("links") or []), "max_nodes": max_nodes, "max_edges": max_edges}}
+    except (OSError, ValueError, TypeError):
+        return None
     script = """
 import json, sys, tempfile
 from pathlib import Path
 import networkx as nx
 from graphify.exporters.html import to_html
-graph_file = Path(sys.argv[1]); data = json.loads(graph_file.read_text(encoding='utf-8'))
+graph_file, output = map(Path, sys.argv[1:3]); data = json.loads(graph_file.read_text(encoding='utf-8'))
 nodes = [{'id': str(n['id']), 'label': str(n.get('name', n['id'])), 'kind': str(n.get('kind', 'FUNCTION'))} for n in data.get('nodes', [])]
 links = [{'source': e.get('from', e.get('source')), 'target': e.get('to', e.get('target')), 'kind': e.get('kind', 'CALLS')} for e in (data.get('edges') or data.get('links') or [])]
 g = nx.node_link_graph({'directed': True, 'nodes': nodes, 'links': links}, edges='links')
-with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as h: output = Path(h.name)
-try: to_html(g, {0: [n['id'] for n in nodes]}, output); sys.stdout.write(output.read_text(encoding='utf-8'))
-finally: output.unlink(missing_ok=True)
+to_html(g, {0: [n['id'] for n in nodes]}, output)
 """
     env = {"PATH": os.environ.get("PATH", ""), "PYTHONNOUSERSITE": "1"}
     if os.name == "nt":
         env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", "")
     try:
-        completed = subprocess.run([str(interpreter), "-I", "-c", script, str(graph)], cwd=str(graph.parent), env=env, capture_output=True, text=True, timeout=30, check=False)
+        with tempfile.TemporaryDirectory(dir=str(graph.parent)) as temporary:
+            source = Path(temporary) / "bounded-graph.json"
+            produced = Path(temporary) / "viewer.html"
+            source.write_text(json.dumps(limited, ensure_ascii=False), encoding="utf-8")
+            completed = subprocess.run([str(interpreter), "-I", "-c", script, str(source), str(produced)], cwd=str(graph.parent), env=env, capture_output=True, text=True, timeout=30, check=False)
+            if completed.returncode != 0 or not produced.is_file() or produced.stat().st_size > 4 * 1024 * 1024:
+                return None
+            html_output = produced.read_text(encoding="utf-8")
+            # Never publish a partial renderer response. The viewer is an
+            # iframe document, so a syntactically complete local artifact is
+            # preferable to a truncated best-effort preview.
+            lowered = html_output.lower()
+            if "<html" not in lowered or "</html>" not in lowered:
+                return None
     except (OSError, subprocess.TimeoutExpired):
         return None
-    if completed.returncode != 0 or not completed.stdout:
-        return None
     cache = graphify_viewer_cache_path(project_path)
-    cache.write_text(completed.stdout[:4 * 1024 * 1024], encoding="utf-8")
+    temporary_cache = cache.with_suffix(cache.suffix + ".tmp")
+    temporary_cache.write_text(html_output, encoding="utf-8")
+    os.replace(temporary_cache, cache)
     return cache

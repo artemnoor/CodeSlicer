@@ -393,15 +393,17 @@ def run_native_operation(
             environment = {**os.environ, "JAVA_HOME": java_home, "PATH": str(Path(java_home) / "bin") + os.pathsep + os.environ.get("PATH", "")}
         completed = subprocess.run(command, cwd=str(project), text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=timeout, shell=False, check=False, env=environment)
         stdout, stderr = completed.stdout[-MAX_OUTPUT_CHARS:], completed.stderr[-MAX_OUTPUT_CHARS:]
+        viewer_artifact = None
         if adapter_id == "graphify" and operation_id in {"index", "refresh"} and completed.returncode == 0:
             record_graphify_interpreter(graphify_graph_path(project), command[0])
-            cache_graphify_viewer(project)
+            viewer_artifact = cache_graphify_viewer(project)
         return {
             "status": "completed" if completed.returncode == 0 else "failed",
             "adapter_id": adapter_id, "operation": operation_id, "command": command,
             "returncode": completed.returncode, "stdout": stdout, "stderr": stderr,
             "truncated": len(completed.stdout) > MAX_OUTPUT_CHARS or len(completed.stderr) > MAX_OUTPUT_CHARS,
             "generated_artifact": str(generated) if generated and generated.is_file() else None,
+            **({"viewer_artifact": str(viewer_artifact), "viewer_status": "ready"} if viewer_artifact else ({"viewer_status": "failed", "viewer_error": "Graphify indexed successfully but native viewer cache was not created"} if adapter_id == "graphify" and operation_id in {"index", "refresh"} and completed.returncode == 0 else {})),
             "privacy": {"mode": "explicit-local-process", "network_used_by_codeslicer": False, "external_process_network_behavior": "not guaranteed"},
         }
     except subprocess.TimeoutExpired as exc:

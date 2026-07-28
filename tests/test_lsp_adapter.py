@@ -5,11 +5,13 @@ import sys
 import textwrap
 from pathlib import Path
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 import pytest
 
 from impact_engine.adapters.lsp import LSP_OVERLAY_SCHEMA, configure_lsp, disable_lsp, lsp_status, map_lsp_overlay, probe_lsp, query_lsp
 from impact_engine.adapters.registry import AdapterRegistry
+from impact_engine.approvals import ApprovalStore
 from impact_engine.local_api import LocalApiState, create_server
 from impact_engine.models import GraphDocument, Node
 from impact_engine.review import build_review_report
@@ -199,14 +201,20 @@ def test_lsp_api_configure_probe_disable_and_review_invariance(tmp_path):
     thread.start()
     try:
         def call(path, payload):
-            request = Request(f"http://127.0.0.1:{server.server_port}{path}", method="POST", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
-            with urlopen(request, timeout=10) as response:
-                return json.loads(response.read())
+            request = Request(f"http://127.0.0.1:{server.server_port}{path}", method="POST", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token})
+            try:
+                with urlopen(request, timeout=10) as response:
+                    return json.loads(response.read())
+            except HTTPError as error:
+                return json.loads(error.read())
         before = build_review_report(str(project), graph=_graph(project), diff_text="", refresh="never")
         executable = str(Path(sys.executable).resolve())
         configured = call("/api/adapters/lsp/configure", {"project_path": str(project), "executable": executable, "arguments": [str(source), "normal"], "workspace_roots": [str(project)]})
         assert configured["status"] == "ok"
-        probed = call("/api/adapters/lsp/probe", {"project_path": str(project)})
+        pending = call("/api/adapters/lsp/probe", {"project_path": str(project)})
+        assert pending["status"] == "pending_approval"
+        approved = ApprovalStore(project).approve(pending["approval"]["approval_id"])
+        probed = call("/api/adapters/lsp/probe", {"project_path": str(project), **approved})
         assert probed["adapter"]["probe"]["status"] == "passed"
         architecture = call("/api/architecture", {"project_path": str(project), "overlay": "codeslicer"})
         assert architecture["lsp"]["status"] == "ready"

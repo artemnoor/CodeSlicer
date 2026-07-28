@@ -222,12 +222,13 @@ def test_architecture_and_investigate_api_expose_bounded_joern_context(tmp_path)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        architecture_request = Request(f"http://127.0.0.1:{server.server_port}/api/architecture", data=json.dumps({"project_path": str(project)}).encode(), method="POST", headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token}
+        architecture_request = Request(f"http://127.0.0.1:{server.server_port}/api/architecture", data=json.dumps({"project_path": str(project)}).encode(), method="POST", headers=headers)
         with urlopen(architecture_request, timeout=10) as response:
             architecture = json.loads(response.read())
         assert architecture["joern"]["status"] == "ready"
         assert architecture["joern"]["participates_in_ranking"] is False
-        investigate_request = Request(f"http://127.0.0.1:{server.server_port}/api/investigate", data=json.dumps({"project_path": str(project), "entity": "c-source", "joern_context": True, "max_nodes": 10, "max_edges": 10}).encode(), method="POST", headers={"Content-Type": "application/json"})
+        investigate_request = Request(f"http://127.0.0.1:{server.server_port}/api/investigate", data=json.dumps({"project_path": str(project), "entity": "c-source", "joern_context": True, "max_nodes": 10, "max_edges": 10}).encode(), method="POST", headers=headers)
         with urlopen(investigate_request, timeout=10) as response:
             investigate = json.loads(response.read())
         context = investigate["report"]["result"]["joern_context"]

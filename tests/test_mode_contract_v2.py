@@ -20,7 +20,7 @@ def _post(server, path, payload):
     request = Request(
         f"http://127.0.0.1:{server.server_port}{path}",
         data=json.dumps(payload).encode(), method="POST",
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token},
     )
     with urlopen(request, timeout=10) as response:
         return json.loads(response.read())
