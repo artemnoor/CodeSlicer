@@ -137,14 +137,24 @@ Local API применяет ту же границу. Поле `confirmed: true
 обязателен `--remote-token <high-entropy-secret>`; этот секрет health endpoint
 не возвращает.
 
-Стандартный `Dockerfile` и `docker-compose.yml` намеренно не публикуют Local
-API и Registry API на хостовую сеть. Для локальной отладки используйте
-осознанный override с loopback port mapping либо отдельный reverse proxy с
-аутентификацией; не публикуйте порт CodeSlicer напрямую в интернет.
+Docker Compose поддерживает только **локальный** UI: он публикует API как
+`127.0.0.1:8001`, требует `IMPACT_LOCAL_API_TOKEN` и передаёт его только в
+локально отданный frontend. Исходный проект остаётся read-only; `.codeslicer`
+и `.impact_engine` монтируются отдельными writable named volumes. Запуск:
 
-Graphify viewer не запускает renderer при GET: после явно подтверждённого
-Graphify index/refresh он сохраняет bounded HTML-артефакт, а viewer только
-читает его. LSP probe/query аналогично требуют одноразового local approval,
+```powershell
+$env:IMPACT_LOCAL_API_TOKEN = "длинный-случайный-секрет"
+$env:IMPACT_PROJECT_PATH = "C:\work\my-app"
+docker compose up --build
+```
+
+Откройте `http://127.0.0.1:8001`. Эта конфигурация не является способом
+публикации UI в сеть: для удалённого доступа используйте отдельный
+аутентифицирующий reverse proxy и не раскрывайте runtime-config.js.
+
+Graphify viewer не запускает renderer при GET: общий Graphify runtime создаёт
+bounded HTML-артефакт после успешного index/refresh как из CLI, так и из Local
+API, а viewer только читает его. LSP probe/query аналогично требуют одноразового local approval,
 потому что запускают внешний language-server process.
 
 ```powershell

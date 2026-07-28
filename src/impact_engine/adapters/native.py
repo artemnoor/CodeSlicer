@@ -21,7 +21,7 @@ import shutil
 import subprocess
 from typing import Any
 
-from .graphify_paths import graphify_artifact_root, graphify_graph_path, record_graphify_interpreter
+from .graphify_paths import cache_graphify_viewer, graphify_artifact_root, graphify_graph_path, record_graphify_interpreter
 
 
 MAX_OUTPUT_CHARS = 24_000
@@ -395,6 +395,7 @@ def run_native_operation(
         stdout, stderr = completed.stdout[-MAX_OUTPUT_CHARS:], completed.stderr[-MAX_OUTPUT_CHARS:]
         if adapter_id == "graphify" and operation_id in {"index", "refresh"} and completed.returncode == 0:
             record_graphify_interpreter(graphify_graph_path(project), command[0])
+            cache_graphify_viewer(project)
         return {
             "status": "completed" if completed.returncode == 0 else "failed",
             "adapter_id": adapter_id, "operation": operation_id, "command": command,

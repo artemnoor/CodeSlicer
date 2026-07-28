@@ -1,10 +1,12 @@
 /* Same-origin client for the local-only CodeSlicer API. */
 (function (global) {
   let sessionToken = null;
+  const remoteToken = global.CODE_SLICER_REMOTE_TOKEN || null;
   async function request(path, options) {
     // All requests are deliberately relative: the local API and this SPA
     // share an origin, and the UI never sends source data to another host.
-    const response = await fetch(path, { cache: 'no-store', credentials: 'same-origin', ...options });
+    const remoteHeaders = path.startsWith('/api/') && remoteToken ? { 'X-CodeSlicer-Remote-Token': remoteToken } : {};
+    const response = await fetch(path, { cache: 'no-store', credentials: 'same-origin', ...options, headers: { ...remoteHeaders, ...(options?.headers || {}) } });
     const text = await response.text();
     let data = {};
     try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { error: text }; }
@@ -33,7 +35,8 @@
       // in every existing action without granting browser-side approval.
       const action = pending.approval?.action || 'external action';
       const command = pending.next_step || pending.message || '';
-      const token = window.prompt(`Нужно локальное подтверждение: ${action}\n\n${command}\n\nВыполните команду в терминале и вставьте одноразовый approval_token:`, '');
+      const details = pending.approval?.payload || {};
+      const token = window.prompt(`Нужно локальное подтверждение: ${action}\n\nТочные параметры (они будут повторены без изменений):\n${JSON.stringify(details, null, 2)}\n\n${command}\n\nВыполните команду в терминале, проверьте эти параметры и вставьте одноразовый approval_token:`, '');
       if (!token) throw error;
       const approvalId = pending.approval?.approval_id;
       if (!approvalId) throw error;

@@ -22,7 +22,7 @@ from dataclasses import asdict
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlsplit
 
 from impact_engine.analysis.pipeline import analyze_project_core
 from impact_engine.inventory.scanner import scan_project_inventory
@@ -43,7 +43,7 @@ from impact_engine.adapters.joern import bounded_joern_context
 from impact_engine.adapters.native import native_profile, run_native_operation
 from impact_engine.graph_workspaces import build_workspace
 from impact_engine.tool_runtime import ToolRuntime
-from impact_engine.adapters.graphify_paths import find_graphify_graph
+from impact_engine.adapters.graphify_paths import cache_graphify_viewer, find_graphify_graph, graphify_viewer_cache_path
 from impact_engine.approvals import ApprovalStore
 
 
@@ -623,14 +623,14 @@ finally:
 
 
 def _graphify_viewer_cache_path(project_path: str | Path) -> Path:
-    graph_file = find_graphify_graph(project_path)
-    return graph_file.parent / ".codeslicer_graphify_viewer.html"
+    return graphify_viewer_cache_path(project_path)
 
 
 def _cache_graphify_native_html(project_path: str | Path) -> Path:
     """Render only as part of an explicitly approved Graphify refresh."""
-    output = _graphify_viewer_cache_path(project_path)
-    output.write_text(_render_graphify_native_html(project_path), encoding="utf-8")
+    output = cache_graphify_viewer(project_path)
+    if output is None:
+        raise OSError("Graphify viewer cache could not be created in its configured environment")
     return output
 
 
@@ -979,7 +979,7 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                 return True
             self._send_json(403, {"status": "error", "error": "remote_api_token_required"})
             return False
-        host = self.headers.get("Host", "").lower().split(":", 1)[0].strip("[]")
+        host = (urlsplit("//" + self.headers.get("Host", "")).hostname or "").lower()
         if host in {"localhost", "127.0.0.1", "::1"}:
             return True
         self._send_json(403, {"status": "error", "error": "local_host_required"})
@@ -1064,10 +1064,16 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
             if parsed.path == "/api/adapters/graphify/viewer/status":
                 project_path = self.state.project_path or self.state.default_project
                 graph_file = find_graphify_graph(project_path) if project_path else None
-                available = bool(graph_file and graph_file.is_file())
+                graph_available = bool(graph_file and graph_file.is_file())
+                cache = _graphify_viewer_cache_path(project_path) if project_path else None
+                viewer_available = bool(cache and cache.is_file())
+                viewer_stale = bool(viewer_available and graph_available and cache.stat().st_mtime < graph_file.stat().st_mtime)
                 return self._send_json(200, {
-                    "status": "ready" if available else "missing",
-                    "available": available,
+                    "status": "ready" if viewer_available and not viewer_stale else ("stale" if graph_available else "missing"),
+                    "available": viewer_available and not viewer_stale,
+                    "graph_available": graph_available,
+                    "viewer_available": viewer_available,
+                    "viewer_stale": viewer_stale,
                     "artifact": str(graph_file) if graph_file else None,
                     "artifact_bytes": graph_file.stat().st_size if available else 0,
                     "renderer": "graphify-upstream-html",
@@ -1089,6 +1095,7 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(encoded)))
+                self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'")
                 self.end_headers()
                 self.wfile.write(encoded)
                 return
