@@ -36,7 +36,7 @@ from impact_engine.contracts import build_mode_response
 from impact_engine.project_storage import ensure_project_storage
 from impact_engine.persistence import AnalysisCancelled, CancellationToken, classify_path, daemon_status
 from impact_engine.adapters.registry import AdapterRegistry
-from impact_engine.adapters.lsp import configure_lsp, disable_lsp, lsp_privacy, map_lsp_overlay, probe_lsp, query_lsp
+from impact_engine.adapters.lsp import configure_lsp, disable_lsp, lsp_privacy, map_lsp_overlay, preflight_lsp, probe_lsp, query_lsp
 from impact_engine.adapters.otel import map_otel_overlay
 from impact_engine.adapters.scip import map_scip_overlay
 from impact_engine.adapters.boundary import map_boundary_overlay
@@ -1335,15 +1335,17 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                     return self._send_json(422, {"status": "error", "error": str(exc)})
             adapter_action = None
             adapter_id = None
-            if len(adapter_parts) == 4 and adapter_parts[:3] == ["api", "adapters", "lsp"] and adapter_parts[3] in {"configure", "probe", "disable", "query"}:
+            if len(adapter_parts) == 4 and adapter_parts[:3] == ["api", "adapters", "lsp"] and adapter_parts[3] in {"configure", "preflight", "probe", "disable", "query"}:
                 project_path = str(body.get("project_path") or self.state.project_path or self.state.default_project or "").strip()
                 if not project_path:
                     return self._send_json(400, {"status": "error", "error": "project_path is required"})
                 try:
                     action = adapter_parts[3]
                     if action == "configure":
-                        adapter = configure_lsp(project_path, body.get("executable") or "", body.get("workspace_roots") or [], arguments=body.get("arguments") or [], timeout_ms=int(body.get("timeout_ms", 5000)))
+                        adapter = configure_lsp(project_path, body.get("executable") or "", body.get("workspace_roots") or [], arguments=body.get("arguments") or [], timeout_ms=int(body.get("timeout_ms", 5000)), backend=str(body.get("backend") or "native_stdio"), server_family=str(body.get("server_family") or "unknown"), compile_commands=body.get("compile_commands"))
                         return self._send_json(200, {"status": "ok", "adapter": adapter, "privacy": lsp_privacy()})
+                    if action == "preflight":
+                        return self._send_json(200, {"status": "ok", "preflight": preflight_lsp(project_path, compile_commands=body.get("compile_commands")), "privacy": lsp_privacy()})
                     if action == "probe":
                         configured = AdapterRegistry(project_path).status("lsp").get("config") or {}
                         payload = {"executable": configured.get("executable", ""), "argv": list(configured.get("arguments") or []), "cwd": str(Path(project_path).resolve()), "timeout_ms": int(body.get("timeout_ms", 5000)), "network_expected": False}

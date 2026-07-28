@@ -145,7 +145,10 @@ class ApprovalStore:
         return record
 
     def request(self, action: str, payload: dict[str, Any], *, ttl_seconds: int = 300) -> dict[str, Any]:
-        approval_id = secrets.token_urlsafe(18)
+        # Keep the first character non-option-like for the host CLI.  A raw
+        # URL-safe token may begin with ``-`` and argparse would then treat a
+        # positional approval id as an option on a rare but valid invocation.
+        approval_id = f"apr_{secrets.token_urlsafe(18)}"
         created = _now()
         record = {
             "id": approval_id, "action": action, "fingerprint": _fingerprint(action, payload),

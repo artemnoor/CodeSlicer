@@ -107,8 +107,9 @@ def test_browser_shows_a_single_project_map_and_optional_graphify():
             # Review is the daily entry point; the project map remains an
             # explicit investigation surface rather than the landing page.
             assert page.url.endswith("#review")
-            assert page.locator(".simple-nav a").count() == 3
+            assert page.locator(".simple-nav a").count() == 4
             assert page.get_by_text("Проверка изменений", exact=True).count() == 1
+            assert page.get_by_role("link", name="Локальные источники").count() == 1
             # Review actions must be useful controls, not dead links.
             page.get_by_role("button", name="Запустить выбранные тесты").click()
             assert page.locator("#modalBackdrop").is_visible(), page.locator("body").inner_text()

@@ -700,8 +700,25 @@ LSP — единственное исключение: это явно выбр�
 ```bash
 impact-engine --json adapters lsp configure /path/to/project \
   --executable /absolute/path/to/language-server \
-  --workspace-root /path/to/project
+  --workspace-root /path/to/project \
+  --backend agent_lsp \
+  --compile-commands /path/to/project/build/compile_commands.json
 ```
+
+Для C/C++ сначала выполните read-only preflight: он показывает обнаруженный
+build context и качество `compile_commands.json`, но не конфигурирует и не
+запускает сервер. Затем явно проверьте возможности выбранного runtime:
+
+```bash
+impact-engine --json adapters lsp preflight /path/to/project
+impact-engine --json adapters lsp probe /path/to/project
+```
+
+`agent_lsp` — optional thin integration с официальным `agent-lsp` по MCP stdio.
+Agent-LSP владеет warm sessions, skills, hierarchy и semantic navigation;
+CodeSlicer хранит только отдельный provenance-bearing overlay и применяет
+собственную build-context/mapping policy. `native_stdio` остаётся короткоживущим
+fallback. Agent-LSP никогда не скачивается автоматически.
 
 Joern также не устанавливается и не запускается автоматически: он принимает
 только уже созданный пользователем локальный interchange-экспорт. Проверить

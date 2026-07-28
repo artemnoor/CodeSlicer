@@ -21,6 +21,7 @@
     <nav class="simple-nav" aria-label="Основная навигация">
       <a href="#review" data-route="review">Проверка изменений</a>
       <a href="#map" data-route="map">Карта проекта</a>
+      <a href="#sources" data-route="sources">Локальные источники</a>
       <a href="#graphify" data-route="graphify">Graphify</a>
     </nav>
     <div class="simple-project-picker">
@@ -135,6 +136,17 @@
           </div>
         </header>
         <div id="graphifyContent" class="graphify-content"></div>
+      </section>
+
+      <section class="route-view" id="view-sources" data-route-view="sources">
+        <header class="map-heading">
+          <div>
+            <span class="eyebrow">ЛОКАЛЬНЫЕ ИСТОЧНИКИ</span>
+            <h1>Семантика и дополнительный контекст</h1>
+            <p>Подключайте только уже установленные на компьютере инструменты. Запуск языка и прогрев LSP требуют явного действия.</p>
+          </div>
+        </header>
+        <div id="sourcesContent" class="sources-content" aria-live="polite"></div>
       </section>
     </div>
   </main>

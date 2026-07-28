@@ -32,8 +32,15 @@ paths, depth limits, and timeout values. Invalid parameters return JSON-RPC
   validated pack;
 - local registry: status, pull pack, create request, process queue, library
   status, approve pack, check documentation, simulate lifecycle.
+- semantic LSP: `semantic_preflight`, `semantic_query`.
 
 Use tools/list as the source of truth for exact schemas.
+
+`semantic_preflight` is read-only and never starts a language server.
+`semantic_query` first returns `pending_approval`; the local host must approve
+the exact payload before a configured process starts. When configured with
+`backend=agent_lsp`, CodeSlicer delegates warm sessions and skills to the
+official Agent-LSP MCP runtime; it never downloads that runtime implicitly.
 
 ## Safety boundary
 

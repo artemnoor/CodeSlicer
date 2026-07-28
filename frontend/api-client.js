@@ -108,6 +108,7 @@
     sarifImport: (payload) => post('/api/adapters/sarif/import', payload),
     lspStatus: () => request('/api/adapters/lsp/status'),
     lspConfigure: (payload) => post('/api/adapters/lsp/configure', payload),
+    lspPreflight: (payload) => post('/api/adapters/lsp/preflight', payload),
     lspProbe: (payload) => approvedPost('/api/adapters/lsp/probe', payload),
     lspDisable: (payload) => post('/api/adapters/lsp/disable', payload),
     lspQuery: (payload) => approvedPost('/api/adapters/lsp/query', payload),

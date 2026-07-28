@@ -125,6 +125,25 @@ CSHARP_SEMANTICS = LanguageSemanticProvider(
     diagnostics_label="C# local structural semantics",
 )
 
+CPP_SEMANTICS = LanguageSemanticProvider(
+    language_id="cpp",
+    provider_id="cpp_tree_sitter_plus_lsp",
+    capabilities=LanguageSemanticCapabilities(
+        structural_extraction=True,
+        import_resolution=True,
+        call_resolution="limited",
+        endpoint_resolution=False,
+        framework_rules=False,
+        production_semantic_baseline=False,
+        notes=(
+            "Structural C/C++ facts are local and deliberately limited.",
+            "Compiler-accurate navigation requires a fresh compilation database, selected toolchain, generated headers, and an explicitly configured language server.",
+        ),
+    ),
+    confidence_policy="structural C/C++ facts are limited; LSP evidence is capped until a fresh compilation database and exact range mapping are available",
+    diagnostics_label="C/C++ structural and LSP-assisted semantics",
+)
+
 PROVIDERS = {
     provider.language_id: provider
     for provider in (
@@ -134,6 +153,7 @@ PROVIDERS = {
         GO_SEMANTICS,
         JAVA_SEMANTICS,
         CSHARP_SEMANTICS,
+        CPP_SEMANTICS,
     )
 }
 

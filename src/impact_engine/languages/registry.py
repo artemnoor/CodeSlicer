@@ -9,6 +9,7 @@ from impact_engine.languages.semantics import (
     JAVASCRIPT_SEMANTICS,
     PYTHON_SEMANTICS,
     TYPESCRIPT_SEMANTICS,
+    CPP_SEMANTICS,
 )
 
 # Pre-defined profiles
@@ -76,6 +77,16 @@ CSHARP_PROFILE = LanguageProfile(
     semantic_provider=CSHARP_SEMANTICS,
 )
 
+CPP_PROFILE = LanguageProfile(
+    language_id="cpp",
+    display_name="C/C++",
+    file_extensions={".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx"},
+    package_manifest_files={"CMakeLists.txt", "CMakePresets.json", "compile_commands.json", "meson.build", "BUILD", "BUILD.bazel", "WORKSPACE", "WORKSPACE.bazel", "Makefile", "build.ninja", ".clangd", ".clang-tidy"},
+    standard_library_modules=set(),
+    default_extractor_id="tree_sitter",
+    semantic_provider=CPP_SEMANTICS,
+)
+
 PROFILES = {
     "python": PYTHON_PROFILE,
     "javascript": JAVASCRIPT_PROFILE,
@@ -83,6 +94,7 @@ PROFILES = {
     "go": GO_PROFILE,
     "java": JAVA_PROFILE,
     "csharp": CSHARP_PROFILE,
+    "cpp": CPP_PROFILE,
 }
 
 

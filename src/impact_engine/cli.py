@@ -327,12 +327,19 @@ def main(argv: list[str] | None = None) -> None:
     lsp_status = lsp_sub.add_parser("status")
     lsp_status.add_argument("project")
     lsp_status.add_argument("--json", action="store_true", dest="local_json")
+    lsp_preflight = lsp_sub.add_parser("preflight", help="Inspect local semantic readiness without starting a server")
+    lsp_preflight.add_argument("project")
+    lsp_preflight.add_argument("--compile-commands", default=None, help="Absolute local compilation database path")
+    lsp_preflight.add_argument("--json", action="store_true", dest="local_json")
     lsp_configure = lsp_sub.add_parser("configure")
     lsp_configure.add_argument("project")
-    lsp_configure.add_argument("--executable", required=True, help="Absolute local LSP executable")
+    lsp_configure.add_argument("--executable", required=True, help="Absolute local LSP or official agent-lsp executable")
     lsp_configure.add_argument("--workspace-root", action="append", required=True, dest="workspace_roots", help="Absolute allowed workspace root; repeat for multiple roots")
     lsp_configure.add_argument("--arg", action="append", default=[], dest="arguments", help="Optional local process argument; repeat as needed")
     lsp_configure.add_argument("--timeout-ms", type=int, default=5000)
+    lsp_configure.add_argument("--backend", choices=["native_stdio", "agent_lsp", "auto"], default="native_stdio")
+    lsp_configure.add_argument("--server-family", default="unknown")
+    lsp_configure.add_argument("--compile-commands", default=None, help="Absolute local compilation database path")
     lsp_configure.add_argument("--json", action="store_true", dest="local_json")
     lsp_probe = lsp_sub.add_parser("probe")
     lsp_probe.add_argument("project")
@@ -342,7 +349,7 @@ def main(argv: list[str] | None = None) -> None:
     lsp_disable.add_argument("--json", action="store_true", dest="local_json")
     lsp_query = lsp_sub.add_parser("query", help="Explicitly request one bounded LSP semantic operation")
     lsp_query.add_argument("project")
-    lsp_query.add_argument("--method", required=True, choices=["documentSymbol", "definition", "references", "implementation", "workspace/symbol"])
+    lsp_query.add_argument("--method", required=True, choices=["documentSymbol", "definition", "references", "implementation", "declaration", "typeDefinition", "hover", "workspace/symbol", "callHierarchy", "typeHierarchy", "diagnostics"])
     lsp_query.add_argument("--file", default=None)
     lsp_query.add_argument("--line", type=int, default=0)
     lsp_query.add_argument("--character", type=int, default=0)
@@ -793,12 +800,14 @@ def main(argv: list[str] | None = None) -> None:
                 sys.exit(1)
             return
         if args.adapter_command == "lsp":
-            from impact_engine.adapters.lsp import configure_lsp, disable_lsp, lsp_status, probe_lsp, query_lsp
+            from impact_engine.adapters.lsp import configure_lsp, disable_lsp, lsp_status, preflight_lsp, probe_lsp, query_lsp
             try:
                 if args.lsp_command == "status":
                     result = {"status": "ok", "adapter": lsp_status(args.project), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.lsp_command == "preflight":
+                    result = {"status": "ok", "preflight": preflight_lsp(args.project, compile_commands=args.compile_commands), "privacy": {"mode": "local-only", "network_used": False}}
                 elif args.lsp_command == "configure":
-                    result = {"status": "ok", "adapter": configure_lsp(args.project, args.executable, args.workspace_roots, arguments=args.arguments, timeout_ms=args.timeout_ms), "privacy": {"mode": "local-only", "network_used": False}}
+                    result = {"status": "ok", "adapter": configure_lsp(args.project, args.executable, args.workspace_roots, arguments=args.arguments, timeout_ms=args.timeout_ms, backend=args.backend, server_family=args.server_family, compile_commands=args.compile_commands), "privacy": {"mode": "local-only", "network_used": False}}
                 elif args.lsp_command == "probe":
                     result = {"status": "ok", "adapter": probe_lsp(args.project), "privacy": {"mode": "local-only", "network_used": False}}
                 elif args.lsp_command == "disable":

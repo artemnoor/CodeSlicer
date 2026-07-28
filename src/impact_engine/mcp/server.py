@@ -20,6 +20,12 @@ from impact_engine.support_packs.registry import list_local_support_packs, valid
 from impact_engine.contracts import build_mode_response
 from impact_engine.tool_runtime import ToolRuntime
 from impact_engine.approvals import ApprovalStore
+from impact_engine.adapters.lsp import (
+    lsp_privacy,
+    lsp_status,
+    preflight_lsp,
+    query_lsp,
+)
 
 
 def _verify_path_exists(p_str: str) -> None:
@@ -79,6 +85,7 @@ def request_action_approval(
     if action not in {
         "managed_tool.connect", "managed_tool.run", "managed_tool.help",
         "runtime_trace", "investigate.runtime_validate", "ci.run_tests", "project.onboard", "research.fetch_pages",
+        "lsp.query",
     }:
         raise ValueError("unsupported approval action")
     approval = ApprovalStore(project_path).request(action, payload, ttl_seconds=ttl_seconds)
@@ -955,6 +962,37 @@ def run_managed_tool(
     return {"tool": "run_managed_tool", "status": "ok", **result}
 
 
+def semantic_preflight(project_path: str, compile_commands: str | None = None) -> Dict[str, Any]:
+    """Inspect local semantic readiness without starting a language server."""
+    _verify_path_exists(project_path)
+    return {
+        "tool": "semantic_preflight", "status": "ok", "project_path": str(Path(project_path).resolve()),
+        "preflight": preflight_lsp(project_path, compile_commands=compile_commands), "privacy": lsp_privacy(),
+    }
+
+
+def semantic_session_status(project_path: str) -> Dict[str, Any]:
+    """Return status only; this does not spawn a local server process."""
+    _verify_path_exists(project_path)
+    return {
+        "tool": "semantic_session_status", "status": "ok", "project_path": str(Path(project_path).resolve()),
+        "adapter": lsp_status(project_path), "privacy": lsp_privacy(),
+    }
+
+
+def semantic_query(
+    project_path: str, method: str, file: str | None = None, line: int = 0, character: int = 0,
+    query: str = "", entity_id: str | None = None, timeout_ms: int | None = None,
+    approval_id: str | None = None, approval_token: str | None = None,
+) -> Dict[str, Any]:
+    payload = {"method": method, "file": file, "line": line, "character": character, "query": query, "entity_id": entity_id, "timeout_ms": timeout_ms}
+    _verify_path_exists(project_path)
+    pending = _consume_or_request_approval(project_path, approval_id, approval_token, "lsp.query", payload, "semantic_query")
+    if pending:
+        return pending
+    return {"tool": "semantic_query", "status": "ok", "project_path": str(Path(project_path).resolve()), "result": query_lsp(project_path, **payload), "privacy": lsp_privacy()}
+
+
 # Stable MCP tool registry
 TOOLS = [
     {
@@ -972,6 +1010,16 @@ TOOLS = [
             "type": "object",
             "properties": {}
         }
+    },
+    {
+        "name": "semantic_preflight",
+        "description": "Inspect configured local LSP, language coverage, and existing build context without writing or starting a process.",
+        "inputSchema": {"type": "object", "properties": {"project_path": {"type": "string"}, "compile_commands": {"type": "string"}}, "required": ["project_path"]},
+    },
+    {
+        "name": "semantic_query",
+        "description": "Run a bounded semantic query after host-only approval; Agent-LSP backends delegate to its documented MCP tool.",
+        "inputSchema": {"type": "object", "properties": {"project_path": {"type": "string"}, "method": {"type": "string", "enum": ["definition", "references", "implementation", "callHierarchy", "typeHierarchy", "diagnostics", "declaration", "typeDefinition", "hover"]}, "file": {"type": "string"}, "line": {"type": "integer", "minimum": 0}, "character": {"type": "integer", "minimum": 0}, "query": {"type": "string"}, "entity_id": {"type": "string"}, "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 30000}, "approval_id": {"type": "string"}, "approval_token": {"type": "string"}}, "required": ["project_path", "method"]},
     },
     {
         "name": "scan_plan",
@@ -1403,7 +1451,7 @@ TOOLS.extend([
             "type": "object",
             "properties": {
                 "project_path": {"type": "string"},
-                "action": {"type": "string", "enum": ["managed_tool.connect", "managed_tool.run", "managed_tool.help", "runtime_trace", "investigate.runtime_validate", "ci.run_tests", "project.onboard", "research.fetch_pages"]},
+                "action": {"type": "string", "enum": ["managed_tool.connect", "managed_tool.run", "managed_tool.help", "runtime_trace", "investigate.runtime_validate", "ci.run_tests", "project.onboard", "research.fetch_pages", "lsp.query"]},
                 "payload": {"type": "object"},
                 "ttl_seconds": {"type": "integer", "minimum": 30, "maximum": 900, "default": 300},
             },
@@ -1655,6 +1703,10 @@ def main():
                             res = health_check()
                         elif tool_name == "server_info":
                             res = server_info()
+                        elif tool_name == "semantic_preflight":
+                            res = semantic_preflight(**arguments)
+                        elif tool_name == "semantic_query":
+                            res = semantic_query(**arguments)
                         elif tool_name == "scan_plan":
                             res = scan_plan(**arguments)
                         elif tool_name == "project_status":

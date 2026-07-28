@@ -21,6 +21,8 @@ from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 
 from impact_engine.models import GraphDocument
+from impact_engine.build_context import inspect_build_context
+from impact_engine.languages.registry import detect_languages
 from impact_engine.persistence import git_context
 from impact_engine.project_storage import ensure_project_storage
 
@@ -93,6 +95,19 @@ def _state_path(project_path: str | Path) -> Path:
 
 def _read_state(project_path: str | Path) -> dict[str, Any]:
     path = _state_path(project_path)
+    if not path.is_file():
+        return {"enabled": False}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else {"enabled": False, "status": "error"}
+    except (OSError, ValueError, json.JSONDecodeError):
+        return {"enabled": False, "status": "error", "diagnostics": ["invalid LSP adapter state"]}
+
+
+def _read_existing_state(project_path: str | Path) -> dict[str, Any]:
+    """Read state for no-write operations such as semantic preflight."""
+    project = Path(project_path).expanduser().resolve()
+    path = project / ".codeslicer" / "adapters" / "lsp.json"
     if not path.is_file():
         return {"enabled": False}
     try:
@@ -246,6 +261,11 @@ def _capability_supported(capabilities: dict[str, Any], method: str) -> bool:
         "textDocument/definition": "definitionProvider",
         "textDocument/references": "referencesProvider",
         "textDocument/implementation": "implementationProvider",
+        "textDocument/declaration": "declarationProvider",
+        "textDocument/typeDefinition": "typeDefinitionProvider",
+        "textDocument/hover": "hoverProvider",
+        "textDocument/prepareCallHierarchy": "callHierarchyProvider",
+        "textDocument/prepareTypeHierarchy": "typeHierarchyProvider",
         "workspace/symbol": "workspaceSymbolProvider",
     }.get(method)
     if not key:
@@ -523,6 +543,26 @@ def _build_overlay(project_path: Path, state: dict[str, Any], method: str, locat
     }
 
 
+def build_lsp_overlay(project_path: str | Path, *, method: str, locations: list[dict[str, Any]], entity_id: str | None, diagnostics: list[dict[str, Any]], adapter_id: str = "lsp", source: str = "local-lsp", provenance: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build a bounded, provenance-bearing semantic overlay for any LSP runtime.
+
+    Mapping remains CodeSlicer-owned; this helper does not create canonical
+    confirmed edges and is shared by the optional Agent-LSP integration.
+    """
+    project = Path(project_path).expanduser().resolve()
+    state = {"executable": (provenance or {}).get("runtime", source)}
+    overlay = _build_overlay(project, state, method, locations, diagnostics, query={"entity_id": entity_id})
+    overlay["adapter_id"] = adapter_id
+    overlay["provenance"] = dict(provenance or {})
+    overlay["source"] = source
+    for node in overlay["nodes"]:
+        node["source"] = source
+        node["provenance"] = dict(provenance or {})
+    for edge in overlay["edges"]:
+        edge["source"] = source
+    return overlay
+
+
 def _map_candidates(canonical: list[Any], semantic: dict[str, Any]) -> list[tuple[Any, str]]:
     semantic_id = str(semantic.get("semantic_id") or "")
     if semantic_id:
@@ -616,7 +656,15 @@ def _overlay_freshness(project_path: Path, state: dict[str, Any]) -> dict[str, A
 
 def lsp_status(project_path: str | Path) -> dict[str, Any]:
     project = Path(project_path).expanduser().resolve()
-    state = _read_state(project)
+    state = _read_existing_state(project)
+    if state.get("backend") == "agent_lsp":
+        from .agent_lsp import agent_lsp_status
+        return agent_lsp_status(project)
+    if not state.get("enabled"):
+        from .agent_lsp import agent_lsp_status
+        agent_status = agent_lsp_status(project)
+        if agent_status.get("enabled"):
+            return agent_status
     diagnostics = list(state.get("diagnostics") or [])
     if state.get("status") == "error":
         return {"id": "lsp", "status": "error", "enabled": False, "freshness": {"status": "unknown", "verified": False}, "network_used": False, "privacy": lsp_privacy(), "diagnostics": diagnostics or ["invalid LSP adapter state"]}
@@ -636,27 +684,88 @@ def lsp_status(project_path: str | Path) -> dict[str, Any]:
     return {
         "id": "lsp", "status": status, "enabled": True, "freshness": freshness, "network_used": False, "privacy": lsp_privacy(),
         "executable": str(executable), "workspace_roots": [str(root) for root in _roots(state)],
+        "config": {"executable": str(executable), "arguments": list(state.get("arguments") or []), "workspace_roots": [str(root) for root in _roots(state)], "backend": state.get("backend", "native_stdio"), "compile_commands": state.get("compile_commands")},
+        "backend": state.get("backend", "native_stdio"), "server_family": state.get("server_family", "unknown"),
         "capabilities": state.get("capabilities", {}), "last_probe": state.get("last_probe"),
         "artifact": {"overlay_path": state.get("overlay_path"), "nodes": state.get("nodes", 0), "edges": state.get("edges", 0)},
         "diagnostics": diagnostics,
     }
 
 
-def configure_lsp(project_path: str | Path, executable: str | Path, workspace_roots: list[str | Path], *, arguments: list[str] | None = None, timeout_ms: int = DEFAULT_LSP_TIMEOUT_MS) -> dict[str, Any]:
+def configure_lsp(project_path: str | Path, executable: str | Path, workspace_roots: list[str | Path], *, arguments: list[str] | None = None, timeout_ms: int = DEFAULT_LSP_TIMEOUT_MS, backend: str = "native_stdio", server_family: str = "unknown", compile_commands: str | Path | None = None) -> dict[str, Any]:
     project = Path(project_path).expanduser().resolve()
     if not project.is_dir():
         raise FileNotFoundError(f"Project directory does not exist: {project}")
     executable_path, roots, args = _validate_configuration(executable, workspace_roots, arguments)
     if not _inside(project, roots):
         raise ValueError("project must be inside one of the configured workspace roots")
+    if backend not in {"native_stdio", "agent_lsp", "auto"}:
+        raise ValueError("unsupported LSP backend; choose native_stdio, agent_lsp, or safe auto")
+    if compile_commands is not None:
+        # Validation is deliberately read-only.  An adapter configure action
+        # must not copy/link a database or invoke a build tool.
+        inspect_build_context(project, compile_commands=compile_commands)
+    if backend == "agent_lsp":
+        from .agent_lsp import configure_agent_lsp
+        return configure_agent_lsp(project, executable_path, roots, server_args=args, compile_commands=compile_commands)
     state = _read_state(project)
-    state.update({"enabled": True, "executable": str(executable_path), "arguments": args, "workspace_roots": [str(root) for root in roots], "timeout_ms": max(100, min(int(timeout_ms), MAX_LSP_TIMEOUT_MS)), "configured_at": _now(), "privacy_boundary": LSP_PRIVACY_BOUNDARY, "network_observed": False, "diagnostics": []})
+    state.update({"enabled": True, "executable": str(executable_path), "arguments": args, "workspace_roots": [str(root) for root in roots], "timeout_ms": max(100, min(int(timeout_ms), MAX_LSP_TIMEOUT_MS)), "configured_at": _now(), "privacy_boundary": LSP_PRIVACY_BOUNDARY, "network_observed": False, "diagnostics": [], "backend": "native_stdio", "backend_selection_reason": "native short-lived fallback", "server_family": server_family, "compile_commands": str(Path(compile_commands).resolve()) if compile_commands is not None else None})
     _write_state(project, state)
     return lsp_status(project)
 
 
+def preflight_lsp(project_path: str | Path, *, compile_commands: str | Path | None = None) -> dict[str, Any]:
+    """Inspect semantic readiness without starting a server or changing files."""
+    project = Path(project_path).expanduser().resolve()
+    state = _read_existing_state(project)
+    from .agent_lsp import agent_lsp_status
+    agent_status = agent_lsp_status(project)
+    if agent_status.get("enabled"):
+        state = {**state, "backend": "agent_lsp", "executable": agent_status.get("executable"), "compile_commands": compile_commands or state.get("compile_commands")}
+    languages = detect_languages(project)
+    build_context = inspect_build_context(project, compile_commands=compile_commands or state.get("compile_commands"))
+    executable_value = state.get("executable")
+    executable = Path(str(executable_value)).expanduser() if executable_value else None
+    available = bool(executable and executable.is_absolute() and executable.is_file())
+    server_family = "agent-lsp" if state.get("backend") == "agent_lsp" else (state.get("server_family") or ("clangd" if "cpp" in languages else "unconfigured"))
+    quality = dict(build_context["semantic_quality"])
+    if "cpp" in languages and not available:
+        quality["reasons"] = [*quality.get("reasons", []), "a local clangd executable has not been configured"]
+    index_status = _overlay_freshness(project, state).get("status", "cold") if state.get("overlay_path") else "cold"
+    next_steps: list[str] = []
+    if not available:
+        next_steps.append("Configure an already installed local language server")
+    if "cpp" in languages and build_context["compile_commands"].get("status") != "available":
+        next_steps.append("Generate or provide a fresh compilation database")
+    if not next_steps and state.get("backend") == "agent_lsp":
+        next_steps.append("Run an explicit Agent-LSP capability probe when semantic navigation is needed")
+    return {
+        "schema_version": "CodeSlicerSemanticPreflight/v1",
+        "project_path": str(project),
+        "write_policy": "read_only",
+        "languages": languages,
+        "server": {"family": server_family, "status": "available" if available else "not_configured", "executable": str(executable) if executable else None},
+        "backend": {"selected": state.get("backend", "native_stdio"), "status": "available", "reason": "official Agent-LSP MCP runtime" if state.get("backend") == "agent_lsp" else state.get("backend_selection_reason", "native stdio is the safe local default")},
+        "build_context": build_context,
+        "index": {"status": index_status, "last_warm": state.get("last_warm")},
+        "semantic_quality": quality,
+        "next_steps": next_steps,
+        "network_used": False,
+        "privacy": lsp_privacy(),
+    }
+
+
 def disable_lsp(project_path: str | Path) -> dict[str, Any]:
     project = Path(project_path).expanduser().resolve()
+    from .agent_lsp import agent_lsp_status
+    if agent_lsp_status(project).get("enabled"):
+        state = _read_state(project)
+        state.update({"enabled": False, "updated_at": _now()})
+        _write_state(project, state)
+        agent_state = _state_path(project).with_name("agent_lsp.json")
+        if agent_state.is_file():
+            value = json.loads(agent_state.read_text(encoding="utf-8")); value["enabled"] = False; agent_state.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        return agent_lsp_status(project)
     state = _read_state(project)
     state.update({"enabled": False, "updated_at": _now()})
     _write_state(project, state)
@@ -666,6 +775,13 @@ def disable_lsp(project_path: str | Path) -> dict[str, Any]:
 def probe_lsp(project_path: str | Path, *, timeout_ms: int | None = None) -> dict[str, Any]:
     project = Path(project_path).expanduser().resolve()
     state = _read_state(project)
+    from .agent_lsp import agent_lsp_status
+    if agent_lsp_status(project).get("enabled"):
+        from .agent_lsp import probe_agent_lsp
+        return probe_agent_lsp(project, timeout_seconds=max(1, int((timeout_ms or DEFAULT_LSP_TIMEOUT_MS) / 1000)))
+    if state.get("backend") == "agent_lsp":
+        from .agent_lsp import probe_agent_lsp
+        return probe_agent_lsp(project, timeout_seconds=max(1, int((timeout_ms or DEFAULT_LSP_TIMEOUT_MS) / 1000)))
     if not state.get("enabled"):
         return {**lsp_status(project), "probe": {"status": "skipped", "reason": "LSP adapter is disabled; configure it explicitly first"}}
     client = None
@@ -687,12 +803,20 @@ def probe_lsp(project_path: str | Path, *, timeout_ms: int | None = None) -> dic
 def query_lsp(project_path: str | Path, *, method: str, file: str | None = None, line: int = 0, character: int = 0, query: str = "", entity_id: str | None = None, timeout_ms: int | None = None) -> dict[str, Any]:
     project = Path(project_path).expanduser().resolve()
     state = _read_state(project)
+    from .agent_lsp import agent_lsp_status
+    if agent_lsp_status(project).get("enabled"):
+        from .agent_lsp import query_agent_lsp
+        return query_agent_lsp(project, method=method, file=file, line=line, character=character, entity_id=entity_id, timeout_seconds=max(1, int((timeout_ms or DEFAULT_LSP_TIMEOUT_MS) / 1000)))
+    if state.get("backend") == "agent_lsp":
+        from .agent_lsp import query_agent_lsp
+        delegated = {"definition": "definition", "references": "references", "implementation": "implementation", "callHierarchy": "callHierarchy", "typeHierarchy": "typeHierarchy", "diagnostics": "diagnostics"}
+        return query_agent_lsp(project, method=delegated.get(method, method), file=file, line=line, character=character, entity_id=entity_id, timeout_seconds=max(1, int((timeout_ms or DEFAULT_LSP_TIMEOUT_MS) / 1000)))
     allowed, reason = _project_allowed(project, state)
     if not state.get("enabled"):
         return {"status": "disabled", "error": "LSP adapter is disabled; configure it explicitly first", "network_used": False, "privacy": lsp_privacy()}
     if not allowed:
         return {"status": "unavailable", "error": reason, "network_used": False, "privacy": lsp_privacy()}
-    methods = {"documentSymbol": "textDocument/documentSymbol", "definition": "textDocument/definition", "references": "textDocument/references", "implementation": "textDocument/implementation", "workspace/symbol": "workspace/symbol"}
+    methods = {"documentSymbol": "textDocument/documentSymbol", "definition": "textDocument/definition", "references": "textDocument/references", "implementation": "textDocument/implementation", "declaration": "textDocument/declaration", "typeDefinition": "textDocument/typeDefinition", "hover": "textDocument/hover", "workspace/symbol": "workspace/symbol"}
     rpc_method = methods.get(method, method if method in methods.values() else None)
     if not rpc_method:
         return {"status": "error", "error": f"unsupported LSP method: {method}", "network_used": False, "privacy": lsp_privacy()}
@@ -713,7 +837,7 @@ def query_lsp(project_path: str | Path, *, method: str, file: str | None = None,
         if not _capability_supported(client.capabilities, rpc_method):
             diagnostics.append({"code": "unsupported_capability", "severity": "info", "message": f"Configured LSP server does not advertise {rpc_method}"})
             return {"status": "unsupported", "method": rpc_method, "diagnostics": diagnostics, "network_used": False, "privacy": lsp_privacy()}
-        if rpc_method in {"textDocument/definition", "textDocument/references", "textDocument/implementation"}:
+        if rpc_method in {"textDocument/definition", "textDocument/references", "textDocument/implementation", "textDocument/declaration", "textDocument/typeDefinition", "textDocument/hover"}:
             params = {**text_document, "position": {"line": max(0, int(line)), "character": max(0, int(character))}}
             if rpc_method == "textDocument/references":
                 params["context"] = {"includeDeclaration": True}
@@ -727,6 +851,9 @@ def query_lsp(project_path: str | Path, *, method: str, file: str | None = None,
             locations = _document_symbols(raw, project, roots, diagnostics, text_document.get("textDocument", {}).get("uri", ""))
         elif rpc_method == "workspace/symbol":
             locations = _workspace_symbols(raw, project, roots, diagnostics)
+        elif rpc_method == "textDocument/hover":
+            contents = raw.get("contents") if isinstance(raw, dict) else raw
+            locations = [{"uri": _path_to_uri(file_path), "file": file_path.relative_to(project).as_posix(), "range": {"start_line": int(line), "start_column": int(character), "end_line": int(line), "end_column": int(character)}, "source": "local-lsp", "hover": contents}] if file_path else []
         else:
             locations = _locations(raw, project, roots, diagnostics)
         overlay = _build_overlay(project, state, rpc_method, locations, diagnostics, query={"file": str(file_path) if file_path else None, "line": line, "character": character, "entity_id": entity_id, "query": query})
@@ -749,6 +876,11 @@ def query_lsp(project_path: str | Path, *, method: str, file: str | None = None,
 def load_lsp_overlay(project_path: str | Path) -> dict[str, Any] | None:
     project = Path(project_path).expanduser().resolve()
     state = _read_state(project)
+    if not state.get("enabled"):
+        from .agent_lsp import load_agent_lsp_overlay
+        overlay = load_agent_lsp_overlay(project)
+        if overlay is not None:
+            return overlay
     if not state.get("enabled") or not state.get("overlay_path"):
         return None
     path = Path(str(state["overlay_path"]))

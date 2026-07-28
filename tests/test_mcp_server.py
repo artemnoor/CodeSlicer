@@ -9,7 +9,9 @@ from impact_engine.mcp.server import (
     project_inventory,
     list_support_packs,
     validate_support_pack,
-    create_library_research_request
+    create_library_research_request,
+    semantic_preflight,
+    TOOLS,
 )
 
 PROJECT_PATH = Path(__file__).parent.parent / "examples" / "golden_cases" / "python_di_basic"
@@ -98,6 +100,17 @@ def test_mcp_create_library_research_request_no_network():
     prompt = res["prompt"]
     assert "official documentation" in prompt or "official GitHub" in prompt
     assert "machine-readable support_pack.json" in prompt
+
+
+def test_mcp_semantic_preflight_is_read_only(tmp_path):
+    project = tmp_path / "cpp-project"
+    project.mkdir()
+    (project / "main.cpp").write_text("int main() { return 0; }\n", encoding="utf-8")
+    preflight = semantic_preflight(str(project))
+    assert preflight["status"] == "ok"
+    assert preflight["preflight"]["write_policy"] == "read_only"
+    assert "semantic_preflight" in {tool["name"] for tool in TOOLS}
+
 
 
 def test_mcp_detect_unknown_libraries_golden_case():
