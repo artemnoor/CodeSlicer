@@ -33,7 +33,10 @@
 ### 🌐 Интерфейсы взаимодействия (Web UI & MCP)
 - **Веб-интерфейс**: Запуск через `impact-engine-local-api` ➔ откройте **`http://127.0.0.1:8001/`**.
   - В UI намеренно оставлены две понятные поверхности: интерактивная **карта CodeSlicer** для точных локальных связей и отдельный оригинальный viewer **Graphify** для архитектурного обзора. Graphify появляется только при наличии его собственного `graphify-out/graph.json` и не подменяет graph CodeSlicer.
-- **MCP-сервер для ИИ**: Запуск через `impact-engine-mcp` или `python -m impact_engine.mcp.server`. Реальные имена инструментов: `impact_query`, `pr_review`, `analyze_project` (полный список выдаёт MCP-метод `tools/list`).
+- **MCP-сервер для ИИ**: Запуск через `impact-engine-mcp` или `python -m impact_engine.mcp.server`. Для нового проекта агент начинает с `scan_plan` или `onboard`, затем использует `analyze_project`, `review`, `inspect` и `investigate`. Полный список выдаёт MCP-метод `tools/list`.
+
+Подробно о Graphify, SCIP/LSP, contracts, runtime и security sources без
+смешения их evidence: [документ по интеграциям](docs/INTEGRATIONS.md).
 
 ## Содержание
 
@@ -43,6 +46,7 @@
 - [Быстрый старт](#быстрый-старт)
 - [Анализ проекта](#анализ-проекта)
 - [Визуальный интерфейс](#визуальный-интерфейс)
+- [Интеграции и отдельные графы](docs/INTEGRATIONS.md)
 - [Что изменено в этом релизе](#что-изменено-в-этом-релизе)
 - [MCP](#mcp)
 - [Неизвестные библиотеки](#неизвестные-библиотеки)
