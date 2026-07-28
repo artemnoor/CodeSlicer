@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import threading
+import atexit
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -149,15 +150,152 @@ class _McpStdio:
             self.process.wait(timeout=3)
         except subprocess.TimeoutExpired:
             self.process.kill()
+            self.process.wait(timeout=3)
+
+    @property
+    def pid(self) -> int:
+        return int(self.process.pid)
+
+    @property
+    def alive(self) -> bool:
+        return self.process.poll() is None
 
 
-def _mcp(executable: Path, server_args: list[str], timeout_seconds: int, operation: Any) -> Any:
-    client = _McpStdio(executable, server_args, timeout_seconds)
+class _AgentLspRuntime:
+    """Own the official Agent-LSP MCP process, never an LSP process directly."""
+
+    def __init__(self, project: Path, executable: Path, server_args: list[str], timeout_seconds: int) -> None:
+        self.project = project
+        self.executable = executable
+        self.server_args = list(server_args)
+        self.client = _McpStdio(executable, self.server_args, timeout_seconds)
+        self.started_at = _now()
+        self.queries = 0
+        self._lock = threading.RLock()
+        self.client.call("initialize", {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "CodeSlicer", "version": "agent-lsp-adapter-v1"}})
+
+    @property
+    def alive(self) -> bool:
+        return self.client.alive
+
+    def snapshot(self) -> dict[str, Any]:
+        code = self.client.process.poll()
+        return {
+            "status": "ready" if code is None else "degraded",
+            "agent_lsp_pid": self.client.pid,
+            "started_at": self.started_at,
+            "queries": self.queries,
+            "exit_code": code,
+        }
+
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            if not self.alive:
+                raise AgentLspError(f"Agent-LSP runtime is degraded (exit code {self.client.process.poll()})")
+            result = self.client.call("tools/call", {"name": name, "arguments": arguments})
+            self.queries += 1
+            return result
+
+    def inspect(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        with self._lock:
+            if not self.alive:
+                raise AgentLspError(f"Agent-LSP runtime is degraded (exit code {self.client.process.poll()})")
+            tools = self.client.call("tools/list", {}).get("tools", [])
+            prompts = self.client.call("prompts/list", {}).get("prompts", [])
+            return tools, prompts
+
+    def shutdown(self) -> None:
+        with self._lock:
+            self.client.close()
+
+
+_RUNTIME_LOCK = threading.RLock()
+_RUNTIMES: dict[str, _AgentLspRuntime] = {}
+
+
+def _runtime_key(project: Path) -> str:
+    return str(project.resolve()).casefold()
+
+
+def _runtime_snapshot(project: Path) -> dict[str, Any]:
+    with _RUNTIME_LOCK:
+        runtime = _RUNTIMES.get(_runtime_key(project))
+        return runtime.snapshot() if runtime else {"status": "stopped", "agent_lsp_pid": None, "queries": 0}
+
+
+def _runtime_for(project: Path, state: dict[str, Any], timeout_seconds: int) -> _AgentLspRuntime:
+    binary = discover_agent_lsp(state.get("executable"))
+    if not binary or not state.get("enabled"):
+        raise AgentLspError("Agent-LSP is not configured and compatible")
+    key = _runtime_key(project)
+    with _RUNTIME_LOCK:
+        existing = _RUNTIMES.get(key)
+        if existing and existing.alive and existing.executable == binary and existing.server_args == list(state.get("server_args") or []):
+            return existing
+        if existing:
+            existing.shutdown()
+        runtime = _AgentLspRuntime(project, binary, list(state.get("server_args") or []), timeout_seconds)
+        _RUNTIMES[key] = runtime
+        return runtime
+
+
+def start_agent_lsp_runtime(project_path: str | Path, *, timeout_seconds: int = 10) -> dict[str, Any]:
+    """Explicitly start/reuse the official Agent-LSP MCP runtime for a project."""
+    project = Path(project_path).expanduser().resolve()
+    state = _read_state(project)
     try:
-        client.call("initialize", {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "CodeSlicer", "version": "agent-lsp-adapter-v1"}})
-        return operation(client)
-    finally:
-        client.close()
+        runtime = _runtime_for(project, state, timeout_seconds)
+        state.update({"runtime_status": "ready", "runtime_started_at": runtime.started_at, "runtime_pid": runtime.client.pid, "diagnostics": []})
+        _write_state(project, state)
+        return {**agent_lsp_status(project), "runtime": runtime.snapshot()}
+    except AgentLspError as exc:
+        state.update({"runtime_status": "degraded", "diagnostics": [str(exc)]})
+        _write_state(project, state)
+        return {**agent_lsp_status(project), "runtime": _runtime_snapshot(project), "error": str(exc)}
+
+
+def shutdown_agent_lsp_runtime(project_path: str | Path) -> dict[str, Any]:
+    """Stop only the official MCP process and allow Agent-LSP to clean its servers."""
+    project = Path(project_path).expanduser().resolve()
+    with _RUNTIME_LOCK:
+        runtime = _RUNTIMES.pop(_runtime_key(project), None)
+    if runtime:
+        runtime.shutdown()
+    state = _read_state(project)
+    state.update({"runtime_status": "stopped", "runtime_stopped_at": _now(), "runtime_pid": None})
+    _write_state(project, state)
+    return {**agent_lsp_status(project), "runtime": _runtime_snapshot(project)}
+
+
+def notify_agent_lsp_file_changes(project_path: str | Path, paths: list[str | Path]) -> dict[str, Any]:
+    """Forward documented watched-file notifications to the persistent runtime."""
+    project = Path(project_path).expanduser().resolve()
+    state = _read_state(project)
+    changes = []
+    for value in paths:
+        candidate = Path(value).expanduser().resolve()
+        if candidate != project and project not in candidate.parents:
+            raise ValueError("changed file is outside the selected project")
+        changes.append({"uri": candidate.as_uri(), "type": 2})
+    try:
+        runtime = _runtime_for(project, state, MAX_AGENT_LSP_TIMEOUT_SECONDS)
+        result = runtime.call_tool("did_change_watched_files", {"changes": changes})
+        return {"status": "ok", "result": _content_payload(result), "runtime": runtime.snapshot(), "privacy": lsp_privacy()}
+    except AgentLspError as exc:
+        state.update({"runtime_status": "degraded", "diagnostics": [str(exc)]}); _write_state(project, state)
+        return {"status": "degraded", "error": str(exc), "runtime": _runtime_snapshot(project), "privacy": lsp_privacy()}
+
+
+@atexit.register
+def _shutdown_all_agent_lsp_runtimes() -> None:
+    with _RUNTIME_LOCK:
+        runtimes = list(_RUNTIMES.values())
+        _RUNTIMES.clear()
+    for runtime in runtimes:
+        try:
+            runtime.shutdown()
+        except OSError:
+            pass
 
 
 def configure_agent_lsp(project_path: str | Path, executable: str | Path, workspace_roots: list[str | Path], *, server_args: list[str], compile_commands: str | Path | None = None) -> dict[str, Any]:
@@ -201,13 +339,16 @@ def agent_lsp_status(project_path: str | Path) -> dict[str, Any]:
             diagnostics.append(str(exc))
     available = bool(binary and version and _version_supported(str(version)))
     freshness = "fresh" if state.get("project_head") == git_context(project).get("head") else "stale"
+    runtime = _runtime_snapshot(project)
+    if runtime["status"] == "degraded":
+        diagnostics.append(f"Agent-LSP runtime exited with code {runtime.get('exit_code')}")
     return {
-        "id": AGENT_LSP_ADAPTER_ID, "backend": "agent_lsp", "status": "ready" if state.get("enabled") and available else ("disabled" if not state.get("enabled") else "unavailable"),
+        "id": AGENT_LSP_ADAPTER_ID, "backend": "agent_lsp", "status": "degraded" if runtime["status"] == "degraded" else ("ready" if state.get("enabled") and available else ("disabled" if not state.get("enabled") else "unavailable")),
         "enabled": bool(state.get("enabled")), "executable": str(binary) if binary else state.get("executable"), "version": version,
         "version_supported": _version_supported(str(version)) if version else False, "protocol": AGENT_LSP_PROTOCOL,
         "server_args": list(state.get("server_args") or []), "workspace_roots": list(state.get("workspace_roots") or []),
         "capabilities": list(state.get("capabilities") or []), "skills": list(state.get("skills") or []),
-        "freshness": {"status": freshness, "verified": freshness == "fresh"}, "diagnostics": diagnostics,
+        "freshness": {"status": freshness, "verified": freshness == "fresh"}, "diagnostics": diagnostics, "runtime": runtime,
         "network_used": False, "privacy": lsp_privacy(),
     }
 
@@ -218,14 +359,14 @@ def probe_agent_lsp(project_path: str | Path, *, timeout_seconds: int = 10) -> d
     status = agent_lsp_status(project)
     if status["status"] != "ready":
         return {**status, "probe": {"status": "skipped", "reason": "Agent-LSP is not configured and compatible"}}
-    binary = Path(str(status["executable"])); args = list(state.get("server_args") or [])
     try:
-        tools, prompts = _mcp(binary, args, timeout_seconds, lambda client: (client.call("tools/list", {}).get("tools", []), client.call("prompts/list", {}).get("prompts", [])))
+        runtime = _runtime_for(project, state, timeout_seconds)
+        tools, prompts = runtime.inspect()
         tool_names = sorted(str(item.get("name")) for item in tools if isinstance(item, dict) and item.get("name"))
         prompt_names = sorted(str(item.get("name")) for item in prompts if isinstance(item, dict) and item.get("name"))
         state.update({"capabilities": tool_names, "skills": prompt_names, "last_probe": _now(), "diagnostics": []})
         _write_state(project, state)
-        return {**agent_lsp_status(project), "probe": {"status": "passed", "tools": tool_names, "skills": prompt_names}}
+        return {**agent_lsp_status(project), "runtime": runtime.snapshot(), "probe": {"status": "passed", "tools": tool_names, "skills": prompt_names}}
     except AgentLspError as exc:
         state["diagnostics"] = [str(exc)]; _write_state(project, state)
         return {**agent_lsp_status(project), "probe": {"status": "error", "error": str(exc)}}
@@ -248,7 +389,7 @@ def query_agent_lsp(project_path: str | Path, *, method: str, file: str | None, 
     project = Path(project_path).expanduser().resolve(); state = _read_state(project); status = agent_lsp_status(project)
     tool = _TOOLS.get(method)
     if status["status"] != "ready" or not tool:
-        return {"status": "unavailable" if status["status"] != "ready" else "unsupported", "error": "Agent-LSP is unavailable or does not expose this delegated method", "privacy": lsp_privacy()}
+        return {"status": "degraded" if status["status"] == "degraded" else ("unavailable" if status["status"] != "ready" else "unsupported"), "error": "Agent-LSP is unavailable or does not expose this delegated method", "runtime": status.get("runtime"), "privacy": lsp_privacy()}
     file_path = (Path(file).expanduser() if file and Path(file).is_absolute() else project / str(file or "")).resolve() if file else None
     if method != "diagnostics" and (not file_path or not file_path.is_file() or project not in file_path.parents):
         return {"status": "unavailable", "error": "source file is outside the selected project or does not exist", "privacy": lsp_privacy()}
@@ -260,7 +401,8 @@ def query_agent_lsp(project_path: str | Path, *, method: str, file: str | None, 
     if method == "references": args["include_declaration"] = True
     if method in {"callHierarchy", "typeHierarchy"}: args["direction"] = "both"
     try:
-        payload = _mcp(Path(str(status["executable"])), list(state.get("server_args") or []), timeout_seconds, lambda client: _content_payload(client.call("tools/call", {"name": tool, "arguments": args})))
+        runtime = _runtime_for(project, state, timeout_seconds)
+        payload = _content_payload(runtime.call_tool(tool, args))
         locations = payload if isinstance(payload, list) else []
         raw_diagnostics: list[dict[str, Any]] = []
         if method == "diagnostics" and isinstance(payload, dict):
@@ -287,10 +429,12 @@ def query_agent_lsp(project_path: str | Path, *, method: str, file: str | None, 
             overlay["semantic_result"] = payload
         overlay["status"] = "ok"
         target = ensure_project_storage(project) / "artifacts" / "agent-lsp" / "overlay.json"; target.parent.mkdir(parents=True, exist_ok=True); target.write_text(json.dumps(overlay, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        state.update({"overlay_path": str(target), "last_query": _now(), "last_tool": tool, "project_head": git_context(project).get("head")}); _write_state(project, state)
+        state.update({"overlay_path": str(target), "last_query": _now(), "last_tool": tool, "project_head": git_context(project).get("head"), "runtime_status": "ready", "runtime_pid": runtime.client.pid}); _write_state(project, state)
+        overlay["runtime"] = runtime.snapshot()
         return overlay
     except AgentLspError as exc:
-        return {"status": "unavailable", "error": str(exc), "diagnostics": [{"code": "agent_lsp", "severity": "warning", "message": str(exc)}], "privacy": lsp_privacy()}
+        state.update({"runtime_status": "degraded", "diagnostics": [str(exc)]}); _write_state(project, state)
+        return {"status": "degraded", "error": str(exc), "diagnostics": [{"code": "agent_lsp", "severity": "warning", "message": str(exc)}], "runtime": _runtime_snapshot(project), "privacy": lsp_privacy()}
 
 
 def load_agent_lsp_overlay(project_path: str | Path) -> dict[str, Any] | None:

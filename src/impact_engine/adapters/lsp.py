@@ -759,6 +759,8 @@ def disable_lsp(project_path: str | Path) -> dict[str, Any]:
     project = Path(project_path).expanduser().resolve()
     from .agent_lsp import agent_lsp_status
     if agent_lsp_status(project).get("enabled"):
+        from .agent_lsp import shutdown_agent_lsp_runtime
+        shutdown_agent_lsp_runtime(project)
         state = _read_state(project)
         state.update({"enabled": False, "updated_at": _now()})
         _write_state(project, state)

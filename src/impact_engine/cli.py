@@ -344,6 +344,9 @@ def main(argv: list[str] | None = None) -> None:
     lsp_probe = lsp_sub.add_parser("probe")
     lsp_probe.add_argument("project")
     lsp_probe.add_argument("--json", action="store_true", dest="local_json")
+    lsp_start = lsp_sub.add_parser("start", help="Start or reuse the configured official Agent-LSP runtime")
+    lsp_start.add_argument("project")
+    lsp_start.add_argument("--json", action="store_true", dest="local_json")
     lsp_disable = lsp_sub.add_parser("disable")
     lsp_disable.add_argument("project")
     lsp_disable.add_argument("--json", action="store_true", dest="local_json")
@@ -810,6 +813,9 @@ def main(argv: list[str] | None = None) -> None:
                     result = {"status": "ok", "adapter": configure_lsp(args.project, args.executable, args.workspace_roots, arguments=args.arguments, timeout_ms=args.timeout_ms, backend=args.backend, server_family=args.server_family, compile_commands=args.compile_commands), "privacy": {"mode": "local-only", "network_used": False}}
                 elif args.lsp_command == "probe":
                     result = {"status": "ok", "adapter": probe_lsp(args.project), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.lsp_command == "start":
+                    from impact_engine.adapters.agent_lsp import start_agent_lsp_runtime
+                    result = {"status": "ok", "adapter": start_agent_lsp_runtime(args.project), "privacy": {"mode": "local-only", "network_used": False}}
                 elif args.lsp_command == "disable":
                     result = {"status": "ok", "adapter": disable_lsp(args.project), "privacy": {"mode": "local-only", "network_used": False}}
                 elif args.lsp_command == "query":
