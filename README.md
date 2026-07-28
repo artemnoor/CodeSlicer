@@ -1,8 +1,19 @@
 # CodeSlicer
 
-**CodeSlicer** — локальная система анализа влияния изменений в коде.
-Она строит граф проекта, сохраняет доказательства связей и показывает, что
-нужно проверить после изменения файла, функции, сервиса или endpoint-а.
+<p align="center">
+  <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/artemnoor/CodeSlicer/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/release-v0.5.0-7c3aed?style=flat-square" alt="Release v0.5.0"></a>
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/regression-708%20passed-22c55e?style=flat-square" alt="708 regression tests passed">
+  <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
+  <img src="https://img.shields.io/badge/agent%20skills-2-f97316?style=flat-square" alt="2 bundled agent skills">
+  <img src="https://img.shields.io/badge/MCP-stdio%20JSON--RPC-ec4899?style=flat-square" alt="MCP stdio JSON-RPC">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0ea5e9?style=flat-square" alt="MIT license"></a>
+</p>
+
+**CodeSlicer** — local-first система анализа влияния изменений. Она строит
+доказуемый граф проекта, объясняет последствия правки и подсказывает, что
+проверить: от функции и сервиса до route, frontend-клиента и теста.
 
 Внутреннее имя Python-пакета и команд — `impact_engine`.
 
@@ -10,59 +21,80 @@
 > десятками AI-правок? CodeSlicer строит единый граф проекта, чтобы точно
 > увидеть цепочку поломки, её последствия и нужные точки проверки.
 
-Это не только инструмент для поиска багов. Граф помогает безопасно
-рефакторить, проверять PR, выбирать тесты, понимать незнакомые codebase и
-строить AI-агентов, которые видят структуру проекта и последствия своих
-изменений, а не действуют вслепую.
+Граф помогает безопасно рефакторить, проверять PR, выбирать тесты и разбирать
+незнакомые codebase без догадок по совпадающим именам.
 
 ![Семантический граф CodeSlicer](docs/images/codeslicer-hero.png)
 
-## 🤖 Быстрый старт для AI-Агентов (Скиллы и Инструменты)
+## Установка из исходников и анализ проекта
 
-Если вы — **AI-агент** (Antigravity, Cursor, Windsurf, Claude), начните с двухуровневой схемы скиллов из директории `.agents/skills/`. Это инструкции репозитория, а не автоматически активируемая функция любого AI-клиента: подключите их способом, который поддерживает ваш клиент.
+```powershell
+git clone https://github.com/artemnoor/CodeSlicer.git
+cd CodeSlicer
+py -3 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e .
 
-1. **Главный маршрутизатор (ЧИТАТЬ ПЕРВЫМ)**:
-   - [`code-intelligence-orchestrator`](.agents/skills/code-intelligence-orchestrator/SKILL.md) — классифицирует запрос пользователя и выбирает между точным анализом вызовов и архитектурным обзором.
-2. **Специализированные скиллы**:
-   - 🚀 [`project-onboarding-workflow`](.agents/skills/project-onboarding-workflow/SKILL.md) — подключает папку или явно разрешённый Git URL, строит отдельные архитектурный и impact-графы, ведёт до review и подтверждённого запуска тестов.
-   - 🎯 [`codeslicer-impact-analysis`](.agents/skills/codeslicer-impact-analysis/SKILL.md) — **CodeSlicer**: evidence-gated статический анализ влияния, оценка рисков PR и выбор тестов.
-   - 🗺️ [`graphify-architecture-analysis`](.agents/skills/graphify-architecture-analysis/SKILL.md) — **Graphify**: отдельный инструмент для обзора архитектуры и сообществ.
+# Построить граф проекта и открыть локальный UI
+impact-engine onboard C:\work\my-project --graphify auto
+impact-engine-local-api --default-project C:\work\my-project
+```
 
-При установке пакета эти skills также поставляются как `impact_engine/agent_skills/`; извлечь их путь можно через `importlib.resources`. Это делает инструкции доступными офлайн, но не отменяет необходимость явно зарегистрировать их в используемом AI-клиенте.
+Откройте <http://127.0.0.1:8001/>. Для Linux/macOS замените активацию окружения
+на `source .venv/bin/activate`.
 
-### Установка в AI-клиент
+## AI-интеграции и skills
 
-Установленный пакет содержит безопасный локальный установщик только для двух
-skills: impact analysis и Graphify architecture analysis. Он не устанавливает
-`code-intelligence-orchestrator` или `project-onboarding-workflow` и не меняет
-исходный код проекта.
+Пакет содержит безопасный installer для IDE и coding agents. Он читает два
+skills из wheel через `importlib.resources`, копирует их отдельно и
+регистрирует только локальный MCP-сервер `codeslicer`:
 
-```bash
+- `codeslicer-impact-analysis` — impact analysis, PR review, рефакторинг и тесты;
+- `graphify-architecture-analysis` — архитектурный обзор и communities.
+
+Installer не создаёт и не изменяет `code-intelligence-orchestrator`,
+`project-onboarding-workflow`, `AGENTS.md` или исходный код проекта.
+
+```powershell
+# Показать обнаруженные локальные AI-клиенты
 impact-engine agent detect
+
+# Установить два skills и MCP для Codex в текущий проект
 impact-engine agent install --client codex --scope project
+
+# Kodik IDE: сначала можно посмотреть точный план без записи
+impact-engine agent install --client kodik --scope project --dry-run --json
+
+# Проверить реальные bundled assets и stdio MCP handshake
 impact-engine agent doctor
 impact-engine agent status
 impact-engine agent uninstall
 ```
 
-По умолчанию `project` scope пишет в каталог проекта; `user` scope — в домашний
-каталог клиента. Native skills остаются отдельными `SKILL.md`, а Cursor и Kiro
-получают отдельные rule/steering-файлы. Общий `.agents/skills` может быть
-разделён Codex и Copilot и при удалении не удаляется, пока он ещё нужен другой
-зарегистрированной интеграции. Сначала посмотрите точный план без записи:
+`project` scope пишет в проект; `user` — в домашний каталог клиента. Cursor
+получает отдельные `.mdc` rules, Kiro — steering-файлы, а native clients —
+отдельные `SKILL.md`. После установки перезапустите IDE. Полная матрица путей
+и ограничений: [совместимость AI-клиентов](docs/AGENT_CLIENT_COMPATIBILITY.md).
+
+## Локальный UI и MCP
+
+Веб-интерфейс работает только на localhost и отображает настоящий
+`GraphDocument`; Graphify появляется отдельно, только когда существует
+`graphify-out/graph.json`.
+
+![Обзор проекта в локальном UI](docs/images/codeslicer-overview.png)
+
+MCP-сервер запускается без shell-wrapper:
 
 ```bash
-impact-engine agent install --client kodik --dry-run --json
+impact-engine-mcp
+# или
+python -m impact_engine.mcp.server
 ```
 
-После установки перезапустите или reload-ните клиент. Полная матрица путей,
-ограничений и статусов (`verified`, `experimental`, `unsupported`) приведена в
-[документе совместимости](docs/AGENT_CLIENT_COMPATIBILITY.md).
-
-### 🌐 Интерфейсы взаимодействия (Web UI & MCP)
-- **Веб-интерфейс**: Запуск через `impact-engine-local-api` ➔ откройте **`http://127.0.0.1:8001/`**.
-  - В UI намеренно оставлены две понятные поверхности: интерактивная **карта CodeSlicer** для точных локальных связей и отдельный оригинальный viewer **Graphify** для архитектурного обзора. Graphify появляется только при наличии его собственного `graphify-out/graph.json` и не подменяет graph CodeSlicer.
-- **MCP-сервер для ИИ**: Запуск через `impact-engine-mcp` или `python -m impact_engine.mcp.server`. Для нового проекта агент начинает с `scan_plan` или `onboard`, затем использует `analyze_project`, `review`, `inspect` и `investigate`. Полный список выдаёт MCP-метод `tools/list`.
+`impact-engine agent doctor` делает фактический JSON-RPC `initialize` и
+`tools/list`, проверяя `scan_plan`, `project_status`, `review` и `inspect`.
 
 Подробно о Graphify, SCIP/LSP, contracts, runtime и security sources без
 смешения их evidence: [документ по интеграциям](docs/INTEGRATIONS.md).
@@ -73,6 +105,8 @@ impact-engine agent install --client kodik --dry-run --json
 - [Как строятся связи](#как-строятся-связи)
 - [Как агент работает с графом](#как-агент-работает-с-графом)
 - [Быстрый старт](#быстрый-старт)
+- [AI-интеграции и skills](#ai-интеграции-и-skills)
+- [Локальный UI и MCP](#локальный-ui-и-mcp)
 - [Анализ проекта](#анализ-проекта)
 - [Визуальный интерфейс](#визуальный-интерфейс)
 - [Интеграции и отдельные графы](docs/INTEGRATIONS.md)
@@ -266,41 +300,21 @@ impact-engine --json review /path/to/project --run-tests suggested
 impact-engine ci /path/to/project --run-tests --test-command pytest tests/test_example.py
 ```
 
-### Установка через AI-агента
+### Подключить IDE или coding agent
 
-CodeSlicer можно подключить к уже открытому проекту одной инструкцией. Просто
-отправьте этот текст своему AI-агенту в IDE или MCP-клиенте:
+Используйте installer из раздела [AI-интеграции и skills](#ai-интеграции-и-skills),
+а не копируйте общий instruction prompt. Он сам создаёт отдельные managed
+skill-файлы и одну MCP-запись. Для уже установленной интеграции доступны:
 
-```text
-Установи CodeSlicer в текущий проект:
-https://github.com/artemnoor/CodeSlicer.git
-
-Подключи его через MCP или CLI, выполни первичный анализ кодовой базы и покажи:
-
-1. архитектурную карту проекта;
-2. ключевые frontend/backend цепочки;
-3. unresolved и suspicious области;
-4. пример impact-анализа для одной важной функции;
-5. связанные тесты.
-
-Не изменяй исходный код без моего подтверждения.
-
-Запусти локальный визуальный интерфейс CodeSlicer и в конце выдай ссылку на
-него, например http://127.0.0.1:8001/.
-
-Перед завершением проверь:
-
-- /api/health возвращает status=ok;
-- /api/state возвращает has_analysis=true;
-- /api/graph содержит непустые nodes и edges;
-- путь к созданному graph.json указан в ответе;
-- все предупреждения и ограничения анализа перечислены отдельно.
+```bash
+impact-engine agent status
+impact-engine agent repair
+impact-engine agent uninstall
 ```
 
-Агент должен вернуть не только URL, но и количество узлов/рёбер, путь к
-графу и подтверждение, что визуальный интерфейс получил именно этот граф.
-Если агент запускает CLI отдельно от API, граф следует сохранять в
-`<project>/.impact_engine/graph.json`, чтобы API автоматически его загрузил.
+Проверьте state локального UI после анализа через `/api/health`, `/api/state`
+и `/api/graph`; граф по умолчанию находится в
+`<project>/.impact_engine/graph.json`.
 
 ## Анализ проекта
 
@@ -418,6 +432,8 @@ impact-engine --json onboard /path/to/project --graphify auto
 
 ## Что изменено в этом релизе
 
+Полный список изменений: [v0.5.0](https://github.com/artemnoor/CodeSlicer/releases/tag/v0.5.0).
+
 - минимальный local-first UI сфокусирован на двух задачах: понять карту
   CodeSlicer и открыть независимую карту Graphify;
 - у карты появились панорамирование, zoom, клавиатурное управление и
@@ -429,6 +445,10 @@ impact-engine --json onboard /path/to/project --graphify auto
 - wheel теперь включает frontend и manifest-backed language/framework plugins;
 - GitHub Actions собирает wheel и проверяет его в чистой venv: UI, API и
   discovery Python/TypeScript/C# plugins.
+- Добавлен `impact-engine agent`: discovery, безопасная установка двух skills,
+  status, real MCP doctor, repair и ownership-aware uninstall для 16 AI-клиентов.
+- Kodik IDE получил native skill adapter и JSONC MCP patcher с ключом `servers`;
+  чужие серверы и комментарии сохраняются.
 
 ### Release hardening 0.5.0
 
@@ -443,6 +463,8 @@ impact-engine --json onboard /path/to/project --graphify auto
 - Fast persistent-cache теперь загружает `facts.json`, поэтому `facts_reused`
   отражает реально переиспользованные факты. `.sln` и `.slnx` учитываются как
   manifest-файлы.
+- Clean-wheel проверка подтверждает, что agent installer читает skills из
+  установленного пакета и запускает MCP из того же virtualenv.
 
 Подробное описание изменения, границы и E2E-матрица: [docs/PR_DESCRIPTION.md](docs/PR_DESCRIPTION.md).
 
