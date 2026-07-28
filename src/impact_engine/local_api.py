@@ -622,6 +622,18 @@ finally:
         return f"<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><pre>Renderer unavailable: {html.escape(str(exc))}</pre></body></html>"
 
 
+def _graphify_viewer_cache_path(project_path: str | Path) -> Path:
+    graph_file = find_graphify_graph(project_path)
+    return graph_file.parent / ".codeslicer_graphify_viewer.html"
+
+
+def _cache_graphify_native_html(project_path: str | Path) -> Path:
+    """Render only as part of an explicitly approved Graphify refresh."""
+    output = _graphify_viewer_cache_path(project_path)
+    output.write_text(_render_graphify_native_html(project_path), encoding="utf-8")
+    return output
+
+
 def _otel_evidence(project_path: str, report: dict[str, Any], graph_path: str | Path | None = None) -> dict[str, Any]:
     registry = AdapterRegistry(project_path)
     status = registry.status("otel")
@@ -770,7 +782,7 @@ def _test_command_for_file(project: Path, file_name: str) -> list[str] | None:
 
 
 class LocalApiState:
-    def __init__(self, default_project: str | None, support_pack_root: str) -> None:
+    def __init__(self, default_project: str | None, support_pack_root: str, *, allow_remote: bool = False, remote_token: str | None = None) -> None:
         self.default_project = default_project
         self.support_pack_root = support_pack_root
         self.project_path: str | None = default_project
@@ -782,6 +794,8 @@ class LocalApiState:
         self.cancellation: CancellationToken | None = None
         self.analysis_running = False
         self.session_token = secrets.token_urlsafe(32)
+        self.allow_remote = allow_remote
+        self.remote_token = remote_token
         if default_project:
             try:
                 ensure_project_storage(default_project)
@@ -957,6 +971,20 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
             raise ValueError("Request body must be a JSON object")
         return value
 
+    def _api_access_allowed(self) -> bool:
+        """Reject DNS-rebinding hosts; remote mode requires a startup secret."""
+        if self.state.allow_remote:
+            supplied = self.headers.get("X-CodeSlicer-Remote-Token", "")
+            if self.state.remote_token and secrets.compare_digest(supplied, self.state.remote_token):
+                return True
+            self._send_json(403, {"status": "error", "error": "remote_api_token_required"})
+            return False
+        host = self.headers.get("Host", "").lower().split(":", 1)[0].strip("[]")
+        if host in {"localhost", "127.0.0.1", "::1"}:
+            return True
+        self._send_json(403, {"status": "error", "error": "local_host_required"})
+        return False
+
     def _process_approval(self, project_path: str, action: str, payload: dict[str, Any], body: dict[str, Any]) -> bool:
         """Consume an exact one-time approval or return an actionable pending record.
 
@@ -984,6 +1012,8 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         try:
             parsed = urlparse(self.path)
+            if parsed.path.startswith("/api/") and not self._api_access_allowed():
+                return
             if parsed.path == "/api/health":
                 return self._send_json(200, {
                     "status": "ok",
@@ -1050,7 +1080,11 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(b"No active project")
                     return
-                html = _render_graphify_native_html(project_path)
+                cache = _graphify_viewer_cache_path(project_path)
+                if cache.is_file():
+                    html = cache.read_text(encoding="utf-8")[:4 * 1024 * 1024]
+                else:
+                    html = "<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>Визуализация ещё не подготовлена. Запустите подтверждённое обновление Graphify — renderer сохранит локальный HTML-артефакт. Этот GET не запускает внешний процесс.</p></body></html>"
                 encoded = html.encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -1070,6 +1104,8 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         try:
             parsed = urlparse(self.path)
+            if parsed.path.startswith("/api/") and not self._api_access_allowed():
+                return
             origin = self.headers.get("Origin")
             if origin:
                 origin_host = urlparse(origin).netloc.lower()
@@ -1216,6 +1252,11 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                         configured_executable=registry._state(adapter_id).get("native_executable"),
                         timeout_seconds=timeout_seconds,
                     )
+                    if result.get("status") == "completed" and adapter_id == "graphify" and operation in {"index", "refresh", "extract"}:
+                        try:
+                            result["viewer_artifact"] = str(_cache_graphify_native_html(project_path))
+                        except OSError as exc:
+                            result["viewer_error"] = str(exc)
                     generated = result.get("generated_artifact")
                     if result.get("status") == "completed" and generated and adapter_id in {"openapi", "scip", "cyclonedx", "spdx", "sarif"}:
                         try:
@@ -1240,10 +1281,18 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                         adapter = configure_lsp(project_path, body.get("executable") or "", body.get("workspace_roots") or [], arguments=body.get("arguments") or [], timeout_ms=int(body.get("timeout_ms", 5000)))
                         return self._send_json(200, {"status": "ok", "adapter": adapter, "privacy": lsp_privacy()})
                     if action == "probe":
+                        configured = AdapterRegistry(project_path).status("lsp").get("config") or {}
+                        payload = {"executable": configured.get("executable", ""), "argv": list(configured.get("arguments") or []), "cwd": str(Path(project_path).resolve()), "timeout_ms": int(body.get("timeout_ms", 5000)), "network_expected": False}
+                        if not self._process_approval(project_path, "lsp.probe", payload, body):
+                            return
                         return self._send_json(200, {"status": "ok", "adapter": probe_lsp(project_path), "privacy": lsp_privacy()})
                     if action == "disable":
                         return self._send_json(200, {"status": "ok", "adapter": disable_lsp(project_path), "privacy": lsp_privacy()})
-                    result = query_lsp(project_path, method=str(body.get("method") or ""), file=body.get("file"), line=int(body.get("line", 0)), character=int(body.get("character", 0)), query=str(body.get("query") or ""), entity_id=body.get("entity_id"), timeout_ms=body.get("timeout_ms"))
+                    configured = AdapterRegistry(project_path).status("lsp").get("config") or {}
+                    payload = {"executable": configured.get("executable", ""), "argv": list(configured.get("arguments") or []), "cwd": str(Path(project_path).resolve()), "method": str(body.get("method") or ""), "file": body.get("file") or "", "line": int(body.get("line", 0)), "character": int(body.get("character", 0)), "query": str(body.get("query") or ""), "entity_id": body.get("entity_id") or "", "timeout_ms": int(body.get("timeout_ms", 5000)), "network_expected": False}
+                    if not self._process_approval(project_path, "lsp.query", payload, body):
+                        return
+                    result = query_lsp(project_path, method=payload["method"], file=body.get("file"), line=payload["line"], character=payload["character"], query=payload["query"], entity_id=body.get("entity_id"), timeout_ms=payload["timeout_ms"])
                     graph = _semantic_graph(project_path, {}, body.get("graph_path"))
                     if result.get("nodes") and graph:
                         result = {**result, "mapped_overlay": map_lsp_overlay(result, graph)}
@@ -1685,6 +1734,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="impact-engine-local-api")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--allow-remote", action="store_true", help="Allow a non-loopback bind; this exposes the local API to the network.")
+    parser.add_argument("--remote-token", default=None, help="Required secret for --allow-remote. It is never returned by /api/health.")
     parser.add_argument("--port", type=int, default=8001)
     parser.add_argument("--frontend-dir", default=default_frontend_dir())
     parser.add_argument("--default-project", default=None)
@@ -1695,10 +1745,12 @@ def main(argv: list[str] | None = None) -> None:
         loopback = args.host.lower() == "localhost"
     if not loopback and not args.allow_remote:
         parser.error("non-loopback --host requires explicit --allow-remote")
+    if args.allow_remote and not args.remote_token:
+        parser.error("--allow-remote requires an explicit --remote-token; use a high-entropy secret")
     # This path must work from both a source checkout and an installed wheel.
     # ``local_api.py`` itself lives under site-packages in the latter case.
     from impact_engine.support_packs.paths import builtin_support_packs_root
-    state = LocalApiState(args.default_project, str(builtin_support_packs_root()))
+    state = LocalApiState(args.default_project, str(builtin_support_packs_root()), allow_remote=args.allow_remote, remote_token=args.remote_token)
     server = create_server(args.host, args.port, args.frontend_dir, state)
     print(f"Impact Engine local API: http://{args.host}:{args.port}/", flush=True)
     try:

@@ -5,17 +5,17 @@ description = "DI-aware impact analysis engine with MCP and AI-generated library
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "tree-sitter",
-    "tree-sitter-language-pack",
-    "requests",
-    "PyYAML>=6.0",
-    "jsonschema>=4.23"
+    "tree-sitter>=0.25,<0.26",
+    "tree-sitter-language-pack>=1.13,<1.14",
+    "requests>=2.31,<3",
+    "PyYAML>=6.0,<7",
+    "jsonschema>=4.23,<5"
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0,<9"]
 # Kept separate so a normal local test install does not download a browser.
-browser = ["playwright>=1.48"]
+browser = ["playwright>=1.48,<2"]
 
 [project.scripts]
 impact-engine = "impact_engine.cli:main"

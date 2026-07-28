@@ -110,6 +110,28 @@ def test_local_api_health_advertises_managed_tools_capability(tmp_path):
         thread.join(timeout=5)
 
 
+def test_local_api_rejects_dns_rebinding_style_host_header(tmp_path):
+    from urllib.error import HTTPError
+
+    state = LocalApiState(str(tmp_path), "support_packs")
+    server = create_server("127.0.0.1", 0, str(tmp_path), state)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        request = Request(f"http://127.0.0.1:{server.server_port}/api/health", headers={"Host": "attacker.example"})
+        try:
+            urlopen(request, timeout=5)
+        except HTTPError as error:
+            assert error.code == 403
+            assert json.loads(error.read())["error"] == "local_host_required"
+        else:
+            raise AssertionError("non-loopback Host must never receive a session token")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_local_api_test_execution_requires_one_time_approval(tmp_path):
     from urllib.error import HTTPError
 

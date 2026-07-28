@@ -21,6 +21,26 @@
   const post = (path, payload) => request(path, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'X-CodeSlicer-Session': sessionToken } : {}) }, body: JSON.stringify(payload || {}),
   });
+  async function executeApprovedAction(callback, payload) {
+    const exactPayload = Object.freeze({ ...(payload || {}) });
+    try {
+      return await callback(exactPayload);
+    } catch (error) {
+      const pending = error && error.status === 409 && error.payload && error.payload.status === 'pending_approval' ? error.payload : null;
+      if (!pending) throw error;
+      // A real host approval is still required. This small local dialog keeps
+      // the exact original payload immutable and makes the retry path usable
+      // in every existing action without granting browser-side approval.
+      const action = pending.approval?.action || 'external action';
+      const command = pending.next_step || pending.message || '';
+      const token = window.prompt(`Нужно локальное подтверждение: ${action}\n\n${command}\n\nВыполните команду в терминале и вставьте одноразовый approval_token:`, '');
+      if (!token) throw error;
+      const approvalId = pending.approval?.approval_id;
+      if (!approvalId) throw error;
+      return callback({ ...exactPayload, approval_id: approvalId, approval_token: token });
+    }
+  }
+  const approvedPost = (path, payload) => executeApprovedAction((exact) => post(path, exact), payload);
   global.ImpactApi = {
     state: () => request('/api/state'),
     graph: () => request('/api/graph'),
@@ -29,18 +49,18 @@
     graphifyViewerStatus: () => request('/api/adapters/graphify/viewer/status'),
     tools: () => request('/api/tools'),
     toolCatalog: (payload) => post('/api/tools', payload),
-    toolConnect: (id, payload) => post(`/api/tools/${encodeURIComponent(id)}/connect`, payload),
+    toolConnect: (id, payload) => approvedPost(`/api/tools/${encodeURIComponent(id)}/connect`, payload),
     toolExecutable: (id, payload) => post(`/api/tools/${encodeURIComponent(id)}/executable`, payload),
     toolDocs: (id, payload) => post(`/api/tools/${encodeURIComponent(id)}/docs`, payload),
     toolDocument: (id, payload) => post(`/api/tools/${encodeURIComponent(id)}/document`, payload),
-    toolHelp: (id, payload) => post(`/api/tools/${encodeURIComponent(id)}/help`, payload),
-    toolRun: (id, payload) => post(`/api/tools/${encodeURIComponent(id)}/run`, payload),
+    toolHelp: (id, payload) => approvedPost(`/api/tools/${encodeURIComponent(id)}/help`, payload),
+    toolRun: (id, payload) => approvedPost(`/api/tools/${encodeURIComponent(id)}/run`, payload),
     adapterEnable: (id, payload) => post(`/api/adapters/${encodeURIComponent(id)}/enable`, payload),
     adapterDisable: (id, payload) => post(`/api/adapters/${encodeURIComponent(id)}/disable`, payload),
     adapterImport: (id, payload) => post(`/api/adapters/${encodeURIComponent(id)}/import`, payload),
     nativeProfile: (id, payload) => post(`/api/adapters/${encodeURIComponent(id)}/native-profile`, payload),
     nativeConfigure: (id, payload) => post(`/api/adapters/${encodeURIComponent(id)}/native-config`, payload),
-    nativeRun: (id, payload) => post(`/api/adapters/${encodeURIComponent(id)}/native-run`, payload),
+    nativeRun: (id, payload) => approvedPost(`/api/adapters/${encodeURIComponent(id)}/native-run`, payload),
     architecture: (payload) => post('/api/architecture', payload),
     graphifyEnable: (payload) => post('/api/adapters/graphify/enable', payload),
     graphifyDisable: (payload) => post('/api/adapters/graphify/disable', payload),
@@ -74,9 +94,9 @@
     sarifImport: (payload) => post('/api/adapters/sarif/import', payload),
     lspStatus: () => request('/api/adapters/lsp/status'),
     lspConfigure: (payload) => post('/api/adapters/lsp/configure', payload),
-    lspProbe: (payload) => post('/api/adapters/lsp/probe', payload),
+    lspProbe: (payload) => approvedPost('/api/adapters/lsp/probe', payload),
     lspDisable: (payload) => post('/api/adapters/lsp/disable', payload),
-    lspQuery: (payload) => post('/api/adapters/lsp/query', payload),
+    lspQuery: (payload) => approvedPost('/api/adapters/lsp/query', payload),
     progress: () => request('/api/progress'),
     overview: () => request('/api/overview'),
     inventory: () => request('/api/inventory'),
@@ -86,10 +106,11 @@
     cancelAnalyze: () => post('/api/analyze/cancel', {}),
     review: post.bind(null, '/api/review'),
     inspect: post.bind(null, '/api/inspect'),
-    investigate: post.bind(null, '/api/investigate'),
-    ci: post.bind(null, '/api/ci'),
-    reviewRunTest: (payload) => post('/api/review/run-test', payload),
+    investigate: (payload) => approvedPost('/api/investigate', payload),
+    ci: (payload) => approvedPost('/api/ci', payload),
+    reviewRunTest: (payload) => approvedPost('/api/review/run-test', payload),
     reviewFeedback: (payload) => post('/api/review/feedback', payload),
     reviewHistory: (payload) => post('/api/review/history', payload),
   };
+  global.ImpactApi.executeApprovedAction = executeApprovedAction;
 })(window);

@@ -15,4 +15,4 @@ ENV PYTHONUNBUFFERED=1 \
 
 EXPOSE 8001 8787
 
-CMD ["impact-engine-local-api", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["impact-engine-local-api", "--host", "127.0.0.1", "--port", "8001"]

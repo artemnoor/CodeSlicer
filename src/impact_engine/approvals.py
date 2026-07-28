@@ -27,8 +27,32 @@ def _fingerprint(action: str, payload: dict[str, Any]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def _pid_is_alive(pid: int) -> bool:
+    """Check owner liveness without accidentally signalling a Windows process."""
+    if pid == os.getpid():
+        return True
+    if os.name == "nt":
+        import ctypes
+
+        process_query_limited_information = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(process_query_limited_information, False, pid)
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            return bool(ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))) and exit_code.value == 259
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
 class _ApprovalLock:
     """Tiny cross-process lock for the read-check-consume transition."""
+    STALE_SECONDS = 120
     def __init__(self, path: Path) -> None:
         self.path = path.with_suffix(path.suffix + ".lock")
         self.fd: int | None = None
@@ -38,12 +62,37 @@ class _ApprovalLock:
         while True:
             try:
                 self.fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                os.write(self.fd, str(os.getpid()).encode("ascii"))
+                metadata = {"pid": os.getpid(), "created_at": time.time()}
+                os.write(self.fd, json.dumps(metadata).encode("utf-8"))
                 return None
             except FileExistsError:
+                self._remove_stale_lock()
                 if time.monotonic() >= deadline:
                     raise TimeoutError("approval is busy; retry the request")
                 time.sleep(0.02)
+
+    def _remove_stale_lock(self) -> None:
+        """Recover after a crashed owner without breaking a live writer."""
+        try:
+            metadata = json.loads(self.path.read_text(encoding="utf-8"))
+            pid = int(metadata.get("pid", -1))
+            created_at = float(metadata.get("created_at", 0))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            # A competing process can observe the file between O_EXCL and its
+            # first write. Never treat that tiny window as a stale lock.
+            try:
+                created_at = self.path.stat().st_mtime
+            except OSError:
+                return
+            pid = -1
+        alive = False
+        if pid > 0:
+            alive = _pid_is_alive(pid)
+        if (pid > 0 and not alive) or time.time() - created_at > self.STALE_SECONDS:
+            try:
+                self.path.unlink()
+            except FileNotFoundError:
+                pass
 
     def __exit__(self, *_: Any) -> None:
         if self.fd is not None:

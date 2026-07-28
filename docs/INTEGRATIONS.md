@@ -128,6 +128,25 @@ Local API применяет ту же границу. Поле `confirmed: true
 
 ## Диагностика
 
+## Local API и Docker
+
+`impact-engine-local-api` по умолчанию слушает только loopback. Он также
+проверяет `Host` у каждого `/api/*` запроса, поэтому DNS-rebinding host не
+может получить session token через `/api/health`. Параметр `--allow-remote`
+предназначен только для явно управляемой инфраструктуры: вместе с ним
+обязателен `--remote-token <high-entropy-secret>`; этот секрет health endpoint
+не возвращает.
+
+Стандартный `Dockerfile` и `docker-compose.yml` намеренно не публикуют Local
+API и Registry API на хостовую сеть. Для локальной отладки используйте
+осознанный override с loopback port mapping либо отдельный reverse proxy с
+аутентификацией; не публикуйте порт CodeSlicer напрямую в интернет.
+
+Graphify viewer не запускает renderer при GET: после явно подтверждённого
+Graphify index/refresh он сохраняет bounded HTML-артефакт, а viewer только
+читает его. LSP probe/query аналогично требуют одноразового local approval,
+потому что запускают внешний language-server process.
+
 ```powershell
 impact-engine doctor --full
 impact-engine adapters native C:\work\my-app graphify profile --json

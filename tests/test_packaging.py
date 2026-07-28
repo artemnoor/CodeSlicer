@@ -35,16 +35,16 @@ def test_pyproject_dependencies_console_scripts_and_network_dependency_declarati
     deps = set(data["project"].get("dependencies", []))
     scripts = data["project"].get("scripts", {})
 
-    assert "tree-sitter" in deps
-    assert "tree-sitter-language-pack" in deps
-    assert "requests" in deps
+    assert any(item.startswith("tree-sitter") and "<" in item for item in deps)
+    assert any(item.startswith("tree-sitter-language-pack") and "<" in item for item in deps)
+    assert any(item.startswith("requests") and "<" in item for item in deps)
     assert "httpx" not in deps
     assert scripts["impact-engine"] == "impact_engine.cli:main"
     assert scripts["impact-engine-mcp"] == "impact_engine.mcp.server:main"
 
     source_text = "\n".join(p.read_text(encoding="utf-8") for p in (ROOT / "src" / "impact_engine").rglob("*.py"))
     if "import requests" in source_text or "from requests" in source_text:
-        assert "requests" in deps
+        assert any(item.startswith("requests") for item in deps)
     if "import httpx" in source_text or "from httpx" in source_text:
         assert "httpx" in deps
 
