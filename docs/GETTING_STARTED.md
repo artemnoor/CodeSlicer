@@ -22,6 +22,14 @@ Windows PowerShell:
 ```powershell
 git clone https://github.com/artemnoor/CodeSlicer.git
 cd CodeSlicer
+
+# Creates .venv, installs CodeSlicer, then opens the IDE checkbox menu.
+powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
+```
+
+Manual developer setup:
+
+```powershell
 py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -46,9 +54,13 @@ directly. Activation is only a shell convenience.
 Verify the installation:
 
 ```bash
-impact-engine doctor
-impact-engine --json registry status
+codeslicer doctor
+codeslicer --json registry status
 ```
+
+Use the activated virtual environment and the `codeslicer` command for new
+installations. It avoids a possible collision with an older `impact-engine`
+console script from another Python installation.
 
 Expected registry mode:
 

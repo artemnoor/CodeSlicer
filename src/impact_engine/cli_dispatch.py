@@ -22,6 +22,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
 
     elif args.command == "agent":
         from impact_engine.agent_integration import client_catalog, detect_clients, doctor as agent_doctor_report, install, installation_status, repair, uninstall
+        from impact_engine.terminal_ui import choose_agent_clients
         local_json = bool(getattr(args, "local_json", False) or getattr(args, "json", False))
         try:
             if args.agent_command == "detect":
@@ -39,27 +40,11 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                     found = [item["id"] for item in detected]
                     if not local_json and sys.stdin.isatty():
                         catalog = {item["id"]: item for item in client_catalog() if item["status"] != "unsupported"}
-                        choices = found or list(catalog)
-                        print("Detected AI clients:" if found else "No configured AI clients were detected. Choose an integration:")
-                        confidence = {item["id"]: item["confidence"] for item in detected}
-                        for index, client_id in enumerate(choices, start=1):
-                            item = catalog[client_id]
-                            detail = confidence.get(client_id, item["status"])
-                            print(f"[{index}] {item['display_name']} — {detail}")
-                        selected = input("Select IDEs to configure (for example 1,3; empty cancels): ").strip()
-                        if not selected:
-                            raise ValueError("client selection cancelled")
-                        try:
-                            requested = list(dict.fromkeys(choices[int(value.strip()) - 1] for value in selected.split(",")))
-                        except (IndexError, ValueError) as exc:
-                            raise ValueError("invalid client selection") from exc
+                        requested = choose_agent_clients(catalog, detected)
                         if "--scope" not in raw_argv:
-                            scope = input("Scope [project/user] (project): ").strip().lower() or "project"
-                            if scope not in {"project", "user"}:
-                                raise ValueError("scope must be project or user")
-                            args.scope = scope
-                    elif len(found) == 1:
-                        requested = found
+                            # A one-command IDE setup should work in every
+                            # project.  Scripts can still request project scope.
+                            args.scope = "user"
                     else:
                         raise ValueError("interactive selection needs a terminal; pass --client <id> or --client all-detected --yes")
                 elif requested == ["all-detected"]:

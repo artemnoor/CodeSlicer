@@ -9,7 +9,8 @@ dependencies = [
     "tree-sitter-language-pack>=1.13,<1.14",
     "requests>=2.31,<3",
     "PyYAML>=6.0,<7",
-    "jsonschema>=4.23,<5"
+    "jsonschema>=4.23,<5",
+    "questionary>=2.1,<3"
 ]
 
 [project.optional-dependencies]
@@ -19,6 +20,9 @@ browser = ["playwright>=1.48,<2"]
 
 [project.scripts]
 impact-engine = "impact_engine.cli:main"
+# A collision-free, user-facing command.  ``impact-engine`` is retained for
+# compatibility with existing integrations.
+codeslicer = "impact_engine.cli:main"
 impact-engine-mcp = "impact_engine.mcp.server:main"
 impact-engine-registry-api = "impact_engine.registry_api:main"
 impact-engine-local-api = "impact_engine.local_api:main"

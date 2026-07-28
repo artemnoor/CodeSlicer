@@ -31,13 +31,24 @@
 ```powershell
 git clone https://github.com/artemnoor/CodeSlicer.git
 cd CodeSlicer
+
+# Создаёт изолированное .venv, устанавливает CodeSlicer и сразу открывает меню IDE.
+powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
+```
+
+Ручной вариант для разработки:
+
+```powershell
 py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e .
 
+# Команда из активированного окружения; она не конфликтует со старыми Python-установками
+codeslicer agent install
+
 # Построить граф проекта и открыть локальный UI
-impact-engine onboard C:\work\my-project --graphify auto
+codeslicer onboard C:\work\my-project --graphify auto
 impact-engine-local-api --default-project C:\work\my-project
 ```
 
@@ -58,22 +69,25 @@ Installer не создаёт и не изменяет `code-intelligence-orches
 
 ```powershell
 # Показать обнаруженные локальные AI-клиенты
-impact-engine agent detect
+codeslicer agent detect
 
-# Самый простой путь: CLI предложит IDE, номера и scope
-impact-engine agent install
+# Самый простой путь: стрелки — навигация, Space — выбор IDE, Enter — установка
+# Интерактивная установка использует user scope, то есть работает во всех проектах.
+codeslicer agent install
 
 # Явный выбор и безопасный preview остаются доступны
-impact-engine agent install --client codex --scope project
-impact-engine agent install --client kodik --scope project --dry-run --json
+codeslicer agent install --client codex --scope project
+codeslicer agent install --client kodik --scope project --dry-run --json
 
 # Проверить реальные bundled assets и stdio MCP handshake
-impact-engine agent doctor
-impact-engine agent status
-impact-engine agent uninstall
+codeslicer agent doctor
+codeslicer agent status
+codeslicer agent uninstall
 ```
 
-`project` scope пишет в проект; `user` — в домашний каталог клиента. Cursor
+`codeslicer` — рекомендуемая команда для новых установок: она не конфликтует
+со старым `impact-engine.exe` из другого Python. `project` scope пишет в проект;
+`user` — в домашний каталог клиента. Cursor
 получает отдельные `.mdc` rules, Kiro — steering-файлы, а native clients —
 отдельные `SKILL.md`. После установки перезапустите IDE. Полная матрица путей
 и ограничений: [совместимость AI-клиентов](docs/AGENT_CLIENT_COMPATIBILITY.md).

@@ -2,8 +2,8 @@
 from impact_engine.cli_support import *
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="impact-engine")
+def build_parser(prog: str = "impact-engine") -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog=prog)
     parser.add_argument("--json", action="store_true", help="Output raw JSON results")
     sub = parser.add_subparsers(dest="command")
 

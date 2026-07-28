@@ -7,7 +7,8 @@ from impact_engine.cli_dispatch import dispatch_command
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = build_parser()
+    executable_name = Path(sys.argv[0]).stem.lower()
+    parser = build_parser("codeslicer" if executable_name in {"codeslicer", "codeslicer.exe"} else "impact-engine")
     raw_argv = list(argv if argv is not None else sys.argv[1:])
     runtime_test_command = None
     if "runtime-trace" in raw_argv and "--" in raw_argv:

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import builtins
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 from impact_engine import cli
 from impact_engine.agent_integration import bundled_skills, client_catalog, install, installation_status, plan_install, repair, uninstall
+from impact_engine.terminal_ui import choose_agent_clients
 
 
 def test_bundled_install_assets_are_valid_and_limited_to_two_skills() -> None:
@@ -116,12 +117,39 @@ def test_repair_reconstructs_lost_state_from_exact_managed_files(tmp_path: Path)
 def test_interactive_install_offers_supported_ide_choices_when_nothing_is_detected(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.setattr("impact_engine.agent_integration.detect_clients", lambda _project: [])
     monkeypatch.setattr(cli.sys, "stdin", SimpleNamespace(isatty=lambda: True))
-    answers = iter(["1", ""])
-    monkeypatch.setattr(builtins, "input", lambda _prompt: next(answers))
+    monkeypatch.setattr("impact_engine.terminal_ui.choose_agent_clients", lambda catalog, detected: ["codex"])
 
     cli.main(["agent", "install", "--project", str(tmp_path), "--dry-run"])
 
     output = capsys.readouterr().out
-    assert "Choose an integration" in output
-    assert "Codex CLI / IDE" in output
     assert '"client": "codex"' in output
+    assert '"scope": "user"' in output
+
+
+def test_terminal_menu_uses_checkbox_selection_with_keyboard_instructions(monkeypatch) -> None:
+    seen: dict[str, object] = {}
+
+    class FakeQuestion:
+        def ask(self):
+            return ["kodik"]
+
+    def checkbox(message, **kwargs):
+        seen["message"] = message
+        seen.update(kwargs)
+        return FakeQuestion()
+
+    fake_questionary = SimpleNamespace(
+        Choice=lambda title, *, value, checked: {"title": title, "value": value, "checked": checked},
+        checkbox=checkbox,
+    )
+    monkeypatch.setitem(sys.modules, "questionary", fake_questionary)
+
+    selected = choose_agent_clients(
+        {"codex": {"display_name": "Codex", "status": "verified"}, "kodik": {"display_name": "Kodik", "status": "verified"}},
+        [{"id": "kodik", "confidence": "configured"}],
+    )
+
+    assert selected == ["kodik"]
+    assert seen["message"] == "Choose IDEs to configure"
+    assert "Space select" in str(seen["instruction"])
+    assert seen["choices"][1]["checked"] is True
