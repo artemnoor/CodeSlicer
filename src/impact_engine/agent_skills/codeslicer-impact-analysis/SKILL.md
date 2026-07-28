@@ -1,6 +1,6 @@
 ---
 name: codeslicer-impact-analysis
-description: Evidence-gated анализ влияния изменений: статусы проекта, bounded review, inspect, investigate, Git diff и targeted tests.
+description: "Evidence-gated анализ влияния изменений: статусы проекта, bounded review, inspect, investigate, Git diff и targeted tests."
 ---
 
 # CodeSlicer: точный анализ влияния

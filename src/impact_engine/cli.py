@@ -279,6 +279,43 @@ def main(argv: list[str] | None = None) -> None:
     daemon_stop = daemon_sub.add_parser("stop")
     daemon_stop.add_argument("project")
 
+    agent = sub.add_parser("agent", help="Install bundled CodeSlicer skills and local MCP entries for AI clients")
+    agent_sub = agent.add_subparsers(dest="agent_command")
+    agent_detect = agent_sub.add_parser("detect", help="Detect locally configured AI clients without writing files")
+    agent_detect.add_argument("--project", default=".")
+    agent_detect.add_argument("--json", action="store_true", dest="local_json")
+    agent_list = agent_sub.add_parser("list-clients", help="List the AI-client adapter catalog")
+    agent_list.add_argument("--json", action="store_true", dest="local_json")
+    agent_status = agent_sub.add_parser("status", help="Show managed skills and MCP registrations")
+    agent_status.add_argument("--scope", choices=["project", "user"], default="project")
+    agent_status.add_argument("--project", default=".")
+    agent_status.add_argument("--json", action="store_true", dest="local_json")
+    agent_doctor = agent_sub.add_parser("doctor", help="Validate bundled skills and perform a local MCP handshake")
+    agent_doctor.add_argument("--timeout-seconds", type=float, default=10)
+    agent_doctor.add_argument("--json", action="store_true", dest="local_json")
+    agent_install = agent_sub.add_parser("install", help="Install only the two bundled skills and a local MCP entry")
+    agent_install.add_argument("--client", default="auto")
+    agent_install.add_argument("--scope", choices=["project", "user"], default="project")
+    agent_install.add_argument("--project", default=".")
+    agent_install.add_argument("--skills-only", action="store_true")
+    agent_install.add_argument("--mcp-only", action="store_true")
+    agent_install.add_argument("--copy", action="store_true", default=True)
+    agent_install.add_argument("--link", action="store_true")
+    agent_install.add_argument("--dry-run", action="store_true")
+    agent_install.add_argument("--yes", action="store_true")
+    agent_install.add_argument("--force", action="store_true")
+    agent_install.add_argument("--no-backup", action="store_true")
+    agent_install.add_argument("--server-name", default="codeslicer")
+    agent_install.add_argument("--json", action="store_true", dest="local_json")
+    for command_name, help_text in (("repair", "Restore missing managed files and the registered MCP entry"), ("uninstall", "Remove only CodeSlicer-owned files and MCP entries")):
+        lifecycle = agent_sub.add_parser(command_name, help=help_text)
+        lifecycle.add_argument("--scope", choices=["project", "user"], default="project")
+        lifecycle.add_argument("--project", default=".")
+        lifecycle.add_argument("--force", action="store_true")
+        lifecycle.add_argument("--dry-run", action="store_true")
+        lifecycle.add_argument("--no-backup", action="store_true")
+        lifecycle.add_argument("--json", action="store_true", dest="local_json")
+
     adapters = sub.add_parser("adapters", help="Manage optional local evidence adapters")
     adapters_sub = adapters.add_subparsers(dest="adapter_command")
     adapters_list = adapters_sub.add_parser("list")
@@ -750,6 +787,60 @@ def main(argv: list[str] | None = None) -> None:
             print(json.dumps(result, indent=2, ensure_ascii=False))
         if result.get("status") == "error":
             sys.exit(1)
+
+    elif args.command == "agent":
+        from impact_engine.agent_integration import client_catalog, detect_clients, doctor as agent_doctor_report, install, installation_status, repair, uninstall
+        local_json = bool(getattr(args, "local_json", False) or getattr(args, "json", False))
+        try:
+            if args.agent_command == "detect":
+                result = {"command": "agent.detect", "status": "ok", "changed": False, "result": {"clients": detect_clients(args.project)}, "warnings": [], "errors": []}
+            elif args.agent_command == "list-clients":
+                result = {"command": "agent.list-clients", "status": "ok", "changed": False, "result": {"clients": client_catalog()}, "warnings": [], "errors": []}
+            elif args.agent_command == "status":
+                result = installation_status(scope=args.scope, project_path=args.project)
+            elif args.agent_command == "doctor":
+                result = agent_doctor_report(timeout_seconds=args.timeout_seconds)
+            elif args.agent_command == "install":
+                requested = [value.strip() for value in args.client.split(",") if value.strip()]
+                if requested == ["auto"]:
+                    found = [item["id"] for item in detect_clients(args.project) if item["detected"]]
+                    if len(found) == 1:
+                        requested = found
+                    elif len(found) > 1 and not local_json and sys.stdin.isatty():
+                        print("Detected AI clients:")
+                        for index, client_id in enumerate(found, start=1):
+                            print(f"[{index}] {client_id}")
+                        selected = input("Select clients to configure (for example 1,3; empty cancels): ").strip()
+                        if not selected:
+                            raise ValueError("client selection cancelled")
+                        try:
+                            requested = [found[int(value.strip()) - 1] for value in selected.split(",")]
+                        except (IndexError, ValueError) as exc:
+                            raise ValueError("invalid client selection") from exc
+                    else:
+                        raise ValueError("auto selection requires exactly one detected client; pass --client <id> or --client all-detected --yes")
+                elif requested == ["all-detected"]:
+                    if not args.yes:
+                        raise ValueError("--client all-detected requires --yes")
+                    requested = [item["id"] for item in detect_clients(args.project) if item["detected"]]
+                if not requested:
+                    raise ValueError("no AI clients were selected or detected")
+                result = install(requested, scope=args.scope, project_path=args.project, skills_only=args.skills_only, mcp_only=args.mcp_only, link=args.link, force=args.force, dry_run=args.dry_run, server_name=args.server_name, backup=not args.no_backup)
+            elif args.agent_command == "repair":
+                result = repair(scope=args.scope, project_path=args.project, force=args.force, dry_run=args.dry_run, backup=not args.no_backup)
+            elif args.agent_command == "uninstall":
+                result = uninstall(scope=args.scope, project_path=args.project, force=args.force, dry_run=args.dry_run)
+            else:
+                result = {"command": "agent", "status": "error", "changed": False, "result": {}, "warnings": [], "errors": ["agent subcommand is required"]}
+        except (FileNotFoundError, OSError, ValueError) as exc:
+            result = {"command": f"agent.{getattr(args, 'agent_command', 'unknown')}", "status": "error", "changed": False, "result": {}, "warnings": [], "errors": [str(exc)]}
+        if local_json:
+            _print_json(result)
+        else:
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        if result.get("status") == "error":
+            sys.exit(1)
+        return
 
     elif args.command == "adapters":
         if args.adapter_command == "native":

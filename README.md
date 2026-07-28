@@ -30,6 +30,35 @@
 
 При установке пакета эти skills также поставляются как `impact_engine/agent_skills/`; извлечь их путь можно через `importlib.resources`. Это делает инструкции доступными офлайн, но не отменяет необходимость явно зарегистрировать их в используемом AI-клиенте.
 
+### Установка в AI-клиент
+
+Установленный пакет содержит безопасный локальный установщик только для двух
+skills: impact analysis и Graphify architecture analysis. Он не устанавливает
+`code-intelligence-orchestrator` или `project-onboarding-workflow` и не меняет
+исходный код проекта.
+
+```bash
+impact-engine agent detect
+impact-engine agent install --client codex --scope project
+impact-engine agent doctor
+impact-engine agent status
+impact-engine agent uninstall
+```
+
+По умолчанию `project` scope пишет в каталог проекта; `user` scope — в домашний
+каталог клиента. Native skills остаются отдельными `SKILL.md`, а Cursor и Kiro
+получают отдельные rule/steering-файлы. Общий `.agents/skills` может быть
+разделён Codex и Copilot и при удалении не удаляется, пока он ещё нужен другой
+зарегистрированной интеграции. Сначала посмотрите точный план без записи:
+
+```bash
+impact-engine agent install --client kodik --dry-run --json
+```
+
+После установки перезапустите или reload-ните клиент. Полная матрица путей,
+ограничений и статусов (`verified`, `experimental`, `unsupported`) приведена в
+[документе совместимости](docs/AGENT_CLIENT_COMPATIBILITY.md).
+
 ### 🌐 Интерфейсы взаимодействия (Web UI & MCP)
 - **Веб-интерфейс**: Запуск через `impact-engine-local-api` ➔ откройте **`http://127.0.0.1:8001/`**.
   - В UI намеренно оставлены две понятные поверхности: интерактивная **карта CodeSlicer** для точных локальных связей и отдельный оригинальный viewer **Graphify** для архитектурного обзора. Graphify появляется только при наличии его собственного `graphify-out/graph.json` и не подменяет graph CodeSlicer.
