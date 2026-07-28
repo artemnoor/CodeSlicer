@@ -92,6 +92,24 @@ impact-engine --json adapters status C:\work\my-app graphify
 сетевое поведение. Поэтому CodeSlicer не использует shell и показывает
 операцию, argv, рабочую директорию и timeout перед подтверждением.
 
+### Подтверждение запросов агента
+
+MCP-агент способен только создать pending-запрос. Он не может сам выдать
+токен, повторно использовать его или заменить параметры уже подтверждённой
+команды. Владелец проекта проверяет и подтверждает запрос локально:
+
+```powershell
+impact-engine --json approvals list C:\Projects\my-app
+impact-engine --json approvals show C:\Projects\my-app <approval-id>
+impact-engine --json approvals approve C:\Projects\my-app <approval-id>
+```
+
+Последняя команда возвращает одноразовый `approval_token` с ограниченным TTL.
+Его вместе с `approval_id` передают в исходный MCP-вызов. Это требуется для
+runtime trace, managed-tool `--help` и команд, сетевого onboarding/clone,
+автоматического Graphify и CI-тестов. Обычный статический анализ локальных
+файлов подтверждения не требует.
+
 ## Диагностика
 
 ```powershell

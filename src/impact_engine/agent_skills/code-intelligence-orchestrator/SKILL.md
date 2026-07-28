@@ -1,16 +1,54 @@
 ---
 name: code-intelligence-orchestrator
-description: Routes a code question to CodeSlicer impact analysis, Graphify architecture analysis, or both while preserving evidence boundaries.
+description: Главный диспетчер анализа кода. Определяет тип задачи пользователя и перенаправляет агента либо в CodeSlicer (для точного анализа влияния, PR-review, рефакторинга и тестов), либо в Graphify (для архитектуры, комьюнити и ADR), либо запускает их комбинацию.
 ---
 
-# Code Intelligence Orchestrator
+# Главный маршрутизатор (Code Intelligence Master Router)
 
-For a newly received local folder or an explicitly approved Git URL, start with
-`impact-engine --json onboard <source> --graphify auto`. A URL requires
-`--allow-network`; do not clone, pull, install tools or run tests implicitly.
+Вы — специализированный агент-оркестратор. Ваша главная задача — проанализировать запрос пользователя, определить тип задачи и перенаправить выполнение в нужный специализированный скилл.
 
-Use CodeSlicer for change impact, PR risk, targeted tests and evidence paths.
-Use Graphify for a separate, high-level architecture graph and communities.
-For a cross-cutting question, build or refresh both graphs explicitly and label which result comes from which tool. Do not treat a Graphify edge as canonical CodeSlicer evidence, and do not claim a missing graph is present.
+## Иерархия принятия решений
 
-Before reporting a result, check language coverage and diagnostics. Dynamic or unsupported areas must remain `likely` or `unresolved`.
+```mermaid
+flowchart TD
+    UserPrompt["Запрос пользователя"] --> IntentCheck{"Какой тип задачи?"}
+
+    IntentCheck -->|Точный рефакторинг, удаление функций, PR-Review, выбор тестов| CodeSlicerSkill["Перейти в скилл: codeslicer-impact-analysis"]
+    IntentCheck -->|Обзор архитектуры, сообществ, ADR, верхнеуровневые модули| GraphifySkill["Перейти в скилл: graphify-architecture-analysis"]
+    IntentCheck -->|Сквозной вопрос от UI до кода и тестов| ComboFlow["Запустить КОМБО: CodeSlicer + Graphify Overlay"]
+```
+
+---
+
+## 1. Матрица классификации намерений (Intent Routing Matrix)
+
+### Маршрут 1: `codeslicer-impact-analysis`
+Переходите к скиллу **CodeSlicer**, если пользователь просит:
+- Оценить риски изменения или удаления конкретной функции / класса / файла.
+- Провести PR-Review (разбор diff изменений).
+- Найти, какие именно unit/integration тесты нужно запустить.
+- Объяснить точную цепочку AST-вызовов между двумя функциями (`explain-edge`).
+- Провести поиск сломанных контрактов вызовов (`broken_edges`).
+
+### Маршрут 2: `graphify-architecture-analysis`
+Переходите к скиллу **Graphify**, если пользователь просит:
+- Показать или объяснить верхнеуровневую архитектуру репозитория.
+- Найти сообщества / кластеры кода (Community Detection).
+- Изучить архитектурные решения (ADR) или текстовую документацию проекта.
+- Провести обзор незнакомого репозитория перед началом работы.
+
+### Маршрут 3: КОМБО (Сквозной анализ)
+Задействуйте совместную работу обоих скиллов, если пользователь спрашивает:
+- *«Как этот архитектурный модуль (Graphify) связывается с точными функциями бэкенда и тестами (CodeSlicer)?»*
+- *«Покажи сквозное влияние от UI-компонента до базы данных с учетом архитектурных сообществ.»*
+
+---
+
+## 2. Порядок выполнения для Агента
+
+1. **Прочитайте intent пользователя.**
+2. **Выберите целевой скилл**:
+   - Читайте `.agents/skills/codeslicer-impact-analysis/SKILL.md` для точного анализа влияния.
+   - Читайте `.agents/skills/graphify-architecture-analysis/SKILL.md` для архитектурного анализа.
+3. **Выполните соответствующие MCP / CLI запросы**, строго следуя инструкциям выбранного скилла.
+4. **Сформулируйте лаконичный ответ пользователю** без лишнего технического мусора.

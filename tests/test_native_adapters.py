@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from impact_engine.adapters.native import native_profile, run_native_operation
+from impact_engine.adapters.graphify_paths import record_graphify_interpreter
 from impact_engine.adapters.registry import AdapterRegistry
 
 
@@ -96,3 +97,19 @@ def test_native_contract_validator_uses_only_an_absolute_local_spec(tmp_path, mo
         assert "absolute local" in str(exc)
     else:
         raise AssertionError("remote contract source must be rejected")
+
+
+def test_graphify_renderer_records_the_interpreter_from_its_own_environment(tmp_path) -> None:
+    scripts = tmp_path / ".venv" / "Scripts"
+    scripts.mkdir(parents=True)
+    executable = scripts / "graphify.exe"
+    interpreter = scripts / "python.exe"
+    executable.write_text("placeholder", encoding="utf-8")
+    interpreter.write_text("placeholder", encoding="utf-8")
+    graph = tmp_path / "out" / "graph.json"
+    graph.parent.mkdir()
+    graph.write_text("{}", encoding="utf-8")
+
+    recorded = record_graphify_interpreter(graph, executable)
+    assert recorded is not None
+    assert recorded.read_text(encoding="utf-8").strip() == str(interpreter.resolve())

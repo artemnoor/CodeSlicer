@@ -22,7 +22,7 @@ from urllib.parse import urlparse
 from impact_engine.analysis.pipeline import analyze_project_core
 from impact_engine.inventory.scanner import scan_project_inventory
 from impact_engine.project_storage import ensure_project_storage
-from impact_engine.adapters.graphify_paths import graphify_artifact_root
+from impact_engine.adapters.graphify_paths import graphify_artifact_root, record_graphify_interpreter
 
 
 ONBOARDING_SCHEMA = "CodeSlicerProjectOnboarding/v1"
@@ -123,6 +123,7 @@ def _graphify_summary(project: Path, artifact_root: Path, *, mode: str, timeout_
             "status": "error", "reason": (process.stderr or process.stdout or "Graphify did not create graph.json").strip()[:4000],
             "command": command, "exit_code": process.returncode, "participates_in_ranking": False,
         }
+    record_graphify_interpreter(graph_path, executable)
     try:
         data = json.loads(graph_path.read_text(encoding="utf-8"))
         nodes = data.get("nodes") if isinstance(data.get("nodes"), list) else []

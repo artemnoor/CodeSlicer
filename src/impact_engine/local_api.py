@@ -569,8 +569,21 @@ def _render_graphify_native_html(project_path: str | Path) -> str:
     if not repo.is_dir():
         return "<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>Для оригинального renderer подключите локальный Graphify repository. CodeSlicer не импортирует upstream-код в процесс Local API.</p></body></html>"
 
-    # Keep upstream imports out of the Local API process. The renderer receives
-    # only the already-created local graph and returns bounded HTML over stdout.
+    # Keep upstream imports out of the Local API process. A Graphify run may
+    # live in another venv, so use the interpreter it recorded beside its
+    # artifact instead of silently importing it with CodeSlicer's Python.
+    interpreter_record = graph_file.parent / ".graphify_python"
+    if not interpreter_record.is_file():
+        return "<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>Не найден interpreter Graphify (<code>.graphify_python</code>) рядом с его graph. Перестройте Graphify graph его исходной командой или настройте его managed environment.</p></body></html>"
+    try:
+        interpreter = Path(interpreter_record.read_text(encoding="utf-8").strip()).expanduser().resolve()
+    except OSError:
+        interpreter = Path()
+    if not interpreter.is_file():
+        return "<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>Сохранённый interpreter Graphify больше недоступен. Перестройте его graph в актуальном Graphify environment.</p></body></html>"
+
+    # The renderer receives only the already-created local graph and returns
+    # bounded HTML over stdout.
     renderer = """
 import json, sys, tempfile
 from pathlib import Path
@@ -595,7 +608,7 @@ finally:
         safe_env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", "")
     try:
         completed = subprocess.run(
-            [sys.executable, "-I", "-c", renderer, str(repo.resolve()), str(graph_file)],
+            [str(interpreter), "-I", "-c", renderer, str(repo.resolve()), str(graph_file)],
             cwd=repo, env=safe_env, capture_output=True, text=True, timeout=30, check=False,
         )
         if completed.returncode == 0 and completed.stdout:

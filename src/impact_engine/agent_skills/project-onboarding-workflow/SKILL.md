@@ -5,54 +5,6 @@ description: Connect a local source project or an explicitly approved Git URL, i
 
 # Project Onboarding Workflow
 
-Run this workflow before investigating or editing an unfamiliar project.
+Run `impact-engine --json onboard <local-folder> --graphify auto` for a local project. For a Git URL, require the user's explicit approval and add `--allow-network`.
 
-1. Connect and map the project.
-
-   ```text
-   impact-engine --json onboard <local-folder> --graphify auto
-   ```
-
-   For a Git URL, only clone after the user explicitly permits network access:
-
-   ```text
-   impact-engine --json onboard <git-url> --allow-network --graphify auto
-   ```
-
-2. Read the JSON result. Report stack, canonical graph coverage, Graphify
-   availability and every limitation. Never treat Graphify nodes or edges as
-   canonical CodeSlicer impact evidence.
-
-3. Use the architecture graph for broad questions:
-
-   ```text
-   graphify query "<architecture question>" --graph <architecture_graph.graph_path>
-   ```
-
-   Use CodeSlicer for exact symbols, causal evidence and risk:
-
-   ```text
-   impact-engine --json inspect <project> --entity <entity-id>
-   impact-engine --json investigate <project> --entity <entity-id>
-   ```
-
-4. Before a commit, inspect the real Git diff without changing it:
-
-   ```text
-   impact-engine --json review <project> --run-tests suggested
-   ```
-
-   Distinguish confirmed, likely and unresolved results. The review may suggest
-   test commands; this mode only selects them and does not execute them. Do
-   not run a test, build, clone, package install or external-tool command
-   until the developer explicitly confirms it. Then use
-   `impact-engine ci <project> --run-tests --test-command <argv...>`.
-
-5. After a confirmed code change, refresh only the changed project state:
-
-   ```text
-   impact-engine --json analyze-incremental <project> --changed <file>
-   ```
-
-Read [workflow-contract.md](references/workflow-contract.md) when deciding
-which graph is allowed to answer a question or how to report partial coverage.
+Use Graphify only for broad architecture exploration. Use the canonical CodeSlicer graph for impact, PR risk, evidence and targeted tests. Before a commit run `impact-engine --json review <project> --run-tests suggested`; it only selects tests. Execute a suggested test only after a developer confirms the command.

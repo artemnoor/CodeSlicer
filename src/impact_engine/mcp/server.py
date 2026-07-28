@@ -43,7 +43,10 @@ def request_action_approval(
 ) -> Dict[str, Any]:
     """Create a pending local-host approval; this tool cannot approve it."""
     _verify_path_exists(project_path)
-    if action not in {"managed_tool.connect", "managed_tool.run", "runtime_trace", "ci.run_tests"}:
+    if action not in {
+        "managed_tool.connect", "managed_tool.run", "managed_tool.help",
+        "runtime_trace", "investigate.runtime_validate", "ci.run_tests", "project.onboard",
+    }:
         raise ValueError("unsupported approval action")
     approval = ApprovalStore(project_path).request(action, payload, ttl_seconds=ttl_seconds)
     return {
@@ -51,7 +54,12 @@ def request_action_approval(
         "status": "pending_approval",
         "project_path": str(Path(project_path).resolve()),
         "approval": approval,
-        "next_step": "Approve this request in the local CodeSlicer host, then supply its one-time token to the original action.",
+        "next_step": (
+            "A project owner must approve this request locally. Run "
+            f"`impact-engine --json approvals approve \"{Path(project_path).resolve()}\" "
+            f"\"{approval['approval_id']}\"`, then supply the returned one-time "
+            "approval_id and approval_token to the original action."
+        ),
     }
 
 
@@ -198,12 +206,25 @@ def onboard(
     allow_network: bool = False,
     workspace: str | None = None,
     branch: str | None = None,
-    graphify_mode: str = "auto",
+    graphify_mode: str = "off",
     graphify_timeout_seconds: int = 120,
+    approval_id: str | None = None,
+    approval_token: str | None = None,
 ) -> Dict[str, Any]:
     """MCP-safe entry point for a local folder or explicitly approved Git URL."""
     from impact_engine.project_onboarding import onboard_project
     try:
+        if allow_network or graphify_mode != "off":
+            approval_root = source if Path(source).is_dir() else (workspace or Path.cwd())
+            _consume_approval(
+                str(approval_root), approval_id, approval_token, "project.onboard",
+                _approval_payload(
+                    executable="git" if allow_network else "graphify",
+                    argv=["clone", source] if allow_network else ["extract", source, "--code-only"],
+                    cwd=str(Path(workspace or Path.cwd()).resolve()), timeout_seconds=graphify_timeout_seconds,
+                    network_expected=allow_network, source=source, branch=branch or "", graphify_mode=graphify_mode,
+                ),
+            )
         result = onboard_project(source, allow_network=allow_network, workspace=workspace, branch=branch, graphify_mode=graphify_mode, graphify_timeout_seconds=graphify_timeout_seconds)
         return {"tool": "onboard", "status": result.get("status", "ok"), "result": result}
     except Exception as exc:
@@ -384,12 +405,19 @@ def investigate(
     max_nodes: int = 500,
     max_edges: int = 1000,
     refresh: str = "never",
+    approval_id: str | None = None,
+    approval_token: str | None = None,
 ) -> Dict[str, Any]:
     from impact_engine.modes import build_investigate_report
     try:
         _verify_path_exists(project_path)
         if graph_path:
             _verify_path_exists(graph_path)
+        if runtime_validate:
+            _consume_approval(
+                project_path, approval_id, approval_token, "investigate.runtime_validate",
+                _approval_payload(executable="python", argv=["-m", "pytest"], cwd=str(Path(project_path).resolve()), timeout_seconds=60, network_expected=False, entity=entity, graph_path=graph_path or ""),
+            )
         result = build_investigate_report(project_path, entity=entity, graph_path=graph_path, direction=direction, depth=depth, runtime_validate=runtime_validate, max_nodes=max_nodes, max_edges=max_edges, refresh=refresh)
         return {"tool": "investigate", "status": "ok", "project_path": project_path, "result": result, "mode_response": _mode_response("investigate", project_path, result)}
     except Exception as e:
@@ -794,9 +822,20 @@ def configure_managed_tool_executable(project_path: str, tool_id: str, executabl
     return {"tool": "configure_managed_tool_executable", "status": "ok", "managed_tool": status}
 
 
-def managed_tool_help(project_path: str, tool_id: str) -> Dict[str, Any]:
+def managed_tool_help(
+    project_path: str,
+    tool_id: str,
+    approval_id: str | None = None,
+    approval_token: str | None = None,
+) -> Dict[str, Any]:
     _verify_path_exists(project_path)
-    result = ToolRuntime(project_path).help(tool_id)
+    runtime = ToolRuntime(project_path)
+    executable = runtime.status(tool_id).get("executable")
+    _consume_approval(
+        project_path, approval_id, approval_token, "managed_tool.help",
+        _approval_payload(executable=executable or "", argv=["--help"], cwd=str(Path(project_path).resolve()), timeout_seconds=30, network_expected=False, tool_id=tool_id),
+    )
+    result = runtime.help(tool_id)
     return {"tool": "managed_tool_help", "status": "ok", **result}
 
 
@@ -857,14 +896,15 @@ TOOLS = [
     },
     {
         "name": "onboard",
-        "description": "Onboard a local project or, with allow_network=true, explicitly clone a Git URL and build separate CodeSlicer and optional Graphify graphs.",
+        "description": "Onboard a local project. Git clone or optional Graphify execution requires a matching one-time local-host approval.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "source": {"type": "string"}, "allow_network": {"type": "boolean", "default": False},
                 "workspace": {"type": "string"}, "branch": {"type": "string"},
-                "graphify_mode": {"type": "string", "enum": ["auto", "off", "required"], "default": "auto"},
+                "graphify_mode": {"type": "string", "enum": ["auto", "off", "required"], "default": "off"},
                 "graphify_timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 300, "default": 120},
+                "approval_id": {"type": "string"}, "approval_token": {"type": "string"},
             },
             "required": ["source"],
         },
@@ -1006,6 +1046,7 @@ TOOLS = [
                 "direction": {"type": "string", "enum": ["upstream", "downstream", "both"], "default": "both"},
                 "depth": {"type": "integer", "default": 8},
                 "runtime_validate": {"type": "boolean", "default": False},
+                "approval_id": {"type": "string"}, "approval_token": {"type": "string"},
                 "max_nodes": {"type": "integer", "default": 500},
                 "max_edges": {"type": "integer", "default": 1000},
                 "refresh": {"type": "string", "enum": ["auto", "never", "force"], "default": "never"}
@@ -1267,7 +1308,7 @@ TOOLS.extend([
             "type": "object",
             "properties": {
                 "project_path": {"type": "string"},
-                "action": {"type": "string", "enum": ["managed_tool.connect", "managed_tool.run", "runtime_trace", "ci.run_tests"]},
+                "action": {"type": "string", "enum": ["managed_tool.connect", "managed_tool.run", "managed_tool.help", "runtime_trace", "investigate.runtime_validate", "ci.run_tests", "project.onboard"]},
                 "payload": {"type": "object"},
                 "ttl_seconds": {"type": "integer", "minimum": 30, "maximum": 900, "default": 300},
             },
@@ -1333,11 +1374,11 @@ TOOLS.extend([
     },
     {
         "name": "managed_tool_help",
-        "description": "Run the configured local upstream executable with --help and return the actual available commands.",
+        "description": "Run the configured local upstream executable with --help after a matching one-time local-host approval.",
         "inputSchema": {
             "type": "object",
-            "properties": {"project_path": {"type": "string"}, "tool_id": {"type": "string"}},
-            "required": ["project_path", "tool_id"],
+            "properties": {"project_path": {"type": "string"}, "tool_id": {"type": "string"}, "approval_id": {"type": "string"}, "approval_token": {"type": "string"}},
+            "required": ["project_path", "tool_id", "approval_id", "approval_token"],
         },
     },
     {

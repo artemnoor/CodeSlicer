@@ -17,6 +17,8 @@ jobs:
         run: python -m venv .venv
       - name: Install validation dependencies
         run: .venv/bin/python -m pip install ".[dev]" build
+      - name: Verify packaged agent skills are synchronized
+        run: .venv/bin/python scripts/sync_agent_skills.py
       - name: Run regression suite
         run: .venv/bin/python -m pytest -q
       - name: Build wheel and run isolated UI/plugin E2E

@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from tests.helpers.cli_runner import run_cli
+from impact_engine.cli import _doctor_report
 
 
 PROJECT_PATH = Path(__file__).parent.parent / "examples" / "golden_cases" / "python_di_basic"
@@ -48,6 +49,14 @@ def test_cli_doctor_outputs_checks(tmp_path):
     assert data["status"] in {"ok", "warning"}
     check_names = {check["name"] for check in data["checks"]}
     assert {"tree_sitter", "support_packs", "research_workspace"}.issubset(check_names)
+
+
+def test_doctor_full_is_error_when_a_required_runtime_asset_is_missing(monkeypatch, tmp_path):
+    import impact_engine.local_api as local_api
+
+    monkeypatch.setattr(local_api, "default_frontend_dir", lambda: str(tmp_path / "missing-frontend"))
+    report = _doctor_report(full=True)
+    assert report["status"] == "error"
 
 
 def test_cli_qa_run_single_project(tmp_path):

@@ -32,7 +32,33 @@ class ApprovalStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path(self, approval_id: str) -> Path:
+        if not approval_id or any(part in approval_id for part in ("/", "\\", "..")):
+            raise ValueError("approval_id is invalid")
         return self.root / f"{approval_id}.json"
+
+    def _read(self, approval_id: str) -> dict[str, Any]:
+        path = self._path(approval_id)
+        if not path.is_file():
+            raise FileNotFoundError(f"approval was not found: {approval_id}")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def list(self) -> list[dict[str, Any]]:
+        records: list[dict[str, Any]] = []
+        for path in sorted(self.root.glob("*.json")):
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+                record.pop("token_hash", None)
+                records.append(record)
+            except (OSError, ValueError):
+                continue
+        return records
+
+    def show(self, approval_id: str) -> dict[str, Any]:
+        record = self._read(approval_id)
+        # A verifier is not useful to the project owner and should not be
+        # exposed through the host-facing CLI/API.
+        record.pop("token_hash", None)
+        return record
 
     def request(self, action: str, payload: dict[str, Any], *, ttl_seconds: int = 300) -> dict[str, Any]:
         approval_id = secrets.token_urlsafe(18)
@@ -48,7 +74,7 @@ class ApprovalStore:
 
     def approve(self, approval_id: str) -> dict[str, Any]:
         path = self._path(approval_id)
-        record = json.loads(path.read_text(encoding="utf-8"))
+        record = self._read(approval_id)
         if record.get("consumed") or _now() >= datetime.fromisoformat(record["expires_at"]):
             raise ValueError("approval is expired or already consumed")
         token = secrets.token_urlsafe(32)
@@ -58,7 +84,7 @@ class ApprovalStore:
 
     def consume(self, approval_id: str, token: str, action: str, payload: dict[str, Any]) -> None:
         path = self._path(approval_id)
-        record = json.loads(path.read_text(encoding="utf-8"))
+        record = self._read(approval_id)
         if not record.get("approved") or record.get("consumed") or _now() >= datetime.fromisoformat(record["expires_at"]):
             raise ValueError("a current host approval is required")
         token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()

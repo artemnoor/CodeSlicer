@@ -137,7 +137,8 @@ def _doctor_report(full: bool = False) -> dict:
             "message": str(frontend),
         })
 
-    overall = "ok" if all(item["status"] in {"ok", "info"} for item in checks) else "warning"
+    statuses = {item["status"] for item in checks}
+    overall = "error" if "error" in statuses else ("warning" if "warning" in statuses else "ok")
     return {"status": overall, "checks": checks}
 
 
@@ -615,6 +616,17 @@ def main(argv: list[str] | None = None) -> None:
     # doctor
     doctor = sub.add_parser("doctor")
     doctor.add_argument("--full", action="store_true", help="Verify wheel/runtime assets in addition to local capabilities")
+
+    approvals = sub.add_parser("approvals", help="List and approve one-time local action requests")
+    approvals_sub = approvals.add_subparsers(dest="approvals_command", required=True)
+    approvals_list = approvals_sub.add_parser("list")
+    approvals_list.add_argument("project_path")
+    approvals_show = approvals_sub.add_parser("show")
+    approvals_show.add_argument("project_path")
+    approvals_show.add_argument("approval_id")
+    approvals_approve = approvals_sub.add_parser("approve")
+    approvals_approve.add_argument("project_path")
+    approvals_approve.add_argument("approval_id")
 
     # local registry
     registry_parser = sub.add_parser("registry")
@@ -1860,6 +1872,20 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"  - {check['name']}: {check['status']} - {check['message']}")
         if res["status"] == "error":
             sys.exit(1)
+
+    elif args.command == "approvals":
+        from impact_engine.approvals import ApprovalStore
+        store = ApprovalStore(args.project_path)
+        if args.approvals_command == "list":
+            res = {"status": "ok", "project_path": str(Path(args.project_path).resolve()), "approvals": store.list()}
+        elif args.approvals_command == "show":
+            res = {"status": "ok", "approval": store.show(args.approval_id)}
+        else:
+            res = {"status": "approved", "approval": store.approve(args.approval_id)}
+        if args.json:
+            _print_json(res)
+        else:
+            print(json.dumps(res, indent=2, ensure_ascii=False))
 
     elif args.command == "registry":
         from impact_engine.remote_registry import RegistryClient, ResearchRequestRecord
