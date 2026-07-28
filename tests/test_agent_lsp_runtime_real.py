@@ -9,7 +9,8 @@ import time
 from pathlib import Path
 
 import pytest
-import psutil
+
+psutil = None
 
 from impact_engine.adapters.agent_lsp import (
     _RUNTIMES,
@@ -26,8 +27,11 @@ pytestmark = pytest.mark.real_server
 
 
 def _require() -> tuple[Path, Path, Path, Path]:
+    global psutil
     if os.environ.get("IMPACT_AGENT_LSP_REAL_E2E") != "1":
         pytest.skip("opt-in real Agent-LSP E2E; CI sets IMPACT_AGENT_LSP_REAL_E2E=1")
+    import psutil as psutil_module
+    psutil = psutil_module
     agent = discover_agent_lsp()
     clangd = shutil.which("clangd") or str(Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "LLVM-22.1.8" / "bin" / "clangd.exe")
     pyright = shutil.which("pyright-langserver")
@@ -60,6 +64,7 @@ def _definition_when_ready(project: Path, line: int):
 
 def _language_server_pids(agent_pid: int) -> set[int]:
     """Select the actual TypeScript LS process, excluding Agent-LSP helper children."""
+    assert psutil is not None
     pids = set()
     for child in psutil.Process(agent_pid).children(recursive=True):
         if child.is_running() and "typescript-language-server" in " ".join(child.cmdline()).casefold():
@@ -109,6 +114,7 @@ def test_persistent_runtime_reuses_agent_lsp_for_ten_queries_and_cleans_up(tmp_p
     assert updated["nodes"][0]["range"]["start_line"] == 1
     shutdown = shutdown_agent_lsp_runtime(project)
     deadline = time.monotonic() + 5
+    assert psutil is not None
     while psutil.pid_exists(agent_pid) and time.monotonic() < deadline:
         time.sleep(0.05)
     assert not psutil.pid_exists(agent_pid), "Agent-LSP process survived graceful shutdown"
