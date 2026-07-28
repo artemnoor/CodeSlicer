@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import builtins
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
+from impact_engine import cli
 from impact_engine.agent_integration import bundled_skills, client_catalog, install, installation_status, plan_install, repair, uninstall
 
 
@@ -108,3 +111,17 @@ def test_repair_reconstructs_lost_state_from_exact_managed_files(tmp_path: Path)
     assert result["status"] == "already_installed"
     assert state.is_file()
     assert any("reconstructed" in warning for warning in result["warnings"])
+
+
+def test_interactive_install_offers_supported_ide_choices_when_nothing_is_detected(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.setattr("impact_engine.agent_integration.detect_clients", lambda _project: [])
+    monkeypatch.setattr(cli.sys, "stdin", SimpleNamespace(isatty=lambda: True))
+    answers = iter(["1", ""])
+    monkeypatch.setattr(builtins, "input", lambda _prompt: next(answers))
+
+    cli.main(["agent", "install", "--project", str(tmp_path), "--dry-run"])
+
+    output = capsys.readouterr().out
+    assert "Choose an integration" in output
+    assert "Codex CLI / IDE" in output
+    assert '"client": "codex"' in output

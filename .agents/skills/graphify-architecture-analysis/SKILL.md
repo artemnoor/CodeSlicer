@@ -1,6 +1,6 @@
 ---
 name: graphify-architecture-analysis
-description: Нативный Graphify для карты архитектуры, сообществ, документации и ADR; его отдельный граф не подменяет evidence CodeSlicer.
+description: "Нативный Graphify для карты архитектуры, сообществ, документации и ADR; его отдельный граф не подменяет evidence CodeSlicer."
 ---
 
 # Graphify: архитектурная карта

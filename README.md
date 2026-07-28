@@ -4,7 +4,7 @@
   <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/artemnoor/CodeSlicer/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/release-v0.5.0-7c3aed?style=flat-square" alt="Release v0.5.0"></a>
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/regression-708%20passed-22c55e?style=flat-square" alt="708 regression tests passed">
+  <img src="https://img.shields.io/badge/regression-709%20passed-22c55e?style=flat-square" alt="709 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
   <img src="https://img.shields.io/badge/agent%20skills-2-f97316?style=flat-square" alt="2 bundled agent skills">
   <img src="https://img.shields.io/badge/MCP-stdio%20JSON--RPC-ec4899?style=flat-square" alt="MCP stdio JSON-RPC">
@@ -60,10 +60,11 @@ Installer не создаёт и не изменяет `code-intelligence-orches
 # Показать обнаруженные локальные AI-клиенты
 impact-engine agent detect
 
-# Установить два skills и MCP для Codex в текущий проект
-impact-engine agent install --client codex --scope project
+# Самый простой путь: CLI предложит IDE, номера и scope
+impact-engine agent install
 
-# Kodik IDE: сначала можно посмотреть точный план без записи
+# Явный выбор и безопасный preview остаются доступны
+impact-engine agent install --client codex --scope project
 impact-engine agent install --client kodik --scope project --dry-run --json
 
 # Проверить реальные bundled assets и stdio MCP handshake
@@ -77,13 +78,18 @@ impact-engine agent uninstall
 отдельные `SKILL.md`. После установки перезапустите IDE. Полная матрица путей
 и ограничений: [совместимость AI-клиентов](docs/AGENT_CLIENT_COMPATIBILITY.md).
 
+В интерактивном терминале команда без параметров покажет обнаруженные IDE. Если
+ни одна не найдена, она предложит полный поддерживаемый каталог. В JSON и CI
+режимах вопросы не задаются: используйте `--client <id>` или
+`--client all-detected --yes`.
+
 ## Локальный UI и MCP
 
 Веб-интерфейс работает только на localhost и отображает настоящий
 `GraphDocument`; Graphify появляется отдельно, только когда существует
 `graphify-out/graph.json`.
 
-![Обзор проекта в локальном UI](docs/images/codeslicer-overview.png)
+![Текущий экран Review в локальном UI](docs/images/codeslicer-current-ui.png)
 
 MCP-сервер запускается без shell-wrapper:
 

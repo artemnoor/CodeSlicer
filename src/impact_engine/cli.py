@@ -803,22 +803,33 @@ def main(argv: list[str] | None = None) -> None:
             elif args.agent_command == "install":
                 requested = [value.strip() for value in args.client.split(",") if value.strip()]
                 if requested == ["auto"]:
-                    found = [item["id"] for item in detect_clients(args.project) if item["detected"]]
-                    if len(found) == 1:
-                        requested = found
-                    elif len(found) > 1 and not local_json and sys.stdin.isatty():
-                        print("Detected AI clients:")
-                        for index, client_id in enumerate(found, start=1):
-                            print(f"[{index}] {client_id}")
-                        selected = input("Select clients to configure (for example 1,3; empty cancels): ").strip()
+                    detected = [item for item in detect_clients(args.project) if item["detected"]]
+                    found = [item["id"] for item in detected]
+                    if not local_json and sys.stdin.isatty():
+                        catalog = {item["id"]: item for item in client_catalog() if item["status"] != "unsupported"}
+                        choices = found or list(catalog)
+                        print("Detected AI clients:" if found else "No configured AI clients were detected. Choose an integration:")
+                        confidence = {item["id"]: item["confidence"] for item in detected}
+                        for index, client_id in enumerate(choices, start=1):
+                            item = catalog[client_id]
+                            detail = confidence.get(client_id, item["status"])
+                            print(f"[{index}] {item['display_name']} — {detail}")
+                        selected = input("Select IDEs to configure (for example 1,3; empty cancels): ").strip()
                         if not selected:
                             raise ValueError("client selection cancelled")
                         try:
-                            requested = [found[int(value.strip()) - 1] for value in selected.split(",")]
+                            requested = list(dict.fromkeys(choices[int(value.strip()) - 1] for value in selected.split(",")))
                         except (IndexError, ValueError) as exc:
                             raise ValueError("invalid client selection") from exc
+                        if "--scope" not in raw_argv:
+                            scope = input("Scope [project/user] (project): ").strip().lower() or "project"
+                            if scope not in {"project", "user"}:
+                                raise ValueError("scope must be project or user")
+                            args.scope = scope
+                    elif len(found) == 1:
+                        requested = found
                     else:
-                        raise ValueError("auto selection requires exactly one detected client; pass --client <id> or --client all-detected --yes")
+                        raise ValueError("interactive selection needs a terminal; pass --client <id> or --client all-detected --yes")
                 elif requested == ["all-detected"]:
                     if not args.yes:
                         raise ValueError("--client all-detected requires --yes")
