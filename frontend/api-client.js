@@ -1,5 +1,6 @@
 /* Same-origin client for the local-only CodeSlicer API. */
 (function (global) {
+  let sessionToken = null;
   async function request(path, options) {
     // All requests are deliberately relative: the local API and this SPA
     // share an origin, and the UI never sends source data to another host.
@@ -7,6 +8,7 @@
     const text = await response.text();
     let data = {};
     try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { error: text }; }
+    if (path === '/api/health' && data.session_token) sessionToken = data.session_token;
     if (!response.ok) {
       const detail = data.error || data.message || data.status;
       const error = new Error(detail || `${response.status} ${response.statusText}`);
@@ -17,7 +19,7 @@
     return data;
   }
   const post = (path, payload) => request(path, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}),
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'X-CodeSlicer-Session': sessionToken } : {}) }, body: JSON.stringify(payload || {}),
   });
   global.ImpactApi = {
     state: () => request('/api/state'),

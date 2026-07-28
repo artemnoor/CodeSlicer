@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import argparse
 from importlib.resources import files as package_files
+import ipaddress
 import json
 import html
 import os
+import secrets
 import subprocess
 import sys
 import threading
@@ -42,6 +44,7 @@ from impact_engine.adapters.native import native_profile, run_native_operation
 from impact_engine.graph_workspaces import build_workspace
 from impact_engine.tool_runtime import ToolRuntime
 from impact_engine.adapters.graphify_paths import find_graphify_graph
+from impact_engine.approvals import ApprovalStore
 
 
 _OVERVIEW_LANGUAGE_SUFFIXES = {
@@ -778,6 +781,7 @@ class LocalApiState:
         self.lock = threading.RLock()
         self.cancellation: CancellationToken | None = None
         self.analysis_running = False
+        self.session_token = secrets.token_urlsafe(32)
         if default_project:
             try:
                 ensure_project_storage(default_project)
@@ -953,6 +957,27 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
             raise ValueError("Request body must be a JSON object")
         return value
 
+    def _process_approval(self, project_path: str, action: str, payload: dict[str, Any], body: dict[str, Any]) -> bool:
+        """Consume an exact one-time approval or return an actionable pending record.
+
+        Browser-side ``window.confirm`` is intentionally not trusted: only a
+        separately issued local-host token can authorize a subprocess or a
+        network-capable upstream action.
+        """
+        approval_id = body.get("approval_id")
+        approval_token = body.get("approval_token")
+        if approval_id and approval_token:
+            ApprovalStore(project_path).consume(str(approval_id), str(approval_token), action, payload)
+            return True
+        pending = ApprovalStore(project_path).request(action, payload)
+        command = f"impact-engine --json approvals approve \"{Path(project_path).resolve()}\" \"{pending['approval_id']}\""
+        self._send_json(409, {
+            "status": "pending_approval", "approval": pending,
+            "message": f"Approval required. Run locally: {command}",
+            "next_step": command,
+        })
+        return False
+
     def do_OPTIONS(self) -> None:  # noqa: N802
         self._send_json(204, {})
 
@@ -968,6 +993,7 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                         "managed_tools": True,
                         "tools_endpoint": "/api/tools",
                     },
+                    "session_token": self.state.session_token,
                 })
             if parsed.path == "/api/state":
                 return self._send_json(200, self.state.snapshot(include_graph=False))
@@ -1044,6 +1070,16 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         try:
             parsed = urlparse(self.path)
+            origin = self.headers.get("Origin")
+            if origin:
+                origin_host = urlparse(origin).netloc.lower()
+                host = self.headers.get("Host", "").lower()
+                if not host or origin_host != host:
+                    return self._send_json(403, {"status": "error", "error": "cross_origin_request_rejected"})
+            if parsed.path.startswith("/api/"):
+                provided = self.headers.get("X-CodeSlicer-Session", "")
+                if not provided or not secrets.compare_digest(provided, self.state.session_token):
+                    return self._send_json(403, {"status": "error", "error": "local_session_required"})
             body = self._read_json()
             # A deliberately narrow live OpenTelemetry receiver. It accepts
             # OTLP/HTTP *JSON* only, on a loopback-bound local API, and only
@@ -1107,7 +1143,10 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                 tool_id, action = tool_parts[2], tool_parts[3]
                 try:
                     if action == "connect":
-                        tool = runtime.connect(tool_id, confirmed=bool(body.get("confirmed", False)), ref=body.get("ref"))
+                        payload = {"tool_id": tool_id, "ref": body.get("ref") or ""}
+                        if not self._process_approval(project_path, "managed_tool.connect", payload, body):
+                            return
+                        tool = runtime.connect(tool_id, confirmed=True, ref=body.get("ref"))
                         return self._send_json(200, {"status": "ok", "tool": tool, "privacy": {"mode": "local-only", "network_used": True, "network_action": "explicit-git-clone"}})
                     if action == "executable":
                         tool = runtime.configure_executable(tool_id, body.get("executable") or "")
@@ -1122,9 +1161,19 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                             limit_bytes=int(body.get("limit_bytes") or 128 * 1024),
                         )})
                     if action == "help":
+                        executable = runtime.status(tool_id).get("executable") or ""
+                        payload = {"executable": executable, "argv": ["--help"], "cwd": str(Path(project_path).resolve()), "timeout_seconds": 30, "network_expected": False, "tool_id": tool_id}
+                        if not self._process_approval(project_path, "managed_tool.help", payload, body):
+                            return
                         return self._send_json(200, {"status": "ok", **runtime.help(tool_id)})
                     if action == "run":
-                        return self._send_json(200, runtime.run(tool_id, argv=body.get("argv") or [], confirmed=bool(body.get("confirmed", False)), workspace=str(body.get("workspace") or "project"), timeout_seconds=int(body.get("timeout_seconds", 60))))
+                        argv = body.get("argv") or []
+                        workspace = str(body.get("workspace") or "project")
+                        timeout_seconds = int(body.get("timeout_seconds", 60))
+                        payload = {"tool_id": tool_id, "argv": argv, "workspace": workspace, "timeout_seconds": timeout_seconds}
+                        if not self._process_approval(project_path, "managed_tool.run", payload, body):
+                            return
+                        return self._send_json(200, runtime.run(tool_id, argv=argv, confirmed=True, workspace=workspace, timeout_seconds=timeout_seconds))
                     return self._send_json(404, {"status": "error", "error": "unknown tool runtime action"})
                 except (FileNotFoundError, ValueError, OSError, RuntimeError) as exc:
                     return self._send_json(422, {"status": "error", "error": str(exc)})
@@ -1155,11 +1204,17 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                     if adapter_parts[3] == "native-config":
                         adapter = registry.configure_native_executable(adapter_id, body.get("executable"))
                         return self._send_json(200, {"status": "ok", "adapter": adapter, "privacy": {"mode": "local-only", "network_used": False}})
+                    operation = str(body.get("operation") or "")
+                    query = str(body.get("query") or "")
+                    timeout_seconds = int(body.get("timeout_seconds", 60))
+                    payload = {"adapter_id": adapter_id, "operation": operation, "query": query, "cwd": str(Path(project_path).resolve()), "timeout_seconds": timeout_seconds, "network_expected": False}
+                    if not self._process_approval(project_path, "native_tool.run", payload, body):
+                        return
                     result = run_native_operation(
-                        project_path, adapter_id, str(body.get("operation") or ""),
-                        confirmed=bool(body.get("confirmed", False)), query=str(body.get("query") or ""),
+                        project_path, adapter_id, operation,
+                        confirmed=True, query=query,
                         configured_executable=registry._state(adapter_id).get("native_executable"),
-                        timeout_seconds=int(body.get("timeout_seconds", 60)),
+                        timeout_seconds=timeout_seconds,
                     )
                     generated = result.get("generated_artifact")
                     if result.get("status") == "completed" and generated and adapter_id in {"openapi", "scip", "cyclonedx", "spdx", "sarif"}:
@@ -1422,6 +1477,10 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                 if not project_path or not entity:
                     return self._send_json(400, {"status": "error", "error": "project_path and entity are required"})
                 ensure_project_storage(project_path)
+                if bool(body.get("runtime_validate", False)):
+                    payload = {"executable": "python", "argv": ["-m", "pytest"], "cwd": str(Path(project_path).resolve()), "timeout_seconds": 60, "network_expected": False, "entity": entity, "graph_path": body.get("graph_path") or ""}
+                    if not self._process_approval(project_path, "investigate.runtime_validate", payload, body):
+                        return
                 report = build_investigate_report(
                     project_path,
                     entity=entity,
@@ -1465,6 +1524,11 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                 diff_text = body.get("diff_text")
                 if body.get("diff_file") and diff_text is None:
                     diff_text = Path(str(body["diff_file"])).expanduser().resolve().read_text(encoding="utf-8")
+                if bool(body.get("run_tests", False)):
+                    command = body.get("test_command") or "<configured test command>"
+                    payload = {"executable": "test-runner", "argv": [str(command)], "cwd": str(Path(project_path).resolve()), "timeout_seconds": 600, "network_expected": False}
+                    if not self._process_approval(project_path, "ci.run_tests", payload, body):
+                        return
                 report = build_ci_report(
                     project_path,
                     base=body.get("base"),
@@ -1491,10 +1555,14 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                 command = _test_command_for_file(project, file_name)
                 if not command:
                     return self._send_json(422, {"status": "unsupported", "error": "No safe test runner is configured for this file"})
+                timeout = min(max(int(body.get("timeout", 120)), 1), 600)
+                payload = {"executable": command[0], "argv": command[1:], "cwd": str(project), "timeout_seconds": timeout, "network_expected": False, "test_file": file_name}
+                if not self._process_approval(str(project), "review.run_test", payload, body):
+                    return
                 try:
                     completed = subprocess.run(
                         command, cwd=project, capture_output=True, text=True,
-                        timeout=min(max(int(body.get("timeout", 120)), 1), 600), shell=False,
+                        timeout=timeout, shell=False,
                     )
                 except subprocess.TimeoutExpired as exc:
                     return self._send_json(504, {"status": "timeout", "command": command, "stdout": exc.stdout or "", "stderr": exc.stderr or ""})
@@ -1596,6 +1664,7 @@ def create_server(host: str, port: int, frontend_dir: str, state: LocalApiState)
 
     server = ThreadingHTTPServer((host, port), Handler)
     server.impact_state = state  # type: ignore[attr-defined]
+    server.session_token = state.session_token  # type: ignore[attr-defined]
     return server
 
 
@@ -1615,12 +1684,21 @@ def default_frontend_dir() -> str:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="impact-engine-local-api")
     parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--allow-remote", action="store_true", help="Allow a non-loopback bind; this exposes the local API to the network.")
     parser.add_argument("--port", type=int, default=8001)
     parser.add_argument("--frontend-dir", default=default_frontend_dir())
     parser.add_argument("--default-project", default=None)
     args = parser.parse_args(argv)
-    repo_root = Path(__file__).resolve().parents[2]
-    state = LocalApiState(args.default_project, str(repo_root / "support_packs"))
+    try:
+        loopback = ipaddress.ip_address(args.host).is_loopback
+    except ValueError:
+        loopback = args.host.lower() == "localhost"
+    if not loopback and not args.allow_remote:
+        parser.error("non-loopback --host requires explicit --allow-remote")
+    # This path must work from both a source checkout and an installed wheel.
+    # ``local_api.py`` itself lives under site-packages in the latter case.
+    from impact_engine.support_packs.paths import builtin_support_packs_root
+    state = LocalApiState(args.default_project, str(builtin_support_packs_root()))
     server = create_server(args.host, args.port, args.frontend_dir, state)
     print(f"Impact Engine local API: http://{args.host}:{args.port}/", flush=True)
     try:

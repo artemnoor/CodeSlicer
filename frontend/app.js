@@ -438,6 +438,8 @@ async function loadGraphify() {
         src: '/api/adapters/graphify/viewer',
         title: 'Оригинальная визуализация Graphify',
         loading: 'lazy',
+        sandbox: 'allow-scripts',
+        referrerpolicy: 'no-referrer',
       });
       viewer.append(frame);
       target.append(viewer);
@@ -558,7 +560,45 @@ function selectProjectionNode(node) {
       : 'Подсвеченные линии показывают связи, отданные текущей проекцией CodeSlicer.'));
 }
 function updateEntitySuggestions(nodes = []) { const datalist = $('#entitySuggestions'); if (!datalist) return; clear(datalist); const all = unique([...(state.graph?.nodes || []).map((node) => node.id || node.name), ...nodes.filter((node) => node.canonical !== false).map((node) => node.id || node.name)]); all.slice(0, 500).forEach((value) => datalist.append(attr(el('option'), { value }))); }
-async function openInspect(entity) { if (!entity) return; state.selectedEntity = entity; navigate('inspect', { entity }); await loadInspect(entity); }
+async function openInspect(entity) {
+  if (!state.project || !entity) return;
+  state.selectedEntity = entity;
+  const loading = el('p', '', 'Ищу подтверждённые связи в текущем графе…');
+  openModal('Информация о сущности', loading, [button('Закрыть', 'button secondary', { 'data-close-overlay': 'true' })]);
+  try {
+    const report = dataPayload(await ImpactApi.inspect({ project_path: state.project, entity, refresh: 'never', max_context: 12 }));
+    state.inspect = report;
+    const body = el('div', 'modal-copy');
+    const resolved = report.resolved_entity;
+    if (!resolved) {
+      body.append(el('p', '', report.why_not_confirmed?.[0] || 'Сущность не удалось однозначно определить.'));
+      (report.candidates || []).slice(0, 8).forEach((candidate) => body.append(button(candidate.name || candidate.id, 'button secondary', { 'data-palette-entity': candidate.id })));
+    } else {
+      append(body, el('strong', '', resolved.name || resolved.id), el('p', 'muted', `${resolved.kind || 'ENTITY'} · ${resolved.properties?.file || resolved.file || 'файл не указан'}`), el('p', '', `Уверенность: ${report.confidence?.level || 'не указана'} (${report.confidence?.value ?? '—'}).`));
+      const links = [...(report.direct_upstream || []), ...(report.direct_downstream || [])].slice(0, 8);
+      if (links.length) { body.append(el('h3', '', 'Прямые связи')); links.forEach((edge) => body.append(el('p', 'muted', `${edge.kind || 'RELATED'} · ${edge.from || ''} → ${edge.to || ''}`))); }
+    }
+    openModal('Информация о сущности', body, [button('Исследовать связи', 'button primary', { 'data-modal-investigate': entity }), button('Закрыть', 'button secondary', { 'data-close-overlay': 'true' })]);
+  } catch (error) { openModal('Информация о сущности', el('p', 'warning-text', error.message), [button('Закрыть', 'button secondary', { 'data-close-overlay': 'true' })]); }
+}
+
+async function openInvestigation(entity) {
+  if (!state.project || !entity) return;
+  state.selectedEntity = entity;
+  openModal('Исследование связей', el('p', '', 'Строю ограниченный путь влияния…'), [button('Закрыть', 'button secondary', { 'data-close-overlay': 'true' })]);
+  try {
+    const report = dataPayload(await ImpactApi.investigate({ project_path: state.project, entity, direction: 'both', depth: 4, max_nodes: 80, max_edges: 160, overlay: 'codeslicer', refresh: 'never' }));
+    state.investigate = report;
+    const body = el('div', 'modal-copy');
+    if (!report.resolved_entity) body.append(el('p', '', report.why_not_confirmed?.[0] || 'Не удалось построить путь для этой сущности.'));
+    else {
+      append(body, el('strong', '', report.resolved_entity.name || report.resolved_entity.id), el('p', '', `Показано ${report.nodes?.length || 0} узлов и ${report.edges?.length || 0} связей.`));
+      (report.edges || []).slice(0, 12).forEach((edge) => body.append(el('p', 'muted', `${edge.kind || 'RELATED'} · ${edge.from || ''} → ${edge.to || ''}`)));
+      if (report.truncated) body.append(el('p', 'warning-text', 'Результат ограничен для читаемости.'));
+    }
+    openModal('Исследование связей', body, [button('Закрыть', 'button secondary', { 'data-close-overlay': 'true' })]);
+  } catch (error) { openModal('Исследование связей', el('p', 'warning-text', error.message), [button('Закрыть', 'button secondary', { 'data-close-overlay': 'true' })]); }
+}
 async function loadInspect(entity) { if (!state.project || !entity) return; state.selectedEntity = entity; if (state.route !== 'inspect') navigate('inspect', { entity }); const target = $('#inspectContent'); if (target) { clear(target); target.append(stateCard('Ищу подтверждённые связи…', 'Inspect выполняется по текущему графу.', 'loading')); } try { const response = await ImpactApi.inspect({ project_path: state.project, entity, refresh: 'never', max_context: 12 }); state.inspect = dataPayload(response); renderInspect(state.inspect); } catch (error) { if (target) { clear(target); target.append(stateCard('Не удалось разобрать сущность', error.message, 'error-state')); } } }
 function renderInspect(report) { const target = $('#inspectContent'); if (!target) return; clear(target); if (report.resolved_entity === null) { target.append(stateCard(report.status === 'needs_selection' ? 'Нужно выбрать сущность' : 'Совпадение не найдено', report.why_not_confirmed?.[0] || 'Попробуйте имя из подсказок.', 'empty-state')); (report.candidates || []).forEach((candidate) => target.append(button(candidate.name || candidate.id, 'candidate-button', { 'data-candidate': candidate.id }))); return; } const entity = report.resolved_entity; const panel = el('article', 'panel inspect-card'); append(panel, cardTitle('СУЩНОСТЬ', entity.name || entity.id, `${entity.kind || 'ENTITY'} · ${entity.properties?.file || entity.file || 'файл не указан'}`)); const facts = el('div', 'fact-grid'); append(facts, metric('Confidence', report.confidence?.level || '—'), metric('Значение', report.confidence?.value ?? '—'), metric('Связей', (report.direct_upstream || []).length + (report.direct_downstream || []).length)); panel.append(facts); panel.append(el('p', 'panel-copy', `Источники: ${unique(report.confidence?.provenance || []).join(', ') || 'не указаны'}.`)); if (report.why_not_confirmed?.length) report.why_not_confirmed.slice(0, 4).forEach((item) => panel.append(el('p', 'warning-text', describe(item)))); const actions = el('div', 'inspect-actions'); append(actions, button('Проверить влияние', 'button primary', { 'data-inspect-action': 'review', 'data-entity': entity.id }), button('Исследовать', 'button secondary', { 'data-inspect-action': 'investigate', 'data-entity': entity.id }), button('Открыть код ↗', 'button secondary', { 'data-inspect-action': 'open-file', 'data-file': entity.properties?.file || entity.file || '', 'aria-label': 'Open file ↗' })); panel.append(actions); const links = el('div', 'connection-list'); append(links, el('h3', '', 'Связи и evidence')); [...(report.why_affected || []), ...(report.direct_upstream || []).map((edge) => ({ claim: 'upstream', edge })), ...(report.direct_downstream || []).map((edge) => ({ claim: 'downstream', edge }))].slice(0, 16).forEach((item) => { const edge = item.edge || item; const row = el('div', 'evidence-row'); append(row, el('span', 'status-key', item.claim ? '✓' : '?'), el('div', '', '')); row.lastChild.append(el('strong', '', `${edge.kind || 'RELATED'} · ${edge.from || ''} → ${edge.to || ''}`), el('small', 'muted', `${describe(item.claim || edge.description)} · источник: ${edge.source || 'CodeSlicer'}`)); links.append(row); }); if (!links.children.length) links.append(el('p', 'muted', 'Прямых связей не отдано.')); panel.append(links); target.append(panel); }
 
@@ -623,7 +663,7 @@ async function loadToolWorkspace(toolId) { const target = $('#toolWorkspaceConte
     const viewerCard = el('article', 'panel');
     append(viewerCard, cardTitle('РЕЗУЛЬТАТ GRAPHIFY', 'Нативный граф Graphify выбранного проекта', 'Показывается только артефакт graphify-out/graph.json, созданный Graphify. Если его нет, сначала настройте Graphify и явно постройте архитектурный граф.'));
     const iframe = el('iframe', 'graphify-iframe');
-    attr(iframe, { src: '/api/adapters/graphify/viewer', style: 'width: 100%; height: 750px; border: 1px solid #2a2a4e; border-radius: 8px; background: #0f0f1a;' });
+    attr(iframe, { src: '/api/adapters/graphify/viewer', sandbox: 'allow-scripts', referrerpolicy: 'no-referrer', style: 'width: 100%; height: 750px; border: 1px solid #2a2a4e; border-radius: 8px; background: #0f0f1a;' });
     viewerCard.append(iframe);
     view.append(viewerCard);
   }
@@ -665,13 +705,14 @@ document.addEventListener('click', (event) => {
   const graphifyAction = event.target.closest?.('[data-graphify-action]'); if (graphifyAction) { handleGraphifyAction(graphifyAction); return; }
   const close = event.target.closest?.('[data-close-overlay]'); if (close) { closeOverlays(); return; }
   if (event.target.classList.contains('overlay')) { closeOverlays(); return; }
-  const action = event.target.closest?.('[data-action]'); if (action) { const name = action.dataset.action; if (name === 'refresh-overview') { state.overview = null; loadOverview(true); } if (name === 'refresh-review') { state.review = null; loadReview(true); } if (name === 'analyze') startAnalysis($('#projectPath').value); if (name === 'run-selected-tests') { const checked = $('.test-row input:checked').map((input) => input.dataset.testFile).filter(Boolean); if (!checked.length) { showState('Нет разрешённого target для запуска.', 'warning-state'); } else { confirmTest({ file: checked[0] }); } } if (name === 'toggle-more') { state.showMore = !state.showMore; renderReview(); } return; }
+  const action = event.target.closest?.('[data-action]'); if (action) { const name = action.dataset.action; if (name === 'refresh-overview') { state.overview = null; loadOverview(true); } if (name === 'refresh-review') { state.review = null; loadReview(true); } if (name === 'analyze') startAnalysis($('#projectPath').value); if (name === 'run-selected-tests') { const checked = $$('.test-row input:checked').map((input) => input.dataset.testFile).filter(Boolean); if (!checked.length) { showState('Нет разрешённого target для запуска.', 'warning-state'); } else { confirmTest({ file: checked[0] }); } } if (name === 'toggle-more') { state.showMore = !state.showMore; renderReview(); } return; }
   const filter = event.target.closest?.('[data-review-filter]'); if (filter) { state.reviewFilter = filter.dataset.reviewFilter; renderReview(); return; }
   const file = event.target.closest?.('[data-review-file]'); if (file) { state.selectedFile = file.dataset.reviewFile; renderReview(); return; }
-  const impact = event.target.closest?.('[data-impact-action]'); if (impact) { const entity = impact.dataset.entity; if (impact.dataset.impactAction === 'inspect') openInspect(entity); if (impact.dataset.impactAction === 'evidence') openEvidence(entity); if (impact.dataset.impactAction === 'investigate') { $('#investigateEntity').value = entity; navigate('investigate', { entity }); } if (impact.dataset.impactAction === 'open-file') openFileNotice(impact.dataset.file); return; }
-  const projection = event.target.closest?.('[data-projection-action]'); if (projection) { const entity = projection.dataset.projectionEntity; const node = (state.projection?.nodes || []).find((item) => item.id === entity); if (projection.dataset.projectionAction === 'why') selectProjectionNode(node || { id: entity }); if (projection.dataset.projectionAction === 'chain') { if (node?.canonical === false) selectProjectionNode(node); else { $('#investigateEntity').value = entity; navigate('investigate', { entity }); } } if (projection.dataset.projectionAction === 'copy') navigator.clipboard?.writeText(entity).then(() => showState('ID скопирован.')).catch(() => openModal('Stable ID', el('code', '', entity), [button('Закрыть', 'button secondary', { 'data-close-overlay': 'true' })])); return; }
-  const candidate = event.target.closest?.('[data-candidate], [data-candidate-investigate]'); if (candidate) { const entity = candidate.dataset.candidate || candidate.dataset.candidateInvestigate; if (state.route === 'investigate') { $('#investigateEntity').value = entity; loadInvestigation(entity); } else openInspect(entity); return; }
-  const inspectAction = event.target.closest?.('[data-inspect-action]'); if (inspectAction) { const entity = inspectAction.dataset.entity; if (inspectAction.dataset.inspectAction === 'review') { state.selectedEntity = entity; state.review = null; navigate('review', { entity }); loadReview(true); } if (inspectAction.dataset.inspectAction === 'investigate') { $('#investigateEntity').value = entity; navigate('investigate', { entity }); } if (inspectAction.dataset.inspectAction === 'open-file') openFileNotice(inspectAction.dataset.file); return; }
+  const impact = event.target.closest?.('[data-impact-action]'); if (impact) { const entity = impact.dataset.entity; if (impact.dataset.impactAction === 'inspect') openInspect(entity); if (impact.dataset.impactAction === 'evidence') openEvidence(entity); if (impact.dataset.impactAction === 'investigate') openInvestigation(entity); if (impact.dataset.impactAction === 'open-file') openFileNotice(impact.dataset.file); return; }
+  const projection = event.target.closest?.('[data-projection-action]'); if (projection) { const entity = projection.dataset.projectionEntity; const node = (state.projection?.nodes || []).find((item) => item.id === entity); if (projection.dataset.projectionAction === 'why') selectProjectionNode(node || { id: entity }); if (projection.dataset.projectionAction === 'chain') { if (node?.canonical === false) selectProjectionNode(node); else openInvestigation(entity); } if (projection.dataset.projectionAction === 'copy') navigator.clipboard?.writeText(entity).then(() => showState('ID скопирован.')).catch(() => openModal('Stable ID', el('code', '', entity), [button('Закрыть', 'button secondary', { 'data-close-overlay': 'true' })])); return; }
+  const candidate = event.target.closest?.('[data-candidate], [data-candidate-investigate]'); if (candidate) { const entity = candidate.dataset.candidate || candidate.dataset.candidateInvestigate; openInspect(entity); return; }
+  const inspectAction = event.target.closest?.('[data-inspect-action]'); if (inspectAction) { const entity = inspectAction.dataset.entity; if (inspectAction.dataset.inspectAction === 'review') { state.selectedEntity = entity; state.review = null; navigate('review', { entity }); loadReview(true); } if (inspectAction.dataset.inspectAction === 'investigate') openInvestigation(entity); if (inspectAction.dataset.inspectAction === 'open-file') openFileNotice(inspectAction.dataset.file); return; }
+  const modalInvestigate = event.target.closest?.('[data-modal-investigate]'); if (modalInvestigate) { closeOverlays(); openInvestigation(modalInvestigate.dataset.modalInvestigate); return; }
   const test = event.target.closest?.('[data-test-file]'); if (test?.dataset.testFile && event.detail === 2) confirmTest({ file: test.dataset.testFile, command: test.dataset.testCommand });
   const quickImport = event.target.closest?.('[data-quick-import]'); if (quickImport) handleQuickImport(quickImport);
   const adapter = event.target.closest?.('[data-adapter-action]'); if (adapter) handleAdapterAction(adapter);

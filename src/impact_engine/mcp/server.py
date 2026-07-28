@@ -45,7 +45,7 @@ def request_action_approval(
     _verify_path_exists(project_path)
     if action not in {
         "managed_tool.connect", "managed_tool.run", "managed_tool.help",
-        "runtime_trace", "investigate.runtime_validate", "ci.run_tests", "project.onboard",
+        "runtime_trace", "investigate.runtime_validate", "ci.run_tests", "project.onboard", "research.fetch_pages",
     }:
         raise ValueError("unsupported approval action")
     approval = ApprovalStore(project_path).request(action, payload, ttl_seconds=ttl_seconds)
@@ -647,10 +647,22 @@ def create_library_research_workflow(project_path: str, library_name: str, ecosy
         }
 
 
-def prepare_library_research_input(workflow_id: str, allow_network: bool = False) -> Dict[str, Any]:
+def prepare_library_research_input(
+    workflow_id: str,
+    allow_network: bool = False,
+    approval_project_path: str | None = None,
+    approval_id: str | None = None,
+    approval_token: str | None = None,
+) -> Dict[str, Any]:
     from impact_engine.research.workflow import fetch_pages, build_input_pack
     try:
         if allow_network:
+            approval_root = approval_project_path or str(Path.cwd())
+            _verify_path_exists(approval_root)
+            _consume_approval(
+                approval_root, approval_id, approval_token, "research.fetch_pages",
+                _approval_payload(executable="research-fetcher", argv=["fetch-pages", workflow_id], cwd=str(Path(approval_root).resolve()), timeout_seconds=120, network_expected=True, workflow_id=workflow_id),
+            )
             fetch_pages(workflow_id)
         input_pack = build_input_pack(workflow_id)
         return {
@@ -736,10 +748,17 @@ def registry_process_research_queue(
     project_path: str,
     limit: int = 20,
     allow_network: bool = False,
+    approval_id: str | None = None,
+    approval_token: str | None = None,
 ) -> Dict[str, Any]:
     from impact_engine.remote_registry.worker import process_local_research_queue
 
     _verify_path_exists(project_path)
+    if allow_network:
+        _consume_approval(
+            project_path, approval_id, approval_token, "research.fetch_pages",
+            _approval_payload(executable="research-fetcher", argv=["process-queue", str(limit)], cwd=str(Path(project_path).resolve()), timeout_seconds=120, network_expected=True, limit=limit),
+        )
     return {
         "tool": "registry_process_research_queue",
         **process_local_research_queue(project_path=project_path, limit=limit, allow_network=allow_network),
@@ -1202,7 +1221,9 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "workflow_id": {"type": "string", "description": "Research workflow ID"},
-                "allow_network": {"type": "boolean", "default": False, "description": "Explicitly allow network fetches"}
+                "allow_network": {"type": "boolean", "default": False, "description": "Requires one-time local approval"},
+                "approval_project_path": {"type": "string", "description": "Existing project path that owns the approval (defaults to the MCP host cwd)"},
+                "approval_id": {"type": "string"}, "approval_token": {"type": "string"}
             },
             "required": ["workflow_id"]
         }
@@ -1269,7 +1290,8 @@ TOOLS = [
             "properties": {
                 "project_path": {"type": "string"},
                 "limit": {"type": "integer", "default": 20},
-                "allow_network": {"type": "boolean", "default": False}
+                "allow_network": {"type": "boolean", "default": False},
+                "approval_id": {"type": "string"}, "approval_token": {"type": "string"}
             },
             "required": ["project_path"]
         }

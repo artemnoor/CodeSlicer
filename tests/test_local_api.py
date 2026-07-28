@@ -66,6 +66,7 @@ def test_local_api_can_load_explicit_graph_path(tmp_path):
 
 
 def test_local_api_does_not_enable_wildcard_cors_for_review(tmp_path):
+    from urllib.error import HTTPError
     _write_graph(tmp_path)
     state = LocalApiState(str(tmp_path), "support_packs")
     server = create_server("127.0.0.1", 0, str(tmp_path), state)
@@ -78,9 +79,13 @@ def test_local_api_does_not_enable_wildcard_cors_for_review(tmp_path):
             method="POST",
             headers={"Content-Type": "application/json", "Origin": "http://evil.example"},
         )
-        with urlopen(request, timeout=5) as response:
-            assert response.status == 200
-            assert response.headers.get("Access-Control-Allow-Origin") is None
+        try:
+            urlopen(request, timeout=5)
+        except HTTPError as error:
+            assert error.code == 403
+            assert json.loads(error.read())["error"] == "cross_origin_request_rejected"
+        else:
+            raise AssertionError("cross-origin POST must be rejected")
     finally:
         server.shutdown()
         server.server_close()
@@ -105,6 +110,37 @@ def test_local_api_health_advertises_managed_tools_capability(tmp_path):
         thread.join(timeout=5)
 
 
+def test_local_api_test_execution_requires_one_time_approval(tmp_path):
+    from urllib.error import HTTPError
+
+    _write_graph(tmp_path)
+    test_file = tmp_path / "test_example.py"
+    test_file.write_text("def test_example():\n    assert True\n", encoding="utf-8")
+    state = LocalApiState(str(tmp_path), "support_packs")
+    server = create_server("127.0.0.1", 0, str(tmp_path), state)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        request = Request(
+            f"http://127.0.0.1:{server.server_port}/api/review/run-test",
+            data=json.dumps({"project_path": str(tmp_path), "file": "test_example.py"}).encode(),
+            method="POST", headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token},
+        )
+        try:
+            urlopen(request, timeout=5)
+        except HTTPError as error:
+            payload = json.loads(error.read())
+            assert error.code == 409
+            assert payload["status"] == "pending_approval"
+            assert payload["approval"]["action"] == "review.run_test"
+        else:
+            raise AssertionError("test execution must require local approval")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_local_api_review_preserves_loaded_external_graph_path(tmp_path):
     project = tmp_path / "project"
     project.mkdir()
@@ -121,7 +157,7 @@ def test_local_api_review_preserves_loaded_external_graph_path(tmp_path):
         request = Request(
             f"http://127.0.0.1:{server.server_port}/api/review",
             data=json.dumps({"project_path": str(project), "diff_text": "", "refresh": "never"}).encode(),
-            method="POST", headers={"Content-Type": "application/json"},
+            method="POST", headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token},
         )
         with urlopen(request, timeout=5) as response:
             payload = json.loads(response.read())
@@ -143,7 +179,7 @@ def test_local_api_review_marks_loaded_project_graph_fresh(tmp_path):
         request = Request(
             f"http://127.0.0.1:{server.server_port}/api/review",
             data=json.dumps({"project_path": str(tmp_path), "diff_text": "", "refresh": "never"}).encode(),
-            method="POST", headers={"Content-Type": "application/json"},
+            method="POST", headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token},
         )
         with urlopen(request, timeout=5) as response:
             payload = json.loads(response.read())
@@ -206,7 +242,7 @@ def test_local_api_exposes_independent_graph_workspace(tmp_path):
         request = Request(
             f"http://127.0.0.1:{server.server_port}/api/graph-workspace",
             data=json.dumps({"project_path": str(tmp_path), "workspace": "impact"}).encode(),
-            method="POST", headers={"Content-Type": "application/json"},
+            method="POST", headers={"Content-Type": "application/json", "X-CodeSlicer-Session": server.session_token},
         )
         with urlopen(request, timeout=5) as response:
             payload = json.loads(response.read())

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 import json
+import threading
 
 from impact_engine.approvals import ApprovalStore
 from impact_engine.cli import main
@@ -48,3 +49,22 @@ def test_cli_can_approve_a_pending_request(tmp_path, capsys):
     response = json.loads(capsys.readouterr().out)
     assert response["status"] == "approved"
     assert response["approval"]["approval_token"]
+
+
+def test_concurrent_consumption_allows_exactly_one_caller(tmp_path):
+    store = ApprovalStore(tmp_path)
+    pending = store.request("runtime_trace", {"argv": ["pytest"]})
+    approved = store.approve(pending["approval_id"])
+    successes: list[bool] = []
+
+    def consume() -> None:
+        try:
+            store.consume(pending["approval_id"], approved["approval_token"], "runtime_trace", {"argv": ["pytest"]})
+            successes.append(True)
+        except (ValueError, TimeoutError):
+            successes.append(False)
+
+    callers = [threading.Thread(target=consume) for _ in range(2)]
+    [caller.start() for caller in callers]
+    [caller.join() for caller in callers]
+    assert successes.count(True) == 1

@@ -110,6 +110,13 @@ runtime trace, managed-tool `--help` и команд, сетевого onboardin
 автоматического Graphify и CI-тестов. Обычный статический анализ локальных
 файлов подтверждения не требует.
 
+Local API применяет ту же границу. Поле `confirmed: true` не является
+разрешением: endpoint, который может запустить процесс, вернёт
+`409 pending_approval` с точной локальной командой approval. После этого
+повторный запрос должен содержать возвращённые `approval_id` и
+`approval_token`. Страницы Graphify загружаются в sandbox без same-origin,
+поэтому upstream HTML не получает доступ к интерфейсу или API CodeSlicer.
+
 ## Диагностика
 
 ```powershell

@@ -75,6 +75,12 @@ def test_browser_shows_a_single_project_map_and_optional_graphify():
                     payload = canonical
                 elif path == "graph-workspace":
                     payload = graphify
+                elif path == "review":
+                    payload = {"report": {"risk": {"level": "LOW", "confidence": "high", "reason": "fixture"}, "changed_files": [{"path": "src/app.py", "additions": 1, "deletions": 0}], "top_impacts": [{"entity_id": "service", "label": "service", "kind": "FUNCTION", "file": "src/app.py", "confidence": "high", "why_affected": "direct call"}], "test_recommendations": [{"file": "tests/test_app.py", "symbol": "test_service", "command": "pytest tests/test_app.py"}]}}
+                elif path == "inspect":
+                    payload = {"report": {"resolved_entity": {"id": "service", "name": "service", "kind": "FUNCTION", "properties": {"file": "src/app.py"}}, "confidence": {"level": "high", "value": 1.0}, "direct_upstream": [], "direct_downstream": []}}
+                elif path == "investigate":
+                    payload = {"report": {"resolved_entity": {"id": "service", "name": "service"}, "nodes": [{"id": "repository", "name": "repository"}], "edges": [{"from": "service", "to": "repository", "kind": "CALLS"}]}}
                 elif path == "adapters":
                     payload = {"adapters": [{"id": "graphify", "status": "imported", "enabled": True, "freshness": {"status": "fresh"}}]}
                 elif path == "tools":
@@ -91,6 +97,13 @@ def test_browser_shows_a_single_project_map_and_optional_graphify():
             assert page.url.endswith("#review")
             assert page.locator(".simple-nav a").count() == 3
             assert page.get_by_text("Проверка изменений", exact=True).count() == 1
+            # Review actions must be useful controls, not dead links.
+            page.get_by_role("button", name="Запустить выбранные тесты").click()
+            assert page.locator("#modalBackdrop").is_visible(), page.locator("body").inner_text()
+            assert page.locator("#modalTitle").inner_text() == "Подтвердить запуск теста"
+            # Continue the map flow without depending on browser-specific
+            # overlay animation/pointer timing.
+            page.evaluate("document.getElementById('modalBackdrop').hidden = true")
             page.get_by_role("link", name="Карта проекта").click()
             page.locator(".projection-svg").wait_for()
             page.locator(".network-node").first.click()
