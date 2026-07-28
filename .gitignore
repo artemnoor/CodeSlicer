@@ -31,6 +31,10 @@ graphify-out/
 frontend/.cache/
 sources-*.png
 
+# Local handoff materials; never commit generated verification bundles or patches
+codeslicer-agent-lsp-final.patch
+verification-package/
+
 # Generated benchmark reports and copied real-project outputs
 benchmarks/**/cli_*.json
 benchmarks/**/cli_stdout_stderr.txt
