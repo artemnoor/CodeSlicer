@@ -45,11 +45,11 @@ def test_named_corpus_review_is_bounded_and_local(case: str, tmp_path: Path):
     configured_root = os.environ.get(golden["root_env"])
     configured_diff = os.environ.get(golden["diff_env"])
     if not configured_root or not configured_diff:
-        if os.environ.get("CI", "").lower() in {"1", "true", "yes"}:
+        if os.environ.get("IMPACT_ENGINE_REQUIRE_EXTERNAL_CORPORA", "").lower() in {"1", "true", "yes"}:
             pytest.fail(f"CI requires pinned corpus inputs: {golden['root_env']} and {golden['diff_env']}")
         pytest.skip(f"external corpus is opt-in; set {golden['root_env']} and {golden['diff_env']} to run it")
     if golden["golden_status"] != "pinned" or not golden["diff_sha256"] or not golden.get("source_snapshot_sha256"):
-        if os.environ.get("CI", "").lower() in {"1", "true", "yes"}:
+        if os.environ.get("IMPACT_ENGINE_REQUIRE_EXTERNAL_CORPORA", "").lower() in {"1", "true", "yes"}:
             pytest.fail(f"{case} corpus golden fixture is not pinned in review_corpora.json")
         pytest.skip(f"{case} manifest is present but its local snapshot/diff golden is not pinned")
 

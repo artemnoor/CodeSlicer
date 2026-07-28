@@ -22,6 +22,8 @@ def test_graphify_import_is_sanitized_overlay_with_provenance(tmp_path: Path) ->
     project = tmp_path / "project"
     project.mkdir()
     source = ROOT / "graphify-out" / "graph.json"
+    if not source.is_file():
+        pytest.skip("external Graphify output fixture is not materialized in this checkout")
     result = AdapterRegistry(project).import_artifact("graphify", source)
     artifact = project / ".codeslicer" / "artifacts" / "graphify" / "graph.json"
     stored = json.loads(artifact.read_text(encoding="utf-8"))
