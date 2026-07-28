@@ -447,7 +447,7 @@ class AnalysisPipeline:
             return None
         with self.profiler.measure("cache_lookup"):
             loaded = self.cache_store.load(
-                artifact_names=("graph.json", "snapshot.json", "snapshot_stats.json", "inventory.json")
+                artifact_names=("graph.json", "facts.json", "snapshot.json", "snapshot_stats.json", "inventory.json")
             )
         metadata = loaded.metadata or {}
         stats = loaded.artifacts.get("snapshot_stats.json") if loaded.hit else None
@@ -484,13 +484,15 @@ class AnalysisPipeline:
             except Exception:
                 return None
         snapshot = loaded.artifacts.get("snapshot.json", {})
-        self.profiler.add_work(files_seen=len(snapshot), files_reused=len(snapshot), facts_reused=len(graph_payload.get("nodes", [])))
+        facts_payload = loaded.artifacts.get("facts.json", {})
+        facts_reused = len(facts_payload.get("facts", [])) if isinstance(facts_payload, dict) else 0
+        self.profiler.add_work(files_seen=len(snapshot), files_reused=len(snapshot), facts_reused=facts_reused)
         graph_metadata["cache"] = {
             "status": "hit", "reason": "cache_hit", "cache_status": "hit", "cache_reason": "cache_hit",
             "branch": metadata.get("branch"), "snapshot": metadata.get("source_snapshot_hash"),
             "scope": metadata.get("scan_scope", "."), "plugins": metadata.get("selected_plugins", []),
             "files_reused": len(snapshot), "files_reanalyzed": 0,
-            "facts_reused": len(loaded.artifacts.get("facts.json", {}).get("facts", [])), "facts_rebuilt": 0,
+            "facts_reused": facts_reused, "facts_rebuilt": 0,
         }
         event = {
             "phase": "cache", "stage": "cache", "message": "Persistent cache reused",

@@ -184,7 +184,7 @@ pip install -e .
 ```bash
 python -m pip install build
 python -m build --wheel
-python -m pip install dist/impact_engine-0.4.0-py3-none-any.whl
+python -m pip install dist/impact_engine-0.5.0-py3-none-any.whl
 ```
 
 ### Linux или macOS
@@ -396,6 +396,20 @@ impact-engine --json onboard /path/to/project --graphify auto
 - wheel теперь включает frontend и manifest-backed language/framework plugins;
 - GitHub Actions собирает wheel и проверяет его в чистой venv: UI, API и
   discovery Python/TypeScript/C# plugins.
+
+### Release hardening 0.5.0
+
+- Версия пакета повышена до `0.5.0`; wheel и MCP server-info используют одну
+  версию.
+- Browser E2E — обязательный отдельный job на каждом push и pull request:
+  он устанавливает Playwright и Chromium, поэтому тест не может «молча» стать
+  skipped.
+- Реальный C# review на публичном Cruxa вынесен из обычной регрессии в
+  еженедельный/manual acceptance workflow. Он фиксирует commit корпуса,
+  создаёт read-only diff и не требует хранить чужой проект в этом репозитории.
+- Fast persistent-cache теперь загружает `facts.json`, поэтому `facts_reused`
+  отражает реально переиспользованные факты. `.sln` и `.slnx` учитываются как
+  manifest-файлы.
 
 Подробное описание изменения, границы и E2E-матрица: [docs/PR_DESCRIPTION.md](docs/PR_DESCRIPTION.md).
 
@@ -611,6 +625,19 @@ python -m pytest -q
 impact-engine doctor
 impact-engine --json registry status
 ```
+
+Для browser E2E локально:
+
+```bash
+python -m pip install ".[dev,browser]"
+python -m playwright install chromium
+IMPACT_ENGINE_REQUIRE_BROWSER_E2E=1 python -m pytest tests/test_frontend_browser_e2e.py -q
+```
+
+Основной CI запускает browser E2E на каждом push/PR. Внешний C# acceptance
+на pinned [Cruxa](https://github.com/contr4s/Cruxa) запускается отдельно по
+расписанию или вручную, чтобы тяжёлый внешний corpus не становился скрытым
+skipped-тестом обычной регрессии.
 
 Графы, кэши, SQLite и benchmark-отчёты должны оставаться в `.impact_engine`
 или других игнорируемых директориях, а не попадать в продуктовую документацию.

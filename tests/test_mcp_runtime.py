@@ -157,7 +157,7 @@ def test_mcp_server_info_and_health_check(monkeypatch):
     
     si_content = json.loads(res[1]["result"]["content"][0]["text"])
     assert si_content["name"] == "impact-engine"
-    assert si_content["version"] == "0.4.0"
+    assert si_content["version"] == "0.5.0"
 
 
 def test_mcp_managed_upstream_tool_catalog_is_available_to_agents(tmp_path, monkeypatch):

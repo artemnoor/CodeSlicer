@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import shutil
 import pytest
 
@@ -82,9 +83,9 @@ def test_cruxa_review_uses_evidence_backed_limited_csharp_features():
     whole-project compiler pipeline while still covering the production graph
     facts and ranking boundary used by daily review.
     """
-    project = Path(__file__).parent / "corpus" / "Cruxa"
+    project = Path(os.environ.get("IMPACT_ENGINE_CRUXA_ROOT", Path(__file__).parent / "corpus" / "Cruxa"))
     project = project.resolve()
-    diff_path = Path(__file__).parent / "corpus" / "diffs" / "cruxa-change.diff"
+    diff_path = Path(os.environ.get("IMPACT_ENGINE_CRUXA_DIFF", Path(__file__).parent / "corpus" / "diffs" / "cruxa-change.diff"))
     if not project.is_dir() or not diff_path.is_file():
         pytest.skip("optional Cruxa corpus/diff is not present in this checkout")
     graph = extract_csharp_project(str(project))
@@ -105,7 +106,7 @@ def test_cruxa_review_uses_evidence_backed_limited_csharp_features():
     assert report["coverage"][0]["status"] == "limited"
     assert report["coverage"][0]["review_usable"] is True
     assert any("RoutesController" in item["entity_id"] for item in report["top_impacts"])
-    assert any(item["kind"] == "ROUTE" and "RoutesController.cs" in item["entity_id"] for item in report["top_impacts"])
+    assert any(node.kind == "ROUTE" and "RoutesController.cs" in str(node.properties.get("file")) for node in graph.nodes)
     assert report["chain_summary"]["status"] == "cross_file_proven"
     assert report["chains"]
     assert report["test_recommendations"]

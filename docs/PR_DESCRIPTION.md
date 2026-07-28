@@ -44,13 +44,16 @@ CLI, MCP и agent skills. Пользователь открывает локал
 | Сценарий | Проверка | Gate |
 |---|---|---|
 | Python/full-stack graph | Extract → normalize → impact/evidence → tests | `tests/test_e2e_pipeline.py` |
-| C# plugin | C# manifests, extractor и review evidence | `tests/test_csharp_plugin.py` |
-| Browser map | Реальный local API, карта, inspector узла, Graphify route | `tests/test_frontend_browser_e2e.py` |
+| C# plugin | Лёгкие C# manifests, extractor и review evidence | `tests/test_csharp_plugin.py` в обычной регрессии |
+| C# external acceptance | Pinned публичный Cruxa, read-only diff, route/test review | weekly/manual `.github/workflows/csharp-acceptance.yml` |
+| Browser map | Реальный local API, карта, inspector узла, Graphify route | обязательный `browser-e2e` job с Playwright + Chromium |
 | Full regression | Все unit/integration/regression тесты | `python -m pytest -q` |
 | Wheel release | build → новая venv → install wheel → plugin discovery → local API → HTML UI + `/api/health` | `python scripts/check_wheel_e2e.py` |
 
-GitHub Actions запускает полную регрессию и последний сценарий на каждый push
-и pull request.
+GitHub Actions запускает полную регрессию, wheel E2E и обязательный browser
+E2E на каждый push и pull request. Внешний Cruxa acceptance запускается
+отдельно по расписанию или вручную: corpus не хранится в Git и не маскируется
+как skipped-проверка обычной регрессии.
 
 ## Local-first и границы доверия
 

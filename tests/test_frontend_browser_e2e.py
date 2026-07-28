@@ -1,10 +1,31 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from pathlib import Path
 
 import pytest
+
+
+def _browser_runtime():
+    """Return Playwright, failing instead of skipping in the browser CI job."""
+    try:
+        from playwright import sync_api
+    except ImportError as exc:
+        if os.environ.get("IMPACT_ENGINE_REQUIRE_BROWSER_E2E") == "1":
+            pytest.fail(f"Playwright must be installed for this CI job: {exc}")
+        pytest.skip("Playwright is an optional browser-test dependency")
+    return sync_api
+
+
+def _launch_chromium(runtime):
+    try:
+        return runtime.chromium.launch(headless=True)
+    except Exception as exc:  # pragma: no cover - machine-specific browser install
+        if os.environ.get("IMPACT_ENGINE_REQUIRE_BROWSER_E2E") == "1":
+            pytest.fail(f"Chromium must be installed for this CI job: {exc}")
+        pytest.skip(f"Chromium is unavailable: {exc}")
 
 
 def _server(root: Path, project: Path):
@@ -18,16 +39,13 @@ def _server(root: Path, project: Path):
 
 
 def test_browser_shows_a_single_project_map_and_optional_graphify():
-    playwright = pytest.importorskip("playwright.sync_api")
+    playwright = _browser_runtime()
     root = Path(__file__).parents[1]
     project = root / "tests" / "corpus" / "JunMate"
     server, thread = _server(root, project)
     try:
         with playwright.sync_playwright() as runtime:
-            try:
-                browser = runtime.chromium.launch(headless=True)
-            except Exception as exc:  # pragma: no cover - depends on local browser install
-                pytest.skip(f"Chromium is unavailable: {exc}")
+            browser = _launch_chromium(runtime)
             page = browser.new_page(viewport={"width": 1280, "height": 800})
 
             canonical = {
@@ -95,16 +113,13 @@ def test_browser_shows_a_single_project_map_and_optional_graphify():
 
 
 def test_browser_missing_project_stays_on_simple_onboarding(tmp_path: Path):
-    playwright = pytest.importorskip("playwright.sync_api")
+    playwright = _browser_runtime()
     root = Path(__file__).parents[1]
     missing = tmp_path / "missing-project"
     server, thread = _server(root, missing)
     try:
         with playwright.sync_playwright() as runtime:
-            try:
-                browser = runtime.chromium.launch(headless=True)
-            except Exception as exc:  # pragma: no cover - depends on local browser install
-                pytest.skip(f"Chromium is unavailable: {exc}")
+            browser = _launch_chromium(runtime)
             page = browser.new_page()
             page.goto(f"http://127.0.0.1:{server.server_port}/#review", wait_until="networkidle")
             page.locator("#onboardingError").get_by_text("Папка проекта не найдена", exact=False).wait_for()

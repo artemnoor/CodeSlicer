@@ -160,7 +160,7 @@ def classify_path(relative_path: str) -> str:
         return "generated_or_lock"
     if parts & {"generated", "gen", "migrations"}:
         return "generated_or_migration"
-    if name in {"pyproject.toml", "requirements.txt", "package.json", "go.mod", "go.sum", "pom.xml", "build.gradle", "tsconfig.json", "global.json", "*.sln"}:
+    if name in {"pyproject.toml", "requirements.txt", "package.json", "go.mod", "go.sum", "pom.xml", "build.gradle", "tsconfig.json", "global.json"} or name.endswith((".sln", ".slnx")):
         return "manifest"
     return "source"
 

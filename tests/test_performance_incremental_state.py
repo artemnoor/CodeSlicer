@@ -15,6 +15,7 @@ from impact_engine.persistence import (
     CacheMetadata,
     CacheLock,
     CancellationToken,
+    classify_path,
     project_snapshot,
 )
 from impact_engine.profiling import PROFILE_STAGES, WORK_COUNTERS
@@ -94,6 +95,13 @@ def test_warm_pipeline_uses_persistent_cache(tmp_path: Path):
     assert first["status"] == second["status"] == "ok"
     assert "persistent_cache" in second["extractors_used"]
     assert second["graph"]["metadata"]["cache"]["cache_status"] == "hit"
+    assert second["graph"]["metadata"]["cache"]["facts_reused"] > 0
+    assert second["profiling"]["work"]["facts_reused"] == second["graph"]["metadata"]["cache"]["facts_reused"]
+
+
+def test_solution_files_are_manifests_not_source_files():
+    assert classify_path("backend/Cruxa.sln") == "manifest"
+    assert classify_path("backend/Cruxa.slnx") == "manifest"
 
 
 def test_analysis_profile_has_stable_stage_and_work_schema(tmp_path: Path):

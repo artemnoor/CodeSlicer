@@ -1,0 +1,33 @@
+name: External C# acceptance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  cruxa-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CodeSlicer test dependencies
+        run: python -m pip install ".[dev]"
+      - name: Materialize pinned public Cruxa corpus
+        run: |
+          git init tests/corpus/Cruxa
+          git -C tests/corpus/Cruxa remote add origin https://github.com/contr4s/Cruxa.git
+          git -C tests/corpus/Cruxa fetch --depth 1 origin 13ff4a0f3d3e492c15b5dfe2f7dfe405a76a5fb3
+          git -C tests/corpus/Cruxa checkout --detach FETCH_HEAD
+      - name: Create read-only route-change fixture
+        run: python scripts/prepare_cruxa_acceptance.py tests/corpus/Cruxa tests/corpus/diffs/cruxa-change.diff
+      - name: Run real C# review acceptance
+        env:
+          IMPACT_ENGINE_CRUXA_ROOT: tests/corpus/Cruxa
+          IMPACT_ENGINE_CRUXA_DIFF: tests/corpus/diffs/cruxa-change.diff
+        run: python -m pytest tests/test_csharp_plugin.py::test_cruxa_review_uses_evidence_backed_limited_csharp_features -q

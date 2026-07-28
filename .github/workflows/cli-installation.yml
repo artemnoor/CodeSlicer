@@ -21,3 +21,19 @@ jobs:
         run: .venv/bin/python -m pytest -q
       - name: Build wheel and run isolated UI/plugin E2E
         run: .venv/bin/python scripts/check_wheel_e2e.py
+
+  browser-e2e:
+    runs-on: ubuntu-latest
+    env:
+      IMPACT_ENGINE_REQUIRE_BROWSER_E2E: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install browser-test dependencies
+        run: python -m pip install ".[dev,browser]"
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Run browser E2E
+        run: python -m pytest tests/test_frontend_browser_e2e.py -q -rs
