@@ -95,7 +95,10 @@ def get_language_profile(language_id: str) -> Optional[LanguageProfile]:
 
 
 def detect_languages(project_path: str | Path) -> List[str]:
-    root = Path(project_path)
+    # ``iter_project_files`` resolves yielded paths.  Resolve the root as
+    # well, otherwise a perfectly normal relative CLI argument makes
+    # ``Path.relative_to`` compare absolute and relative paths.
+    root = Path(project_path).expanduser().resolve()
     if not root.exists():
         return []
 

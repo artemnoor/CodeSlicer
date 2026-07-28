@@ -41,6 +41,14 @@ def test_detect_languages(tmp_path):
     assert "typescript" in detect_languages(tmp_path) # ts also shares package.json
 
 
+def test_detect_languages_accepts_a_relative_cli_path(tmp_path, monkeypatch):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "main.py").write_text("print(1)")
+    monkeypatch.chdir(tmp_path)
+    assert detect_languages("project") == ["python"]
+
+
 def test_language_semantic_provider_capabilities_are_honest():
     python = get_language_semantic_provider("python")
     typescript = get_language_semantic_provider("typescript")

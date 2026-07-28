@@ -41,7 +41,12 @@ include = [
 exclude = ["tests*", "build*", "dist*"]
 
 [tool.setuptools.package-data]
-impact_engine = ["agent_skills/**/*.md", "support_packs/builtin/**/*.json"]
+impact_engine = [
+    "agent_skills/**/*.md",
+    "support_packs/builtin/**/*.json",
+    "frontend/vendor/*.js",
+    "frontend/vendor/*.txt",
+]
 plugins = ["**/*.json", "**/*.md"]
 
 [tool.pytest.ini_options]

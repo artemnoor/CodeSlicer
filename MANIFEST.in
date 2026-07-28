@@ -1,3 +1,4 @@
-recursive-include frontend *.html *.js *.css
+recursive-include frontend *.html *.js *.css *.txt
 recursive-include plugins *.json *.md
 recursive-include support_packs *.json
+include THIRD_PARTY_NOTICES.md

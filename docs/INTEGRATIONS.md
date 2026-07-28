@@ -147,6 +147,7 @@ Docker Compose поддерживает только **локальный** UI: 
 
 ```powershell
 $env:IMPACT_PROJECT_PATH = "C:\work\my-app"
+$env:CODESLICER_PROJECT_ID = "my-app-2026"
 docker compose up --build
 ```
 
@@ -155,10 +156,13 @@ docker compose up --build
 `--remote-token` и один или несколько `--allowed-host`; встроенный frontend
 для него намеренно не служит средством аутентификации.
 
-Named volumes переиспользуются между запусками, поэтому Docker profile перед
-загрузкой cache сверяет fingerprint смонтированного проекта (Git config и
-основные manifests). При смене проекта несовпавший state не будет показан как
-его graph: нужен новый анализ.
+`CODESLICER_PROJECT_ID` — обязательный стабильный namespace, а не имя ветки
+и не изменяющийся lockfile. Compose создаёт отдельные named volumes для
+`.codeslicer` и `.impact_engine` каждого такого ID. Дополнительно сервер
+сверяет namespace с Git origin/основными manifests и при mismatch блокирует
+**весь** persistent state: canonical graph, adapters, overlays, Graphify viewer
+и managed-tool workspaces. Для другого проекта используйте новый ID; не
+переиспользуйте старый volume.
 
 Graphify viewer не запускает renderer при GET: общий Graphify runtime создаёт
 bounded HTML-артефакт после успешного index/refresh как из CLI, так и из Local
@@ -169,6 +173,12 @@ API, а viewer только читает его. LSP probe/query аналоги�
 `graph_available`, `viewer_available` и `viewer_stale`. Если Graphify index
 успешен, но renderer не подготовил HTML, CLI и Local API сообщают отдельный
 `viewer_status: failed`, не выдавая пустой viewer за готовый.
+
+Graphify 0.9.x ссылается на `vis-network@9.1.6` через CDN. CodeSlicer заменяет
+эту ссылку во время подтверждённого renderer запуска на pinned локальный bundle
+из собственной поставки. Готовый viewer содержит marker
+`vis-network@9.1.6-local`; CSP оставляет `connect-src 'none'` и запрещает любые
+внешние `<script src>`. Устаревший cache не отдаётся iframe как готовая карта.
 
 ```powershell
 impact-engine doctor --full

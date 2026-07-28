@@ -83,7 +83,13 @@ def test_graphify_viewer_status_separates_graph_and_cache_availability(tmp_path)
         assert missing["status"] == "viewer_missing"
 
         cache = graphify_viewer_cache_path(tmp_path)
+        # Old CDN-backed caches are deliberately not considered displayable.
         cache.write_text("<!doctype html><html><body>viewer</body></html>", encoding="utf-8")
+        with urlopen(f"http://127.0.0.1:{server.server_port}/api/adapters/graphify/viewer/status", timeout=5) as response:
+            untrusted = json.loads(response.read())
+        assert untrusted["viewer_available"] is False
+
+        cache.write_text("<!-- CodeSlicer Graphify viewer: vis-network@9.1.6-local --><!doctype html><html><body>viewer</body></html>", encoding="utf-8")
         with urlopen(f"http://127.0.0.1:{server.server_port}/api/adapters/graphify/viewer/status", timeout=5) as response:
             ready = json.loads(response.read())
         assert ready["viewer_available"] is True
@@ -101,6 +107,36 @@ def test_docker_local_ui_rejects_graph_cache_without_matching_project_identity(t
     assert state.snapshot(include_graph=False)["has_analysis"] is False
     state._write_identity(tmp_path)
     assert state._load_existing_graph() is True
+
+
+def test_docker_state_mismatch_hides_every_optional_project_artifact(tmp_path):
+    from urllib.error import HTTPError
+
+    adapters = tmp_path / ".codeslicer" / "adapters"
+    adapters.mkdir(parents=True)
+    (adapters / "graphify.json").write_text('{"enabled": true}', encoding="utf-8")
+    graphify_graph_path(tmp_path).parent.mkdir(parents=True)
+    graphify_graph_path(tmp_path).write_text('{"nodes": [], "edges": []}', encoding="utf-8")
+    state = LocalApiState(str(tmp_path), "support_packs", docker_local_ui=True, docker_project_id="project-b")
+    assert state.project_state()["status"] == "project_state_mismatch"
+    assert state.snapshot(include_graph=False)["has_analysis"] is False
+    server = create_server("127.0.0.1", 0, str(tmp_path), state)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for endpoint in ("/api/adapters", "/api/adapters/graphify/viewer/status", "/api/tools"):
+            try:
+                urlopen(f"http://127.0.0.1:{server.server_port}{endpoint}", timeout=5)
+            except HTTPError as error:
+                payload = json.loads(error.read())
+                assert error.code == 409
+                assert payload["status"] == "project_state_mismatch"
+            else:
+                raise AssertionError(f"{endpoint} exposed state from another Docker project")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 def test_local_api_does_not_enable_wildcard_cors_for_review(tmp_path):

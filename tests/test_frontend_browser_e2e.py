@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from impact_engine.adapters.graphify_paths import _self_contained_viewer, graphify_graph_path, graphify_viewer_cache_path
+
 
 def _browser_runtime():
     """Return Playwright, failing instead of skipping in the browser CI job."""
@@ -62,9 +64,17 @@ def test_browser_shows_a_single_project_map_and_optional_graphify():
                 "nodes": [{"id": "community-auth", "name": "auth community", "kind": "COMMUNITY", "canonical": False, "source": "Graphify", "properties": {}}],
                 "edges": [], "total_nodes": 1, "total_edges": 0, "truncated": False,
             }
+            page_errors: list[str] = []
+            page.on("pageerror", lambda error: page_errors.append(str(error)))
 
             def route_handler(route):
                 path = route.request.url.split("/api/")[-1].split("?")[0]
+                if path == "adapters/graphify/viewer":
+                    route.fulfill(
+                        content_type="text/html",
+                        body="<!doctype html><html><body><canvas id='graphify-canvas'></canvas><script>window.graphifyViewer=true;</script></body></html>",
+                    )
+                    return
                 if path == "health":
                     payload = {"status": "ok", "capabilities": {"managed_tools": True}}
                 elif path == "state":
@@ -85,6 +95,8 @@ def test_browser_shows_a_single_project_map_and_optional_graphify():
                     payload = {"adapters": [{"id": "graphify", "status": "imported", "enabled": True, "freshness": {"status": "fresh"}}]}
                 elif path == "tools":
                     payload = {"tools": [{"id": "graphify", "connected": True, "repository": {"cloned": True}}]}
+                elif path == "adapters/graphify/viewer/status":
+                    payload = {"status": "ready", "available": True, "graph_available": True, "viewer_available": True, "viewer_stale": False}
                 else:
                     payload = {"status": "ok"}
                 route.fulfill(content_type="application/json", body=json.dumps(payload))
@@ -120,12 +132,74 @@ def test_browser_shows_a_single_project_map_and_optional_graphify():
 
             page.get_by_role("link", name="Graphify").click()
             page.locator(".graphify-native-frame").wait_for()
+            page.frame_locator(".graphify-native-frame").locator("#graphify-canvas").wait_for()
             assert "не меняет рекомендации CodeSlicer" in page.locator("#graphifyContent").inner_text()
+            assert not page_errors
             browser.close()
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_browser_never_embeds_a_stale_graphify_viewer(tmp_path: Path):
+    playwright = _browser_runtime()
+    root = Path(__file__).parents[1]
+    project = tmp_path / "project"; project.mkdir()
+    server, thread = _server(root, project)
+    try:
+        with playwright.sync_playwright() as runtime:
+            browser = _launch_chromium(runtime)
+            page = browser.new_page()
+
+            def route_handler(route):
+                path = route.request.url.split("/api/")[-1].split("?")[0]
+                if path == "health": payload = {"status": "ok", "capabilities": {"managed_tools": True}}
+                elif path == "state": payload = {"project_path": str(project), "project_exists": True, "has_analysis": True, "analysis": {"graph_path": "graph.json"}}
+                elif path == "adapters": payload = {"adapters": [{"id": "graphify", "status": "ready", "enabled": True}]}
+                elif path == "tools": payload = {"tools": [{"id": "graphify", "connected": True}]}
+                elif path == "adapters/graphify/viewer/status": payload = {"status": "stale", "available": False, "graph_available": True, "viewer_available": True, "viewer_stale": True}
+                else: payload = {"status": "ok"}
+                route.fulfill(content_type="application/json", body=json.dumps(payload))
+
+            page.route("**/api/**", route_handler)
+            page.goto(f"http://127.0.0.1:{server.server_port}/#graphify", wait_until="networkidle")
+            page.get_by_text("Graphify-карта устарела", exact=True).wait_for()
+            assert page.locator(".graphify-native-frame").count() == 0
+            browser.close()
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=5)
+
+
+def test_browser_renders_self_contained_graphify_viewer_under_strict_csp(tmp_path: Path):
+    """The actual API response must render without reaching Graphify's CDN."""
+    playwright = _browser_runtime()
+    root = Path(__file__).parents[1]
+    project = tmp_path / "project"; project.mkdir()
+    graph = graphify_graph_path(project)
+    graph.parent.mkdir(parents=True)
+    graph.write_text(json.dumps({"nodes": [{"id": "entry"}], "edges": []}), encoding="utf-8")
+    upstream = """<!doctype html><html><body><div id='graph' style='width:500px;height:300px'></div>
+<script src=\"https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js\"></script>
+<script>const data={nodes:new vis.DataSet([{id:'entry',label:'entry'}]),edges:new vis.DataSet([])}; window.network=new vis.Network(document.getElementById('graph'),data,{});</script>
+</body></html>"""
+    viewer = _self_contained_viewer(upstream)
+    assert viewer is not None
+    graphify_viewer_cache_path(project).write_text(viewer, encoding="utf-8")
+    server, thread = _server(root, project)
+    try:
+        with playwright.sync_playwright() as runtime:
+            browser = _launch_chromium(runtime)
+            page = browser.new_page()
+            page_errors: list[str] = []
+            page.on("pageerror", lambda error: page_errors.append(str(error)))
+            page.goto(f"http://127.0.0.1:{server.server_port}/api/adapters/graphify/viewer", wait_until="networkidle")
+            page.locator("canvas").wait_for()
+            assert page.evaluate("Boolean(window.network)")
+            assert not page_errors
+            browser.close()
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=5)
 
 
 def test_browser_missing_project_stays_on_simple_onboarding(tmp_path: Path):

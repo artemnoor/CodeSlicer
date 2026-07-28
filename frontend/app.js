@@ -402,7 +402,10 @@ async function loadGraphify() {
     const nativeViewer = viewerStatus.status === 'fulfilled' ? viewerStatus.value : {};
     clear(target);
     const panel = el('article', 'graphify-panel');
-    const artifactReady = Boolean(nativeViewer.available) || ['imported', 'ready', 'enabled'].includes(String(adapter.status || '').toLowerCase()) || Boolean(adapter.enabled);
+    // An adapter artifact can exist while its upstream HTML is missing or
+    // stale. Only the viewer endpoint may declare the iframe displayable.
+    const viewerReady = nativeViewer.status === 'ready';
+    const artifactReady = viewerReady;
     const workspaceReady = Boolean(tool?.connected || tool?.repository?.cloned);
     append(panel,
       el('span', 'eyebrow', artifactReady ? 'ГОТОВО К ПРОСМОТРУ' : 'НЕ ПОДКЛЮЧЕНО'),
@@ -425,7 +428,7 @@ async function loadGraphify() {
       ? 'Graphify работает в отдельном локальном workspace. Его граф остаётся отдельным от графа CodeSlicer.'
       : 'Подключение требует подтверждения: будет создан локальный workspace Graphify. Исходный код вашего проекта наружу не отправляется.'));
     target.append(panel);
-    if (artifactReady) {
+    if (viewerReady) {
       const viewer = el('section', 'native-graphify-viewer');
       append(
         viewer,
@@ -443,6 +446,14 @@ async function loadGraphify() {
       });
       viewer.append(frame);
       target.append(viewer);
+    } else if (nativeViewer.graph_available) {
+      target.append(stateCard(
+        nativeViewer.status === 'stale' ? 'Graphify-карта устарела' : 'Graphify viewer ещё не подготовлен',
+        nativeViewer.status === 'stale'
+          ? 'Граф изменился после последнего renderer. Обновите Graphify, чтобы открыть актуальную карту.'
+          : 'Граф Graphify найден, но локальный HTML renderer ещё не создал безопасную автономную визуализацию.',
+        'warning-state'
+      ));
     }
   } catch (error) {
     clear(target);

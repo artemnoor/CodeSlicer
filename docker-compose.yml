@@ -1,7 +1,7 @@
 services:
   impact-api:
     build: .
-    command: ["impact-engine-local-api", "--host", "0.0.0.0", "--allow-remote", "--docker-local-ui", "--port", "8001", "--frontend-dir", "/app/frontend", "--default-project", "/workspace/project"]
+    command: ["impact-engine-local-api", "--host", "0.0.0.0", "--allow-remote", "--docker-local-ui", "--project-id", "${CODESLICER_PROJECT_ID:?set a stable project namespace}", "--port", "8001", "--frontend-dir", "/app/frontend", "--default-project", "/workspace/project"]
     ports:
       - "127.0.0.1:8001:8001"
     volumes:
@@ -21,4 +21,6 @@ services:
 volumes:
   impact_state:
   project_codeslicer:
+    name: "codeslicer_${CODESLICER_PROJECT_ID:?set a stable project namespace}"
   project_impact:
+    name: "impact-engine_${CODESLICER_PROJECT_ID:?set a stable project namespace}"

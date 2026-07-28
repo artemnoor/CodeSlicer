@@ -14,6 +14,7 @@ import ipaddress
 import json
 import html
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -44,7 +45,7 @@ from impact_engine.adapters.joern import bounded_joern_context
 from impact_engine.adapters.native import native_profile, run_native_operation
 from impact_engine.graph_workspaces import build_workspace
 from impact_engine.tool_runtime import ToolRuntime
-from impact_engine.adapters.graphify_paths import find_graphify_graph, graphify_viewer_cache_path
+from impact_engine.adapters.graphify_paths import find_graphify_graph, graphify_viewer_cache_path, graphify_viewer_ready
 from impact_engine.approvals import ApprovalStore
 
 
@@ -60,15 +61,26 @@ _PROJECTION_HIGH_LEVEL_KINDS = {"SERVICE", "MODULE", "FILE", "ROUTE", "DATABASE"
 LOCAL_API_CONTRACT_VERSION = "CodeSlicerLocalAPI/v2"
 
 
-def _project_identity(project: Path) -> str:
-    """Stable enough identity for Docker named state mounted at one path."""
+def _project_identity(project: Path, project_id: str | None = None) -> str:
+    """Stable Docker identity: explicit namespace plus repository origin.
+
+    Lockfiles are intentionally excluded: dependency updates must not make a
+    valid state look like it belongs to another project.
+    """
     digest = hashlib.sha256()
-    for relative in (".git/config", "pyproject.toml", "package.json", "package-lock.json", "pnpm-lock.yaml", "go.mod", "*.sln"):
+    digest.update(b"codeslicer-docker-state/v2\0")
+    digest.update((project_id or "host-local").encode("utf-8"))
+    git_config = project / ".git" / "config"
+    if git_config.is_file():
+        for line in git_config.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.strip().startswith("url ="):
+                digest.update(line.strip().encode("utf-8"))
+    for relative in ("pyproject.toml", "package.json", "go.mod", "*.sln"):
         candidates = list(project.glob(relative)) if "*" in relative else [project / relative]
         for candidate in sorted(candidates):
             if candidate.is_file():
                 digest.update(candidate.name.encode("utf-8"))
-                digest.update(candidate.read_bytes()[:1_000_000])
+                digest.update(candidate.read_bytes()[:64_000])
     return digest.hexdigest()
 
 
@@ -729,7 +741,7 @@ def _test_command_for_file(project: Path, file_name: str) -> list[str] | None:
 
 
 class LocalApiState:
-    def __init__(self, default_project: str | None, support_pack_root: str, *, allow_remote: bool = False, remote_token: str | None = None, docker_local_ui: bool = False, allowed_hosts: list[str] | None = None) -> None:
+    def __init__(self, default_project: str | None, support_pack_root: str, *, allow_remote: bool = False, remote_token: str | None = None, docker_local_ui: bool = False, allowed_hosts: list[str] | None = None, docker_project_id: str | None = None) -> None:
         self.default_project = default_project
         self.support_pack_root = support_pack_root
         self.project_path: str | None = default_project
@@ -744,6 +756,7 @@ class LocalApiState:
         self.allow_remote = allow_remote
         self.remote_token = remote_token
         self.docker_local_ui = docker_local_ui
+        self.docker_project_id = docker_project_id
         self.allowed_hosts = {host.lower() for host in (allowed_hosts or [])}
         if default_project:
             try:
@@ -760,7 +773,7 @@ class LocalApiState:
         if not path.is_file():
             return not self.docker_local_ui
         try:
-            return secrets.compare_digest(path.read_text(encoding="utf-8").strip(), _project_identity(project))
+            return secrets.compare_digest(path.read_text(encoding="utf-8").strip(), _project_identity(project, self.docker_project_id))
         except OSError:
             return False
 
@@ -768,8 +781,43 @@ class LocalApiState:
         path = self._identity_path(project)
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")
-        temporary.write_text(_project_identity(project) + "\n", encoding="utf-8")
+        temporary.write_text(_project_identity(project, self.docker_project_id) + "\n", encoding="utf-8")
         os.replace(temporary, path)
+
+    @staticmethod
+    def _persistent_optional_state_exists(project: Path) -> bool:
+        """Ignore directory scaffolding, but never silently reuse adapter state."""
+        candidates = (
+            project / ".impact_engine" / "graph.json",
+            project / ".codeslicer" / "adapters",
+            project / ".codeslicer" / "artifacts",
+            project / ".codeslicer" / "tool-runtime",
+            project / ".codeslicer" / "tool-runtime-location.json",
+        )
+        for candidate in candidates:
+            if candidate.is_file():
+                return True
+            if candidate.is_dir() and any(path.is_file() for path in candidate.rglob("*")):
+                return True
+        return False
+
+    def project_state(self) -> dict[str, Any]:
+        """Never expose a prior Docker namespace as the selected project."""
+        if not self.docker_local_ui or not self.project_path:
+            return {"status": "not_applicable", "verified": True}
+        project = Path(self.project_path).expanduser().resolve()
+        identity = self._identity_path(project)
+        if identity.is_file() and self._identity_matches(project):
+            return {"status": "matched", "verified": True, "project_id": self.docker_project_id}
+        if not identity.is_file() and not self._persistent_optional_state_exists(project):
+            return {"status": "fresh", "verified": True, "project_id": self.docker_project_id}
+        return {
+            "status": "project_state_mismatch", "verified": False, "project_id": self.docker_project_id,
+            "message": "Persistent Docker state belongs to a different project namespace. Set a new CODESLICER_PROJECT_ID or remove that namespace's named volumes before analysis.",
+        }
+
+    def project_state_mismatch(self) -> bool:
+        return self.project_state().get("status") == "project_state_mismatch"
 
     def _load_existing_graph(self, graph_path: str | None = None) -> bool:
         """Hydrate API state from a graph produced by the CLI.
@@ -781,7 +829,7 @@ class LocalApiState:
         if not self.project_path:
             return False
         project = Path(self.project_path).expanduser().resolve()
-        if self.docker_local_ui and not self._identity_matches(project):
+        if self.docker_local_ui and self.project_state_mismatch():
             return False
         candidates = [Path(graph_path).expanduser().resolve()] if graph_path else [
             project / ".impact_engine" / "graph.json",
@@ -842,6 +890,7 @@ class LocalApiState:
                 "analyzed_at": self.analyzed_at,
                 "error": self.last_error,
                 "progress": self.progress,
+                "project_state": self.project_state(),
                 "analysis": {key: value for key, value in analysis.items() if key != "graph"},
             }
             if include_graph:
@@ -852,6 +901,8 @@ class LocalApiState:
         path = Path(project_path).expanduser().resolve()
         if not path.exists() or not path.is_dir():
             raise FileNotFoundError(f"Project directory does not exist: {project_path}")
+        if self.docker_local_ui and self.project_state_mismatch():
+            raise RuntimeError(self.project_state()["message"])
         out_path = path / ".impact_engine" / "graph.json"
         with self.lock:
             if self.analysis_running:
@@ -967,6 +1018,12 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
             return False
         return True
 
+    def _project_state_allowed(self) -> bool:
+        if not self.state.project_state_mismatch():
+            return True
+        self._send_json(409, {"status": "project_state_mismatch", "project_state": self.state.project_state()})
+        return False
+
     def _process_approval(self, project_path: str, action: str, payload: dict[str, Any], body: dict[str, Any]) -> bool:
         """Consume an exact one-time approval or return an actionable pending record.
 
@@ -997,6 +1054,8 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
             if not self._host_allowed():
                 return
             if parsed.path.startswith("/api/") and not self._api_access_allowed():
+                return
+            if parsed.path.startswith("/api/") and parsed.path != "/api/health" and not self._project_state_allowed():
                 return
             if parsed.path == "/api/health":
                 return self._send_json(200, {
@@ -1050,7 +1109,7 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                 graph_file = find_graphify_graph(project_path) if project_path else None
                 graph_available = bool(graph_file and graph_file.is_file())
                 cache = _graphify_viewer_cache_path(project_path) if project_path else None
-                viewer_available = bool(cache and cache.is_file())
+                viewer_available = bool(cache and graphify_viewer_ready(project_path))
                 viewer_stale = bool(viewer_available and graph_available and cache.stat().st_mtime < graph_file.stat().st_mtime)
                 viewer_status = (
                     "missing" if not graph_available
@@ -1076,13 +1135,22 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(b"No active project")
                     return
+                # This endpoint is deliberately independent from the status
+                # endpoint above: every HTTP request has its own handler
+                # invocation, so never rely on variables from another route.
+                graph_file = find_graphify_graph(project_path)
+                graph_available = graph_file.is_file()
                 cache = _graphify_viewer_cache_path(project_path)
-                if cache.is_file():
+                stale = bool(cache.is_file() and graph_available and cache.stat().st_mtime < graph_file.stat().st_mtime)
+                if cache.is_file() and graphify_viewer_ready(project_path) and not stale:
                     html = cache.read_text(encoding="utf-8")[:4 * 1024 * 1024]
+                    response_code = 200
                 else:
-                    html = "<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>Визуализация ещё не подготовлена. Запустите подтверждённое обновление Graphify — renderer сохранит локальный HTML-артефакт. Этот GET не запускает внешний процесс.</p></body></html>"
+                    detail = "Кэш устарел: граф Graphify изменился после последнего renderer." if stale else "Визуализация ещё не подготовлена. Запустите подтверждённое обновление Graphify — renderer сохранит локальный HTML-артефакт."
+                    html = f"<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>{detail}</p><p>Этот GET не запускает внешний процесс.</p></body></html>"
+                    response_code = 409
                 encoded = html.encode("utf-8")
-                self.send_response(200)
+                self.send_response(response_code)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(encoded)))
                 self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'")
@@ -1115,6 +1183,8 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                 provided = self.headers.get("X-CodeSlicer-Session", "")
                 if not provided or not secrets.compare_digest(provided, self.state.session_token):
                     return self._send_json(403, {"status": "error", "error": "local_session_required"})
+            if not self._project_state_allowed():
+                return
             body = self._read_json()
             # A deliberately narrow live OpenTelemetry receiver. It accepts
             # OTLP/HTTP *JSON* only, on a loopback-bound local API, and only
@@ -1731,6 +1801,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--remote-token", default=None, help="Required secret for generic --allow-remote API mode. It is never returned by /api/health.")
     parser.add_argument("--allowed-host", action="append", default=[], help="Allowed Host in generic remote API mode; repeat for each host.")
     parser.add_argument("--docker-local-ui", action="store_true", help="Permit a Docker-bound UI only through a loopback-published port; keeps loopback Host validation and uses no remote bearer token.")
+    parser.add_argument("--project-id", default=None, help="Required stable Docker state namespace for --docker-local-ui (letters, numbers, dot, underscore and hyphen only).")
     parser.add_argument("--port", type=int, default=8001)
     parser.add_argument("--frontend-dir", default=default_frontend_dir())
     parser.add_argument("--default-project", default=None)
@@ -1743,12 +1814,14 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("non-loopback --host requires explicit --allow-remote")
     if args.docker_local_ui and not args.allow_remote:
         parser.error("--docker-local-ui requires --allow-remote because Docker binds 0.0.0.0 inside its network namespace")
+    if args.docker_local_ui and (not args.project_id or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", args.project_id)):
+        parser.error("--docker-local-ui requires --project-id with 1-64 letters, numbers, dot, underscore or hyphen")
     if args.allow_remote and not args.docker_local_ui and (not args.remote_token or not args.allowed_host):
         parser.error("generic --allow-remote requires both --remote-token and at least one --allowed-host")
     # This path must work from both a source checkout and an installed wheel.
     # ``local_api.py`` itself lives under site-packages in the latter case.
     from impact_engine.support_packs.paths import builtin_support_packs_root
-    state = LocalApiState(args.default_project, str(builtin_support_packs_root()), allow_remote=args.allow_remote, remote_token=args.remote_token, docker_local_ui=args.docker_local_ui, allowed_hosts=args.allowed_host)
+    state = LocalApiState(args.default_project, str(builtin_support_packs_root()), allow_remote=args.allow_remote, remote_token=args.remote_token, docker_local_ui=args.docker_local_ui, allowed_hosts=args.allowed_host, docker_project_id=args.project_id)
     server = create_server(args.host, args.port, args.frontend_dir, state)
     print(f"Impact Engine local API: http://{args.host}:{args.port}/", flush=True)
     try:
