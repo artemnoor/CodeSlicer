@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 from impact_engine.analysis.pipeline import analyze_project_core
 from impact_engine.inventory.scanner import scan_project_inventory
 from impact_engine.project_storage import ensure_project_storage
+from impact_engine.adapters.graphify_paths import graphify_artifact_root
 
 
 ONBOARDING_SCHEMA = "CodeSlicerProjectOnboarding/v1"
@@ -168,7 +169,7 @@ def onboard_project(
         str(project), out_path=str(canonical_path), support_pack_root=support_pack_root,
         enable_remote_registry=False, create_research_requests=False,
     )
-    graphify = _graphify_summary(project, storage / "artifacts" / "graphify", mode=graphify_mode, timeout_seconds=graphify_timeout_seconds)
+    graphify = _graphify_summary(project, graphify_artifact_root(project), mode=graphify_mode, timeout_seconds=graphify_timeout_seconds)
 
     limitations: list[str] = []
     coverage = analysis.get("coverage") or []

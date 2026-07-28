@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 from importlib.resources import files as package_files
 import json
+import html
+import os
 import subprocess
 import sys
 import threading
@@ -39,11 +41,12 @@ from impact_engine.adapters.joern import bounded_joern_context
 from impact_engine.adapters.native import native_profile, run_native_operation
 from impact_engine.graph_workspaces import build_workspace
 from impact_engine.tool_runtime import ToolRuntime
+from impact_engine.adapters.graphify_paths import find_graphify_graph
 
 
 _OVERVIEW_LANGUAGE_SUFFIXES = {
     ".py": "python", ".js": "javascript", ".jsx": "javascript", ".ts": "typescript", ".tsx": "typescript",
-    ".go": "go", ".java": "java", ".cs": "csharp", ".rs": "rust", ".rb": "ruby", ".php": "php",
+    ".go": "go", ".java": "java", ".cs": "csharp",
 }
 _PROJECTION_HIGH_LEVEL_KINDS = {"SERVICE", "MODULE", "FILE", "ROUTE", "DATABASE", "QUEUE", "COMPONENT", "CLASS", "PACKAGE"}
 # The browser uses this explicit capability rather than guessing endpoint
@@ -556,49 +559,51 @@ def _render_graphify_native_html(project_path: str | Path) -> str:
     # were produced by Graphify.  The two graphs have different provenance and
     # serve different questions.  A missing Graphify artifact is an honest
     # empty state, not a reason to fall back to .impact_engine/graph.json.
-    graph_file = proj / "graphify-out" / "graph.json"
+    graph_file = find_graphify_graph(proj)
     if not graph_file.is_file():
         return "<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>Нативный граф Graphify для этого проекта ещё не построен.</p><p>Настройте executable Graphify и явно выполните <strong>«Построить architecture graph»</strong>. Канонический граф CodeSlicer здесь намеренно не показывается.</p></body></html>"
 
-    import sys
-    import tempfile
-    import json
-    import networkx as nx
-
     runtime_status = ToolRuntime(proj).status("graphify")
     repo_path = runtime_status.get("repository", {}).get("path")
-    if repo_path and Path(repo_path).exists() and str(repo_path) not in sys.path:
-        sys.path.insert(0, str(repo_path))
+    repo = Path(str(repo_path or "")).expanduser()
+    if not repo.is_dir():
+        return "<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><p>Для оригинального renderer подключите локальный Graphify repository. CodeSlicer не импортирует upstream-код в процесс Local API.</p></body></html>"
 
+    # Keep upstream imports out of the Local API process. The renderer receives
+    # only the already-created local graph and returns bounded HTML over stdout.
+    renderer = """
+import json, sys, tempfile
+from pathlib import Path
+repo, graph_file = map(Path, sys.argv[1:3])
+sys.path.insert(0, str(repo))
+import networkx as nx
+from graphify.exporters.html import to_html
+data = json.loads(graph_file.read_text(encoding='utf-8'))
+links = [{'source': e.get('from', e.get('source')), 'target': e.get('to', e.get('target')), 'kind': e.get('kind', 'CALLS'), 'confidence': e.get('confidence', 1.0)} for e in (data.get('edges') or data.get('links') or [])]
+nodes = [{'id': str(n['id']), 'label': str(n.get('name', n['id'])), 'kind': str(n.get('kind', 'FUNCTION'))} for n in data.get('nodes', [])]
+graph = nx.node_link_graph({'directed': True, 'nodes': nodes, 'links': links}, edges='links')
+with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as handle:
+    output = Path(handle.name)
+try:
+    to_html(graph, {0: [node['id'] for node in nodes]}, output)
+    sys.stdout.write(output.read_text(encoding='utf-8'))
+finally:
+    output.unlink(missing_ok=True)
+"""
+    safe_env = {"PATH": os.environ.get("PATH", ""), "PYTHONNOUSERSITE": "1"}
+    if os.name == "nt":
+        safe_env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", "")
     try:
-        from graphify.exporters.html import to_html
-        data = json.loads(graph_file.read_text(encoding="utf-8"))
-        links = []
-        for e in data.get("edges", []) or data.get("links", []):
-            links.append({
-                "source": e.get("from", e.get("source")),
-                "target": e.get("to", e.get("target")),
-                "kind": e.get("kind", "CALLS"),
-                "confidence": e.get("confidence", 1.0)
-            })
-        graph_data = {
-            "directed": True,
-            "nodes": [{"id": str(n["id"]), "label": str(n.get("name", n["id"])), "kind": str(n.get("kind", "FUNCTION"))} for n in data.get("nodes", [])],
-            "links": links
-        }
-        G = nx.node_link_graph(graph_data, edges="links")
-        node_ids = [str(n["id"]) for n in graph_data["nodes"]]
-        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as tmp:
-            tmp_path = tmp.name
-        to_html(G, {0: node_ids}, tmp_path)
-        content = Path(tmp_path).read_text(encoding="utf-8")
-        try:
-            Path(tmp_path).unlink()
-        except OSError:
-            pass
-        return content
-    except Exception as exc:
-        return f"<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><pre>Error loading native viewer: {exc}</pre></body></html>"
+        completed = subprocess.run(
+            [sys.executable, "-I", "-c", renderer, str(repo.resolve()), str(graph_file)],
+            cwd=repo, env=safe_env, capture_output=True, text=True, timeout=30, check=False,
+        )
+        if completed.returncode == 0 and completed.stdout:
+            return completed.stdout[:4 * 1024 * 1024]
+        detail = (completed.stderr or completed.stdout or "Graphify renderer did not produce HTML").strip()[:1200]
+        return f"<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><pre>Renderer failed in its isolated subprocess: {html.escape(detail)}</pre></body></html>"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"<!DOCTYPE html><html><body style='background:#0f0f1a;color:#e0e0e0;font-family:sans-serif;padding:40px;'><h2>Graphify Native Viewer</h2><pre>Renderer unavailable: {html.escape(str(exc))}</pre></body></html>"
 
 
 def _otel_evidence(project_path: str, report: dict[str, Any], graph_path: str | Path | None = None) -> dict[str, Any]:
@@ -989,7 +994,7 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                 return self._send_json(200, {"status": "ok", "api_contract_version": LOCAL_API_CONTRACT_VERSION, "project_path": str(Path(project_path).resolve()), "tools": ToolRuntime(project_path).catalog(), "privacy": {"mode": "local-only", "network_used": False}})
             if parsed.path == "/api/adapters/graphify/viewer/status":
                 project_path = self.state.project_path or self.state.default_project
-                graph_file = Path(project_path).expanduser().resolve() / "graphify-out" / "graph.json" if project_path else None
+                graph_file = find_graphify_graph(project_path) if project_path else None
                 available = bool(graph_file and graph_file.is_file())
                 return self._send_json(200, {
                     "status": "ready" if available else "missing",

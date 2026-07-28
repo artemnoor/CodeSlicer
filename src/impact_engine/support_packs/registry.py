@@ -4,10 +4,11 @@ import json
 from pathlib import Path
 from typing import List, Optional
 from impact_engine.support_packs.schema import SupportPack, support_pack_from_dict, validate_support_pack_dict
+from impact_engine.support_packs.paths import resolve_support_pack_root
 
 
 def list_local_support_packs(root: str | Path = "support_packs") -> List[Path]:
-    base = Path(root)
+    base = resolve_support_pack_root(root)
     if not base.exists():
         return []
     paths = []

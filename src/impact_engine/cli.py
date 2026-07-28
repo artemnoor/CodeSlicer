@@ -95,7 +95,7 @@ def _save_staged_support_pack(pack: dict, workflow_id: str | None = None, root: 
     return dest
 
 
-def _doctor_report() -> dict:
+def _doctor_report(full: bool = False) -> dict:
     from impact_engine.extractors.tree_sitter.adapter import is_tree_sitter_available
     from impact_engine.support_packs.store import SupportPackStore
 
@@ -120,6 +120,22 @@ def _doctor_report() -> dict:
         "status": "ok" if research_dir.exists() else "info",
         "message": str(research_dir.resolve()) if research_dir.exists() else "Research workspace will be created on first workflow",
     })
+    if full:
+        from impact_engine.support_packs.paths import builtin_support_packs_root
+        from impact_engine.local_api import default_frontend_dir
+        packs = builtin_support_packs_root()
+        required_packs = [packs / "python" / name / "support_pack.json" for name in ("fastapi", "sqlalchemy")]
+        checks.append({
+            "name": "bundled_framework_support_packs",
+            "status": "ok" if all(path.is_file() for path in required_packs) else "error",
+            "message": str(packs) if all(path.is_file() for path in required_packs) else "Built-in FastAPI/SQLAlchemy support packs are missing from this installation",
+        })
+        frontend = Path(default_frontend_dir())
+        checks.append({
+            "name": "bundled_frontend",
+            "status": "ok" if (frontend / "index.html").is_file() and (frontend / "app.js").is_file() else "error",
+            "message": str(frontend),
+        })
 
     overall = "ok" if all(item["status"] in {"ok", "info"} for item in checks) else "warning"
     return {"status": overall, "checks": checks}
@@ -597,7 +613,8 @@ def main(argv: list[str] | None = None) -> None:
     r_install.add_argument("support_pack")
 
     # doctor
-    sub.add_parser("doctor")
+    doctor = sub.add_parser("doctor")
+    doctor.add_argument("--full", action="store_true", help="Verify wheel/runtime assets in addition to local capabilities")
 
     # local registry
     registry_parser = sub.add_parser("registry")
@@ -1833,7 +1850,7 @@ def main(argv: list[str] | None = None) -> None:
                 sys.exit(1)
 
     elif args.command == "doctor":
-        res = _doctor_report()
+        res = _doctor_report(full=bool(getattr(args, "full", False)))
         if args.json:
             _print_json(res)
         else:

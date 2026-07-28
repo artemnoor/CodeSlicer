@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#080808">
   <meta name="color-scheme" content="dark">
-  <title>CodeSlicer — карта проекта</title>
+  <title>CodeSlicer — проверка изменений</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="simple.css">
@@ -13,12 +13,13 @@
 <body class="simple-hub">
   <!-- Advanced CLI/MCP retains Security / SBOM integrations; the minimal map UI
        deliberately does not duplicate those expert controls. -->
-  <a class="skip-link" href="#main">Перейти к карте</a>
+  <a class="skip-link" href="#main">Перейти к проверке</a>
   <header class="simple-topbar">
-    <button class="brand" type="button" data-route="map" aria-label="Открыть карту проекта">
+    <button class="brand" type="button" data-route="review" aria-label="Открыть проверку изменений">
       <span class="cs-logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>CodeSlicer</span>
     </button>
     <nav class="simple-nav" aria-label="Основная навигация">
+      <a href="#review" data-route="review">Проверка изменений</a>
       <a href="#map" data-route="map">Карта проекта</a>
       <a href="#graphify" data-route="graphify">Graphify</a>
     </nav>
@@ -51,6 +52,18 @@
     </section>
 
     <div id="routeViews" hidden>
+      <section class="route-view" id="view-review" data-route-view="review">
+        <header class="map-heading">
+          <div>
+            <span class="eyebrow">ОСНОВНОЙ СЦЕНАРИЙ</span>
+            <h1>Проверка текущих изменений</h1>
+            <p>Что затронуто, почему это важно и какие тесты стоит запустить. Карта кода доступна для углубления.</p>
+          </div>
+          <div class="map-actions"><button class="button secondary" type="button" data-action="refresh-review">Обновить review</button></div>
+        </header>
+        <div id="reviewWarnings" aria-live="polite"></div>
+        <div id="reviewContent"><div class="state-card loading"><strong>Готовлю review…</strong><p>Проверка выполняется локально по текущему Git diff.</p></div></div>
+      </section>
       <section class="route-view" id="view-map" data-route-view="map">
         <header class="map-heading">
           <div>

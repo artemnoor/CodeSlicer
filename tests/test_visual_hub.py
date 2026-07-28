@@ -125,7 +125,8 @@ def test_frontend_is_a_minimal_map_with_an_optional_graphify_entrypoint():
     assert 'data-route-view="graphify"' in html
     assert 'id="graphViewSelect"' in html
     assert 'id="graphifyContent"' in html
-    assert 'data-route-view="review"' not in html
+    assert 'data-route-view="review"' in html
+    assert "Проверка текущих изменений" in html
     assert "дополнитель" in app.lower()
     assert "evidence" in app.lower()
     assert "external" in app.lower() and "not" in app.lower()

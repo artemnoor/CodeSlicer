@@ -14,15 +14,14 @@ const state = {
   ready: false, project: '', hasAnalysis: false, analysis: null, graph: null, overview: null,
   inventory: null, adapters: [], tools: [], review: null, projection: null, inspect: null, investigate: null,
   selectedEntity: '', selectedFile: '', reviewFilter: 'all', showMore: false, mapLevel: 'overview',
-  mapKind: '', mapWorkspace: 'impact', mapSource: '', lastTest: null, analyzedAt: null, modalOpener: null, route: 'map', pending: new Set(),
+  mapKind: '', mapWorkspace: 'impact', mapSource: '', lastTest: null, analyzedAt: null, modalOpener: null, route: 'review', pending: new Set(),
   apiCompatibility: null, toolRuntimeError: null,
 };
 
-// The local hub deliberately has two visible destinations. The retained aliases
-// make old links harmless: advanced CLI and agent workflows stay available, but
-// the browser returns people to the one task it is designed for — reading a map.
-const routeAliases = { architecture: 'map', 'code-map': 'map', overview: 'map', review: 'map', inspect: 'map', investigate: 'map', sources: 'map', automation: 'map', settings: 'map', ci: 'map', 'tool-graphify': 'graphify' };
-const routeNames = { map: 'Карта проекта', graphify: 'Graphify' };
+// Review is the daily product entry point. The map and Graphify remain the
+// deliberate next levels when a developer needs to investigate evidence.
+const routeAliases = { architecture: 'map', 'code-map': 'map', overview: 'review', inspect: 'review', investigate: 'map', sources: 'map', automation: 'review', settings: 'review', ci: 'review', 'tool-graphify': 'graphify' };
+const routeNames = { review: 'Проверка изменений', map: 'Карта проекта', graphify: 'Graphify' };
 const unwrap = (response) => response?.report?.result || response?.result || response?.report || response || {};
 const unique = (items) => [...new Set((items || []).filter(Boolean).map(String))];
 const textOf = (value, fallback = '—') => value === null || value === undefined || value === '' ? fallback : String(value);
@@ -39,7 +38,7 @@ const describe = (value) => {
 };
 const riskLevel = (risk) => String(risk?.level || 'UNKNOWN').toUpperCase();
 const statusLabel = (value) => ({ fresh: 'Актуален', ready: 'Готов', stale: 'Устарел', missing: 'Нет графа', incomplete: 'Неполный', unsupported: 'Ограничен', error: 'Ошибка', unknown: 'Неизвестно', running: 'Анализ идёт' }[String(value || '').toLowerCase()] || textOf(value, 'Неизвестно'));
-const languageFor = (path) => ({ py: 'Python', js: 'JavaScript', jsx: 'JavaScript', ts: 'TypeScript', tsx: 'TypeScript', go: 'Go', java: 'Java', cs: 'C#', rs: 'Rust' }[(String(path).split('.').pop() || '').toLowerCase()] || 'Неизвестный язык');
+const languageFor = (path) => ({ py: 'Python', js: 'JavaScript', jsx: 'JavaScript', ts: 'TypeScript', tsx: 'TypeScript', go: 'Go', java: 'Java', cs: 'C#' }[(String(path).split('.').pop() || '').toLowerCase()] || 'Неанализируемый язык');
 const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 function el(tag, className, label) { const node = document.createElement(tag); if (className) node.className = className; if (label !== undefined) node.textContent = label; return node; }
@@ -56,10 +55,10 @@ function isHighRisk(review = state.review) { return ['HIGH', 'CRITICAL'].include
 function dataPayload(body) { const payload = unwrap(body); return payload && typeof payload === 'object' ? payload : {}; }
 
 function normalizeRoute(value) {
-  const raw = String(value || '').replace(/^#/, '').split('?')[0] || 'map';
+  const raw = String(value || '').replace(/^#/, '').split('?')[0] || 'review';
   if (raw === 'graphify') return 'graphify';
   if (/^tool-[a-z0-9_-]+$/i.test(raw)) return raw === 'tool-graphify' ? 'graphify' : 'map';
-  return routeAliases[raw] || (routeNames[raw] ? raw : 'overview');
+  return routeAliases[raw] || (routeNames[raw] ? raw : 'review');
 }
 function routeQuery() { const hash = location.hash.slice(1); const index = hash.indexOf('?'); return new URLSearchParams(index >= 0 ? hash.slice(index + 1) : ''); }
 function navigate(route, params = {}) {
@@ -76,6 +75,7 @@ function renderRoute() {
   $$('[data-route]').forEach((link) => link.classList.toggle('active', normalizeRoute(link.dataset.route) === state.route));
   if (!state.ready || !state.hasAnalysis) { showOnboarding(true); return; }
   showOnboarding(false);
+  if (state.route === 'review') loadReview();
   if (state.route === 'map') loadProjection();
   if (state.route === 'graphify') loadGraphify();
 }
@@ -643,7 +643,7 @@ async function loadAutomation() { const target = $('#automationContent'); if (!t
 
 function showProgress(progress) { const panel = $('#progressPanel'); if (!panel) return; panel.hidden = false; const current = progress?.current || progress || {}; const percent = Math.max(0, Math.min(100, Number(current.overall_percent || 0))); setText('#progressStage', statusLabel(current.stage || progress?.status || 'running')); setText('#progressPercent', `${Math.round(percent)}%`); setText('#progressMessage', current.message || 'Локальный анализ продолжается…'); $('#progressBar').style.width = `${percent}%`; }
 async function pollAnalysisProgress(shouldStop = () => false) { while (!shouldStop()) { try { const response = await ImpactApi.progress(); const status = String(response.progress?.status || '').toLowerCase(); showProgress(response.progress); /* The first poll can legitimately race the POST /api/analyze handler and still be idle. */ if (['completed', 'cancelled', 'failed'].includes(status)) return response.progress; } catch (_) { /* The analyze request remains the source of truth. */ } if (shouldStop()) return null; await sleep(350); } return null; }
-async function startAnalysis(pathValue) { const project = String(pathValue || '').trim(); if (!project) { showState('Укажите абсолютный путь к проекту.', 'error-state'); return; } const previous = { project: state.project, hasAnalysis: state.hasAnalysis, analysis: state.analysis, graph: state.graph, overview: state.overview, review: state.review, projection: state.projection, inspect: state.inspect, investigate: state.investigate, analyzedAt: state.analyzedAt }; state.project = project; $('#projectPath').value = project; $('#onboardingPath').value = project; $('#analyzeButton').disabled = true; $('#onboardingAnalyze').disabled = true; $('#cancelAnalyzeButton').hidden = false; $('#progressPanel').hidden = false; showProgress({ status: 'running', current: { stage: 'starting', message: 'Проверяю путь и строю карту', overall_percent: 0 } }); let stopPolling = false; const request = ImpactApi.analyze(project); const progress = pollAnalysisProgress(() => stopPolling); try { const response = await request; await progress; state.hasAnalysis = true; state.analysis = response; state.graph = response.graph || null; state.overview = null; state.review = null; state.projection = null; await hydrateAnalysis(); $('#progressPanel').hidden = true; navigate('map'); showState('Карта проекта готова.'); } catch (error) { stopPolling = true; await progress.catch(() => {}); $('#progressPanel').hidden = true; state.project = previous.project; state.hasAnalysis = previous.hasAnalysis; state.analysis = previous.analysis; state.graph = previous.graph; state.overview = previous.overview; state.review = previous.review; state.projection = previous.projection; state.inspect = previous.inspect; state.investigate = previous.investigate; state.analyzedAt = previous.analyzedAt; $('#projectPath').value = previous.project || ''; $('#onboardingPath').value = previous.project || ''; const message = /cancel/i.test(error.message) ? 'Построение карты отменено. Предыдущая карта сохранена.' : `Карта не построена: ${error.message}`; $('#onboardingError').hidden = false; $('#onboardingError').textContent = message; showState(message, 'error-state'); if (!previous.hasAnalysis) showOnboarding(true); } finally { $('#analyzeButton').disabled = false; $('#onboardingAnalyze').disabled = false; $('#cancelAnalyzeButton').hidden = true; } }
+async function startAnalysis(pathValue) { const project = String(pathValue || '').trim(); if (!project) { showState('Укажите абсолютный путь к проекту.', 'error-state'); return; } const previous = { project: state.project, hasAnalysis: state.hasAnalysis, analysis: state.analysis, graph: state.graph, overview: state.overview, review: state.review, projection: state.projection, inspect: state.inspect, investigate: state.investigate, analyzedAt: state.analyzedAt }; state.project = project; $('#projectPath').value = project; $('#onboardingPath').value = project; $('#analyzeButton').disabled = true; $('#onboardingAnalyze').disabled = true; $('#cancelAnalyzeButton').hidden = false; $('#progressPanel').hidden = false; showProgress({ status: 'running', current: { stage: 'starting', message: 'Проверяю путь и строю карту', overall_percent: 0 } }); let stopPolling = false; const request = ImpactApi.analyze(project); const progress = pollAnalysisProgress(() => stopPolling); try { const response = await request; await progress; state.hasAnalysis = true; state.analysis = response; state.graph = response.graph || null; state.overview = null; state.review = null; state.projection = null; await hydrateAnalysis(); $('#progressPanel').hidden = true; navigate('review'); showState('Карта проекта готова.'); } catch (error) { stopPolling = true; await progress.catch(() => {}); $('#progressPanel').hidden = true; state.project = previous.project; state.hasAnalysis = previous.hasAnalysis; state.analysis = previous.analysis; state.graph = previous.graph; state.overview = previous.overview; state.review = previous.review; state.projection = previous.projection; state.inspect = previous.inspect; state.investigate = previous.investigate; state.analyzedAt = previous.analyzedAt; $('#projectPath').value = previous.project || ''; $('#onboardingPath').value = previous.project || ''; const message = /cancel/i.test(error.message) ? 'Построение карты отменено. Предыдущая карта сохранена.' : `Карта не построена: ${error.message}`; $('#onboardingError').hidden = false; $('#onboardingError').textContent = message; showState(message, 'error-state'); if (!previous.hasAnalysis) showOnboarding(true); } finally { $('#analyzeButton').disabled = false; $('#onboardingAnalyze').disabled = false; $('#cancelAnalyzeButton').hidden = true; } }
 async function hydrateAnalysis() { try { const current = await ImpactApi.state(); state.hasAnalysis = Boolean(current.has_analysis); state.analysis = current.analysis || state.analysis; state.analyzedAt = current.analyzed_at || state.analyzedAt; const graph = await ImpactApi.graph(); state.graph = graph.graph || graph; } catch (_) { state.hasAnalysis = Boolean(state.graph || state.analysis); } updateEntitySuggestions(state.graph?.nodes || []); updateStatus(); }
 async function cancelAnalysis() { try { await ImpactApi.cancelAnalyze(); showState('Запрос на отмену отправлен локальному анализатору.'); } catch (error) { showState(error.message, 'error-state'); } }
 
@@ -736,13 +736,13 @@ async function bootstrap() {
       errorTarget.hidden = false;
       errorTarget.textContent = message;
       showState(message, 'error-state');
-      if (location.hash !== '#map') location.hash = '#map';
+      if (location.hash !== '#review') location.hash = '#review';
       showOnboarding(true);
       return;
     }
     if (state.hasAnalysis) {
       await hydrateAnalysis();
-      if (!location.hash) navigate('map'); else renderRoute();
+      if (!location.hash) navigate('review'); else renderRoute();
       showState('Карта проекта готова.');
     } else {
       renderRoute();

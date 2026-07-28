@@ -115,13 +115,20 @@ def test_runtime_trace_mcp_wrapper(tmp_path: Path):
     graph_path = tmp_path / "graph.json"
     analyze_project_core(str(tmp_path), out_path=str(graph_path))
 
-    from impact_engine.mcp.server import TOOLS, runtime_trace
+    from impact_engine.mcp.server import TOOLS, runtime_trace, request_action_approval, approve_action_locally
 
     assert any(tool["name"] == "runtime_trace" for tool in TOOLS)
+    pending = request_action_approval(
+        str(tmp_path), "runtime_trace",
+        {"test_command": [sys.executable, "-m", "pytest", "-q"], "timeout_seconds": 60, "graph_path": str(graph_path)},
+    )
+    approval = approve_action_locally(str(tmp_path), pending["approval"]["approval_id"])
     result = runtime_trace(
         str(tmp_path),
         graph_path=str(graph_path),
         test_command=[sys.executable, "-m", "pytest", "-q"],
+        approval_id=approval["approval_id"],
+        approval_token=approval["approval_token"],
     )
 
     assert result["status"] == "ok"

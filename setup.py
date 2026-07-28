@@ -25,6 +25,13 @@ class build_py(_build_py):
             dirs_exist_ok=True,
             ignore=lambda _directory, names: {name for name in names if name in {".cache", "node_modules"}},
         )
+        support_packs = Path(__file__).parent / "support_packs"
+        copytree(
+            support_packs,
+            Path(self.build_lib) / "impact_engine" / "support_packs" / "builtin",
+            dirs_exist_ok=True,
+            ignore=lambda _directory, names: {name for name in names if name.startswith(".")},
+        )
 
 
 setup(cmdclass={"build_py": build_py})

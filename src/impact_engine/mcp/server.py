@@ -5,8 +5,12 @@ Exposes a robust local MCP stdio runtime wrapper on top of core tools.
 import json
 import ast
 import sys
+import concurrent.futures
 from pathlib import Path
 from typing import Dict, Any, List
+
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
 
 from impact_engine.models import GraphDocument
 from impact_engine.extractors.python_ast import extract_project
@@ -15,6 +19,7 @@ from impact_engine.impact import impact_query as impact_query_core, explain_edge
 from impact_engine.support_packs.registry import list_local_support_packs, validate_support_pack_file, import_support_pack_file
 from impact_engine.contracts import build_mode_response
 from impact_engine.tool_runtime import ToolRuntime
+from impact_engine.approvals import ApprovalStore
 
 
 def _verify_path_exists(p_str: str) -> None:
@@ -23,6 +28,43 @@ def _verify_path_exists(p_str: str) -> None:
     p = Path(p_str).resolve()
     if not p.exists():
         raise FileNotFoundError(f"Path does not exist: {p_str}")
+
+
+def _approval_payload(**values: Any) -> dict[str, Any]:
+    """Create a stable, deliberately small record of an action request."""
+    return values
+
+
+def request_action_approval(
+    project_path: str,
+    action: str,
+    payload: dict[str, Any],
+    ttl_seconds: int = 300,
+) -> Dict[str, Any]:
+    """Create a pending local-host approval; this tool cannot approve it."""
+    _verify_path_exists(project_path)
+    if action not in {"managed_tool.connect", "managed_tool.run", "runtime_trace", "ci.run_tests"}:
+        raise ValueError("unsupported approval action")
+    approval = ApprovalStore(project_path).request(action, payload, ttl_seconds=ttl_seconds)
+    return {
+        "tool": "request_action_approval",
+        "status": "pending_approval",
+        "project_path": str(Path(project_path).resolve()),
+        "approval": approval,
+        "next_step": "Approve this request in the local CodeSlicer host, then supply its one-time token to the original action.",
+    }
+
+
+def approve_action_locally(project_path: str, approval_id: str) -> Dict[str, Any]:
+    """Host-facing helper. It is intentionally not exposed as an MCP tool."""
+    _verify_path_exists(project_path)
+    return ApprovalStore(project_path).approve(approval_id)
+
+
+def _consume_approval(project_path: str, approval_id: str | None, approval_token: str | None, action: str, payload: dict[str, Any]) -> None:
+    if not approval_id or not approval_token:
+        raise ValueError("a one-time local-host approval_id and approval_token are required")
+    ApprovalStore(project_path).consume(approval_id, approval_token, action, payload)
 
 
 def health_check() -> Dict[str, Any]:
@@ -62,6 +104,11 @@ def analyze_project(
     timeout_seconds: int | None = None,
     enable_remote_registry: bool = False,
     create_research_requests: bool = True,
+    include_graph: bool = False,
+    scope: str | None = None,
+    memory_budget_mb: int | None = None,
+    time_budget_seconds: float | None = None,
+    cancellation=None,
 ) -> Dict[str, Any]:
     from impact_engine.analysis.pipeline import analyze_project_core
     try:
@@ -71,6 +118,10 @@ def analyze_project(
             out_path=out_path,
             enable_remote_registry=enable_remote_registry,
             create_research_requests=create_research_requests,
+            scope=scope,
+            memory_budget_mb=memory_budget_mb,
+            time_budget_seconds=time_budget_seconds or timeout_seconds,
+            cancellation=cancellation,
         )
         return {
             "tool": "analyze_project",
@@ -85,7 +136,10 @@ def analyze_project(
             "diagnostics": res.get("diagnostics", {}),
             "support_pack_load_errors": res.get("support_pack_load_errors", []),
             "progress": res.get("progress", {}),
-            "graph": res.get("graph", {})
+            # A full graph can contain thousands of nodes. MCP agents get a
+            # compact contract first and use inspect/review/investigate for a
+            # bounded slice. The raw graph remains at graph_path.
+            **({"graph": res.get("graph", {})} if include_graph else {}),
         }
     except Exception as e:
         return {
@@ -94,6 +148,66 @@ def analyze_project(
             "path": project_path,
             "error": str(e)
         }
+
+
+def scan_plan(project_path: str, scope: str | None = None) -> Dict[str, Any]:
+    """Return a no-write preflight so an MCP-only agent can plan analysis."""
+    from impact_engine.inventory.scanner import scan_project_inventory
+    from impact_engine.languages.registry import detect_languages
+    try:
+        _verify_path_exists(project_path)
+        root = Path(project_path).resolve()
+        scan_root = (root / scope).resolve() if scope else root
+        if root not in scan_root.parents and scan_root != root:
+            raise ValueError("scope must stay inside project_path")
+        if not scan_root.is_dir():
+            raise FileNotFoundError(f"scope does not exist: {scope}")
+        inventory = scan_project_inventory(str(scan_root))
+        return {
+            "tool": "scan_plan", "status": "ok", "project_path": str(root), "scope": scope or ".",
+            "inventory": {"files": inventory.files_count, "loc": inventory.loc, "languages": inventory.languages, "manifests": inventory.package_manifests},
+            "detected_languages": detect_languages(str(root)),
+            "estimated_action": "Run analyze_project with an optional scope and explicit budgets; no network is required.",
+            "privacy": {"mode": "local-only", "network_used": False},
+        }
+    except Exception as exc:
+        return {"tool": "scan_plan", "status": "error", "project_path": project_path, "error": str(exc)}
+
+
+def project_status(project_path: str) -> Dict[str, Any]:
+    """Give an MCP client the same concise status it needs after onboarding."""
+    try:
+        _verify_path_exists(project_path)
+        root = Path(project_path).resolve()
+        graph = root / ".impact_engine" / "graph.json"
+        onboarding = root / ".codeslicer" / "artifacts" / "onboarding" / "last.json"
+        report = json.loads(onboarding.read_text(encoding="utf-8")) if onboarding.is_file() else None
+        return {
+            "tool": "project_status", "status": "ok", "project_path": str(root),
+            "canonical_graph": {"path": str(graph), "exists": graph.is_file()},
+            "onboarding": report,
+            "next_action": "review" if graph.is_file() else "scan_plan",
+            "privacy": {"mode": "local-only", "network_used": False},
+        }
+    except Exception as exc:
+        return {"tool": "project_status", "status": "error", "project_path": project_path, "error": str(exc)}
+
+
+def onboard(
+    source: str,
+    allow_network: bool = False,
+    workspace: str | None = None,
+    branch: str | None = None,
+    graphify_mode: str = "auto",
+    graphify_timeout_seconds: int = 120,
+) -> Dict[str, Any]:
+    """MCP-safe entry point for a local folder or explicitly approved Git URL."""
+    from impact_engine.project_onboarding import onboard_project
+    try:
+        result = onboard_project(source, allow_network=allow_network, workspace=workspace, branch=branch, graphify_mode=graphify_mode, graphify_timeout_seconds=graphify_timeout_seconds)
+        return {"tool": "onboard", "status": result.get("status", "ok"), "result": result}
+    except Exception as exc:
+        return {"tool": "onboard", "status": "error", "source": source, "error": str(exc)}
 
 
 def impact_query(
@@ -110,6 +224,21 @@ def impact_query(
         _verify_path_exists(graph_path)
         graph_text = Path(graph_path).read_text(encoding="utf-8")
         graph = GraphDocument.from_json(graph_text)
+        if symbol:
+            exact = [node for node in graph.nodes if node.id == symbol or node.name == symbol]
+            partial = [node for node in graph.nodes if symbol.lower() in node.id.lower() or symbol.lower() in str(node.name or "").lower()]
+            candidates = exact or partial
+            unique = {node.id: node for node in candidates}
+            if len(unique) > 1:
+                return {
+                    "tool": "impact_query", "status": "needs_selection", "graph_path": graph_path,
+                    "query": symbol,
+                    "candidates": [{"id": node.id, "name": node.name, "kind": node.kind, "file": node.properties.get("file")} for node in list(unique.values())[:20]],
+                    "result": None,
+                }
+            if len(unique) == 1:
+                target = next(iter(unique))
+                symbol = None
         result = impact_query_core(
             graph,
             target=target,
@@ -276,6 +405,8 @@ def ci(
     refresh: str = "auto",
     run_tests: bool = False,
     test_command: list[str] | None = None,
+    approval_id: str | None = None,
+    approval_token: str | None = None,
 ) -> Dict[str, Any]:
     from impact_engine.modes import build_ci_report
     try:
@@ -283,6 +414,9 @@ def ci(
         for candidate in (policy_path, graph_path):
             if candidate:
                 _verify_path_exists(candidate)
+        if run_tests:
+            payload = _approval_payload(test_command=test_command or [], base=base or "", refresh=refresh)
+            _consume_approval(project_path, approval_id, approval_token, "ci.run_tests", payload)
         result = build_ci_report(project_path, base=base, policy_path=policy_path, graph_path=graph_path, diff_text=diff_text, refresh=refresh, run_tests=run_tests, test_command=test_command)
         return {"tool": "ci", "status": "ok", "project_path": project_path, "result": result, "mode_response": _mode_response("ci", project_path, result)}
     except Exception as e:
@@ -295,12 +429,16 @@ def runtime_trace(
     out_path: str | None = None,
     test_command: list[str] | None = None,
     timeout_seconds: int = 60,
+    approval_id: str | None = None,
+    approval_token: str | None = None,
 ) -> Dict[str, Any]:
     from impact_engine.runtime_trace import runtime_trace_project_core
     try:
         _verify_path_exists(project_path)
         if graph_path:
             _verify_path_exists(graph_path)
+        payload = _approval_payload(test_command=test_command or [], timeout_seconds=timeout_seconds, graph_path=graph_path or "")
+        _consume_approval(project_path, approval_id, approval_token, "runtime_trace", payload)
         result = runtime_trace_project_core(
             project_path,
             graph_path=graph_path,
@@ -616,9 +754,16 @@ def list_managed_tools(project_path: str) -> Dict[str, Any]:
     }
 
 
-def connect_managed_tool(project_path: str, tool_id: str, confirmed: bool, ref: str | None = None) -> Dict[str, Any]:
+def connect_managed_tool(
+    project_path: str,
+    tool_id: str,
+    ref: str | None = None,
+    approval_id: str | None = None,
+    approval_token: str | None = None,
+) -> Dict[str, Any]:
     _verify_path_exists(project_path)
-    status = ToolRuntime(project_path).connect(tool_id, confirmed=confirmed, ref=ref)
+    _consume_approval(project_path, approval_id, approval_token, "managed_tool.connect", _approval_payload(tool_id=tool_id, ref=ref or ""))
+    status = ToolRuntime(project_path).connect(tool_id, confirmed=True, ref=ref)
     return {
         "tool": "connect_managed_tool",
         "status": "ok",
@@ -659,15 +804,20 @@ def run_managed_tool(
     project_path: str,
     tool_id: str,
     argv: List[str],
-    confirmed: bool,
     workspace: str = "project",
     timeout_seconds: int = 60,
+    approval_id: str | None = None,
+    approval_token: str | None = None,
 ) -> Dict[str, Any]:
     _verify_path_exists(project_path)
+    _consume_approval(
+        project_path, approval_id, approval_token, "managed_tool.run",
+        _approval_payload(tool_id=tool_id, argv=argv, workspace=workspace, timeout_seconds=timeout_seconds),
+    )
     result = ToolRuntime(project_path).run(
         tool_id,
         argv=argv,
-        confirmed=confirmed,
+        confirmed=True,
         workspace=workspace,
         timeout_seconds=timeout_seconds,
     )
@@ -693,6 +843,33 @@ TOOLS = [
         }
     },
     {
+        "name": "scan_plan",
+        "description": "Inspect a local project without writing a graph, then return a bounded plan for analysis.",
+        "inputSchema": {
+            "type": "object", "properties": {"project_path": {"type": "string"}, "scope": {"type": "string", "maxLength": 4096}},
+            "required": ["project_path"],
+        },
+    },
+    {
+        "name": "project_status",
+        "description": "Return concise local graph/onboarding status for one project.",
+        "inputSchema": {"type": "object", "properties": {"project_path": {"type": "string"}}, "required": ["project_path"]},
+    },
+    {
+        "name": "onboard",
+        "description": "Onboard a local project or, with allow_network=true, explicitly clone a Git URL and build separate CodeSlicer and optional Graphify graphs.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string"}, "allow_network": {"type": "boolean", "default": False},
+                "workspace": {"type": "string"}, "branch": {"type": "string"},
+                "graphify_mode": {"type": "string", "enum": ["auto", "off", "required"], "default": "auto"},
+                "graphify_timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 300, "default": 120},
+            },
+            "required": ["source"],
+        },
+    },
+    {
         "name": "analyze_project",
         "description": "Analyze a project codebase and produce an impact graph.",
         "inputSchema": {
@@ -700,7 +877,11 @@ TOOLS = [
             "properties": {
                 "project_path": {"type": "string", "description": "Absolute path to the project directory"},
                 "out_path": {"type": "string", "description": "Optional custom path to save output JSON graph"},
-                "timeout_seconds": {"type": "integer", "description": "Optional timeout limit in seconds"}
+                "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 3600, "description": "Optional timeout limit in seconds"},
+                "include_graph": {"type": "boolean", "default": False, "description": "Opt in to full graph payload; false returns only a compact summary."},
+                "scope": {"type": "string", "maxLength": 4096},
+                "memory_budget_mb": {"type": "integer", "minimum": 64, "maximum": 16384},
+                "time_budget_seconds": {"type": "number", "minimum": 1, "maximum": 3600}
 ,"enable_remote_registry": {"type": "boolean", "default": False, "description": "Use the local SQLite/cache registry before resolution"}
 ,"create_research_requests": {"type": "boolean", "default": True, "description": "Create local research requests for missing support packs"}
             },
@@ -834,7 +1015,7 @@ TOOLS = [
     },
     {
         "name": "ci",
-        "description": "Evaluate the shared review projection with a local CI policy; no tests or network by default.",
+        "description": "Evaluate the shared review projection with a local CI policy; no tests or network by default. Running tests needs a one-time local-host approval.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -845,14 +1026,16 @@ TOOLS = [
                 "diff_text": {"type": "string"},
                 "refresh": {"type": "string", "enum": ["auto", "never", "force"], "default": "auto"},
                 "run_tests": {"type": "boolean", "default": False},
-                "test_command": {"type": "array"}
+                "test_command": {"type": "array", "items": {"type": "string"}},
+                "approval_id": {"type": "string"},
+                "approval_token": {"type": "string"}
             },
             "required": ["project_path"]
         }
     },
     {
         "name": "runtime_trace",
-        "description": "Run Python tests under runtime tracing and boost matched graph edges.",
+        "description": "Run Python tests under runtime tracing and boost matched graph edges. Requires a one-time local-host approval because it starts a process.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -860,9 +1043,11 @@ TOOLS = [
                 "graph_path": {"type": "string", "description": "Optional path to existing JSON impact graph"},
                 "out_path": {"type": "string", "description": "Optional output path for patched graph JSON"},
                 "test_command": {"type": "array", "description": "Optional test command argv, e.g. ['python','-m','pytest','-q']"},
-                "timeout_seconds": {"type": "integer", "default": 60}
+                "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 3600, "default": 60},
+                "approval_id": {"type": "string"},
+                "approval_token": {"type": "string"}
             },
-            "required": ["project_path"]
+            "required": ["project_path", "approval_id", "approval_token"]
         }
     },
     {
@@ -1073,8 +1258,22 @@ TOOLS = [
 
 # This surface is intentionally explicit.  An agent may discover and read a
 # connected upstream checkout freely, but cloning and every arbitrary command
-# still require a caller-supplied confirmation flag.
+# require a separately minted one-time local-host approval.
 TOOLS.extend([
+    {
+        "name": "request_action_approval",
+        "description": "Create a pending approval for a process or network action. This MCP call cannot approve it; a local CodeSlicer host must do that separately.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_path": {"type": "string"},
+                "action": {"type": "string", "enum": ["managed_tool.connect", "managed_tool.run", "runtime_trace", "ci.run_tests"]},
+                "payload": {"type": "object"},
+                "ttl_seconds": {"type": "integer", "minimum": 30, "maximum": 900, "default": 300},
+            },
+            "required": ["project_path", "action", "payload"],
+        },
+    },
     {
         "name": "list_managed_tools",
         "description": "List the local upstream-tool catalog and connection state for a project. No network or process is started.",
@@ -1086,16 +1285,17 @@ TOOLS.extend([
     },
     {
         "name": "connect_managed_tool",
-        "description": "After explicit confirmation, clone the complete upstream Git repository into this project's private CodeSlicer storage. Does not build, install, or start it.",
+        "description": "Clone the complete upstream Git repository into private CodeSlicer storage after a matching one-time local-host approval. Does not build, install, or start it.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "project_path": {"type": "string"},
                 "tool_id": {"type": "string"},
-                "confirmed": {"type": "boolean", "description": "Must be true: this explicitly uses Git network access."},
                 "ref": {"type": "string", "description": "Optional upstream Git ref to check out after cloning."},
+                "approval_id": {"type": "string"},
+                "approval_token": {"type": "string"},
             },
-            "required": ["project_path", "tool_id", "confirmed"],
+            "required": ["project_path", "tool_id", "approval_id", "approval_token"],
         },
     },
     {
@@ -1142,76 +1342,38 @@ TOOLS.extend([
     },
     {
         "name": "run_managed_tool",
-        "description": "Run a complete raw argv command on a configured local upstream executable. It never uses a shell and requires confirmed=true for each invocation.",
+        "description": "Run a complete raw argv command on a configured local upstream executable. It never uses a shell and requires a matching one-time local-host approval for each invocation.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "project_path": {"type": "string"}, "tool_id": {"type": "string"},
-                "argv": {"type": "array", "description": "Arguments after the configured executable, as an argv list."},
-                "confirmed": {"type": "boolean", "description": "Must be true for this individual process execution."},
+                "argv": {"type": "array", "items": {"type": "string"}, "description": "Arguments after the configured executable, as an argv list."},
                 "workspace": {"type": "string", "enum": ["project", "tool"], "default": "project"},
-                "timeout_seconds": {"type": "integer", "default": 60},
+                "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 3600, "default": 60},
+                "approval_id": {"type": "string"},
+                "approval_token": {"type": "string"},
             },
-            "required": ["project_path", "tool_id", "argv", "confirmed"],
+            "required": ["project_path", "tool_id", "argv", "approval_id", "approval_token"],
         },
     },
 ])
 
 
 def validate_arguments(schema: dict, arguments: dict) -> str | None:
-    if not isinstance(arguments, dict):
-        return "Arguments must be an object"
-        
-    properties = schema.get("properties", {})
-    required = schema.get("required", [])
-    
-    # Check required properties
-    for req_field in required:
-        if req_field not in arguments:
-            return f"Missing required parameter: {req_field}"
-            
-    # Check for unexpected properties
-    for arg_name in arguments:
-        if arg_name not in properties:
-            return f"Unexpected parameter: {arg_name}"
-            
-    # Check types and enums
-    for arg_name, arg_val in arguments.items():
-        prop_schema = properties.get(arg_name, {})
-        prop_type = prop_schema.get("type")
-        
-        # Check type
-        if prop_type == "string":
-            if not isinstance(arg_val, str):
-                return f"Parameter '{arg_name}' must be a string"
-        elif prop_type == "integer":
-            if isinstance(arg_val, bool) or not isinstance(arg_val, int):
-                return f"Parameter '{arg_name}' must be an integer"
-        elif prop_type == "number":
-            if isinstance(arg_val, bool) or not isinstance(arg_val, (int, float)):
-                return f"Parameter '{arg_name}' must be a number"
-        elif prop_type == "boolean":
-            if not isinstance(arg_val, bool):
-                return f"Parameter '{arg_name}' must be a boolean"
-        elif prop_type == "object":
-            if not isinstance(arg_val, dict):
-                return f"Parameter '{arg_name}' must be an object"
-        elif prop_type == "array":
-            if not isinstance(arg_val, list):
-                return f"Parameter '{arg_name}' must be an array"
-                
-        # Check enum
-        if "enum" in prop_schema:
-            if arg_val not in prop_schema["enum"]:
-                allowed = ", ".join(repr(x) for x in prop_schema["enum"])
-                return f"Parameter '{arg_name}' must be one of: {allowed}"
-                
-    return None
+    try:
+        strict_schema = dict(schema)
+        # MCP tools are closed contracts: silently accepting typoed fields is
+        # dangerous for action-bearing operations.
+        strict_schema.setdefault("additionalProperties", False)
+        Draft202012Validator(strict_schema).validate(arguments)
+        return None
+    except ValidationError as exc:
+        location = ".".join(str(item) for item in exc.absolute_path)
+        return f"{location + ': ' if location else ''}{exc.message}"
 
 
 def main():
     import sys
-    import concurrent.futures
     
     # Determine input stream
     if hasattr(sys.stdin, "buffer"):
@@ -1357,20 +1519,32 @@ def main():
                             res = health_check()
                         elif tool_name == "server_info":
                             res = server_info()
+                        elif tool_name == "scan_plan":
+                            res = scan_plan(**arguments)
+                        elif tool_name == "project_status":
+                            res = project_status(**arguments)
+                        elif tool_name == "onboard":
+                            res = onboard(**arguments)
                         elif tool_name == "analyze_project":
                             timeout_seconds = arguments.get("timeout_seconds")
-                            # Run under concurrent thread executor to support timeout constraints
-                            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                                future = executor.submit(analyze_project, **arguments)
-                                try:
-                                    res = future.result(timeout=timeout_seconds)
-                                except concurrent.futures.TimeoutError:
-                                    res = {
-                                        "tool": "analyze_project",
-                                        "status": "error",
-                                        "path": arguments.get("project_path"),
-                                        "error": f"Analysis timed out after {timeout_seconds} seconds"
-                                    }
+                            from impact_engine.persistence import CancellationToken
+                            cancellation = CancellationToken()
+                            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                            future = executor.submit(analyze_project, **arguments, cancellation=cancellation)
+                            try:
+                                res = future.result(timeout=timeout_seconds)
+                            except concurrent.futures.TimeoutError:
+                                cancellation.cancel()
+                                future.cancel()
+                                res = {
+                                    "tool": "analyze_project", "status": "error",
+                                    "path": arguments.get("project_path"),
+                                    "error": f"Analysis timed out after {timeout_seconds} seconds; cancellation requested",
+                                }
+                            finally:
+                                # Do not wait for a timed-out worker. Pipeline cancellation is
+                                # cooperative and avoids the old context-manager join.
+                                executor.shutdown(wait=False, cancel_futures=True)
                         elif tool_name == "impact_query":
                             if "max_depth" in arguments and arguments["max_depth"] is not None:
                                 arguments["max_depth"] = min(arguments["max_depth"], 100)
@@ -1435,6 +1609,8 @@ def main():
                             res = registry_check_documentation(**arguments)
                         elif tool_name == "registry_simulate_lifecycle":
                             res = registry_simulate_lifecycle(**arguments)
+                        elif tool_name == "request_action_approval":
+                            res = request_action_approval(**arguments)
                         elif tool_name == "list_managed_tools":
                             res = list_managed_tools(**arguments)
                         elif tool_name == "connect_managed_tool":
@@ -1452,10 +1628,13 @@ def main():
                         else:
                             raise ValueError(f"Unknown tool: {tool_name}")
 
+                        tool_error = isinstance(res, dict) and res.get("status") in {"error", "failed", "timeout", "cancelled"}
                         resp = {
                             "jsonrpc": "2.0",
                             "id": rpc_id,
                             "result": {
+                                "isError": tool_error,
+                                "structuredContent": res,
                                 "content": [
                                     {
                                         "type": "text",

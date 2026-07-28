@@ -66,6 +66,41 @@ def main() -> int:
         discovered_plugins = {item.strip() for item in plugin_probe.stdout.split(",") if item.strip()}
         assert {"language.python", "language.typescript", "language.csharp"} <= discovered_plugins
 
+        # Framework support packs are runtime assets too: compat manifests
+        # refer to them during a real installed analysis, not merely in a
+        # source checkout.
+        pack_probe = subprocess.run(
+            [
+                str(python),
+                "-c",
+                "from impact_engine.support_packs.paths import builtin_support_packs_root; "
+                "root=builtin_support_packs_root(); "
+                "assert (root/'python'/'fastapi'/'support_pack.json').is_file(); "
+                "assert (root/'python'/'sqlalchemy'/'support_pack.json').is_file(); "
+                "assert (root/'javascript'/'express'/'support_pack.json').is_file(); "
+                "print(root)",
+            ],
+            text=True,
+            capture_output=True,
+            check=True,
+            cwd=root,
+        )
+        assert pack_probe.stdout.strip()
+
+        framework_analysis = """
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from impact_engine.analysis.pipeline import analyze_project_core
+with TemporaryDirectory() as raw:
+    project = Path(raw)
+    (project / 'requirements.txt').write_text('fastapi\\nsqlalchemy\\n', encoding='utf-8')
+    (project / 'app.py').write_text('from fastapi import FastAPI\\nfrom sqlalchemy import create_engine\\napp = FastAPI()\\n', encoding='utf-8')
+    result = analyze_project_core(str(project), create_research_requests=False)
+    libraries = {item['library'] for item in result['graph']['metadata'].get('support_pack_context', [])}
+    assert {'fastapi', 'sqlalchemy'} <= libraries, libraries
+"""
+        subprocess.run([str(python), "-c", framework_analysis], cwd=root, check=True)
+
         port = _free_port()
         server = subprocess.Popen(
             [str(_command(venv, "impact-engine-local-api")), "--host", "127.0.0.1", "--port", str(port)],

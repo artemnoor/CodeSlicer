@@ -86,9 +86,12 @@ def test_browser_shows_a_single_project_map_and_optional_graphify():
             page.route("**/api/**", route_handler)
             page.goto(f"http://127.0.0.1:{server.server_port}/", wait_until="networkidle")
 
-            assert page.url.endswith("#map")
-            assert page.locator(".simple-nav a").count() == 2
-            assert page.get_by_text("Проверка изменений", exact=True).count() == 0
+            # Review is the daily entry point; the project map remains an
+            # explicit investigation surface rather than the landing page.
+            assert page.url.endswith("#review")
+            assert page.locator(".simple-nav a").count() == 3
+            assert page.get_by_text("Проверка изменений", exact=True).count() == 1
+            page.get_by_role("link", name="Карта проекта").click()
             page.locator(".projection-svg").wait_for()
             page.locator(".network-node").first.click()
             page.locator("#mapInspector").get_by_text("service", exact=True).wait_for()
@@ -124,7 +127,7 @@ def test_browser_missing_project_stays_on_simple_onboarding(tmp_path: Path):
             page.goto(f"http://127.0.0.1:{server.server_port}/#review", wait_until="networkidle")
             page.locator("#onboardingError").get_by_text("Папка проекта не найдена", exact=False).wait_for()
             assert page.locator("#onboarding").is_visible()
-            assert page.url.endswith("#map")
+            assert page.url.endswith("#review")
             browser.close()
     finally:
         server.shutdown()

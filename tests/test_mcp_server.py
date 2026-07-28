@@ -139,5 +139,8 @@ def test_mcp_analyze_project_exposes_new_keys(temp_graph_path):
     assert "extractors_used" in res
     assert "diagnostics" in res
     assert "support_pack_load_errors" in res
-    assert "graph" in res
-
+    # Full graphs are explicitly opt-in for MCP: returning thousands of nodes
+    # by default wastes the agent context window.
+    assert "graph" not in res
+    expanded = analyze_project(str(PROJECT_PATH), out_path=str(temp_graph_path), include_graph=True)
+    assert "graph" in expanded

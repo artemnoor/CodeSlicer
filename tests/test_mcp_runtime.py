@@ -186,10 +186,14 @@ def test_mcp_managed_upstream_tool_catalog_is_available_to_agents(tmp_path, monk
     monkeypatch.setenv("CODESLICER_TOOL_RUNTIME_ROOT", str(tmp_path / "runtime"))
     definition = ManagedToolDefinition("demo", "Demo", str(upstream), "fixture")
     monkeypatch.setattr(server, "ToolRuntime", lambda project_path: ToolRuntime(project_path, [definition]))
+    pending = server.request_action_approval(
+        str(project), "managed_tool.connect", {"tool_id": "demo", "ref": ""},
+    )
+    approval = server.approve_action_locally(str(project), pending["approval"]["approval_id"])
     messages = [
         {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
         {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "list_managed_tools", "arguments": {"project_path": str(project)}}},
-        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "connect_managed_tool", "arguments": {"project_path": str(project), "tool_id": "demo", "confirmed": True}}},
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "connect_managed_tool", "arguments": {"project_path": str(project), "tool_id": "demo", "approval_id": approval["approval_id"], "approval_token": approval["approval_token"]}}},
         {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "read_managed_tool_docs", "arguments": {"project_path": str(project), "tool_id": "demo", "query": "inspect"}}},
     ]
     responses = run_mcp_messages(messages, monkeypatch)
@@ -217,9 +221,19 @@ def test_mcp_analyze_project_timeout(monkeypatch):
         }
     }], monkeypatch)
     assert len(res) == 1
-    content = json.loads(res[0]["result"]["content"][0]["text"])
-    assert content["status"] == "error"
-    assert "timed out" in content["error"]
+    assert res[0]["error"]["code"] == -32602
+    assert "minimum" in res[0]["error"]["message"]
+
+
+def test_mcp_project_onboarding_preflight_is_available_without_terminal_access():
+    from impact_engine.mcp.server import project_status, scan_plan
+
+    plan = scan_plan(str(PROJECT_PATH))
+    assert plan["status"] == "ok"
+    assert plan["inventory"]["files"] > 0
+    status = project_status(str(PROJECT_PATH))
+    assert status["status"] == "ok"
+    assert status["privacy"]["network_used"] is False
 
 
 def test_mcp_subprocess_real(tmp_path):

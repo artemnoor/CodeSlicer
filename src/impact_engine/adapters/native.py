@@ -21,6 +21,8 @@ import shutil
 import subprocess
 from typing import Any
 
+from .graphify_paths import graphify_artifact_root, graphify_graph_path
+
 
 MAX_OUTPUT_CHARS = 24_000
 MAX_TIMEOUT_SECONDS = 60
@@ -267,9 +269,10 @@ def _command(adapter_id: str, operation_id: str, project: Path, query: str, conf
         raise FileNotFoundError(f"No local executable for {adapter_id}; install it separately or configure a local artifact")
     if adapter_id == "graphify":
         if operation_id == "probe": return [executable, "--version"]
-        if operation_id == "index": return [executable, "extract", str(project), "--code-only"]
-        if operation_id == "refresh": return [executable, str(project), "--update"]
-        if operation_id == "query": return [executable, "query", query, "--graph", str(project / "graphify-out" / "graph.json")]
+        graph_root = graphify_artifact_root(project)
+        if operation_id == "index": return [executable, "extract", str(project), "--code-only", "--out", str(graph_root)]
+        if operation_id == "refresh": return [executable, str(project), "--update", "--out", str(graph_root)]
+        if operation_id == "query": return [executable, "query", query, "--graph", str(graphify_graph_path(project))]
     if adapter_id == "codegraph":
         if operation_id == "probe": return [executable, "--version"]
         # CodeGraph's documented first-run entry point is `init`, which also

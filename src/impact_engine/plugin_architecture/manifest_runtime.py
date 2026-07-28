@@ -55,12 +55,12 @@ class ManifestFrameworkPlugin:
 
     def load_compatibility_pack(self) -> Any:
         from impact_engine.support_packs.registry import load_support_pack
+        from impact_engine.support_packs.paths import builtin_support_packs_root
 
         source = self.manifest.activation.get("compat_source")
         if not source:
             return None
-        repo_root = Path(__file__).resolve().parents[3]
-        path = repo_root / str(source)
+        path = builtin_support_packs_root() / Path(str(source)).relative_to("support_packs")
         return load_support_pack(path) if path.is_file() else None
 
     def semantic_recipes(self) -> list[Any]:

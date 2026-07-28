@@ -8,7 +8,8 @@ dependencies = [
     "tree-sitter",
     "tree-sitter-language-pack",
     "requests",
-    "PyYAML>=6.0"
+    "PyYAML>=6.0",
+    "jsonschema>=4.23"
 ]
 
 [project.optional-dependencies]
@@ -40,7 +41,7 @@ include = [
 exclude = ["tests*", "build*", "dist*"]
 
 [tool.setuptools.package-data]
-impact_engine = ["agent_skills/**/*.md"]
+impact_engine = ["agent_skills/**/*.md", "support_packs/builtin/**/*.json"]
 plugins = ["**/*.json", "**/*.md"]
 
 [tool.pytest.ini_options]

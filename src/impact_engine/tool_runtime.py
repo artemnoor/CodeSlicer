@@ -281,7 +281,8 @@ class ToolRuntime:
         self._definition(tool_id)
         repo = self._repo(tool_id)
         candidate = (repo / relative_path).resolve()
-        if not str(candidate).startswith(str(repo.resolve())) or not candidate.is_file():
+        resolved_repo = repo.resolve()
+        if (candidate != resolved_repo and resolved_repo not in candidate.parents) or not candidate.is_file():
             raise ValueError("document path must resolve inside the connected local repository")
         start = max(int(offset), 0)
         page_limit = min(max(int(limit_bytes), 1), MAX_DOC_BYTES)
