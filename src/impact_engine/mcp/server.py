@@ -35,6 +35,39 @@ def _approval_payload(**values: Any) -> dict[str, Any]:
     return values
 
 
+def _approval_next_step(project_path: str, approval_id: str) -> str:
+    """Describe the host-only handoff without exposing an approval token."""
+    return (
+        "A project owner must approve this request locally. Run "
+        f'`impact-engine --json approvals approve "{Path(project_path).resolve()}" '
+        f'"{approval_id}"`, then repeat this same tool call with the returned '
+        "approval_id and one-time approval_token."
+    )
+
+
+def _pending_approval(
+    project_path: str,
+    action: str,
+    payload: dict[str, Any],
+    tool: str,
+) -> Dict[str, Any]:
+    """Create the exact approval request for a sensitive tool invocation.
+
+    MCP clients should call the desired tool first.  This prevents an agent
+    from having to reconstruct a security-sensitive payload in a separate
+    request_action_approval call.
+    """
+    root = str(Path(project_path).resolve())
+    approval = ApprovalStore(root).request(action, payload)
+    return {
+        "tool": tool,
+        "status": "pending_approval",
+        "project_path": root,
+        "approval": approval,
+        "next_step": _approval_next_step(root, approval["approval_id"]),
+    }
+
+
 def request_action_approval(
     project_path: str,
     action: str,
@@ -54,12 +87,7 @@ def request_action_approval(
         "status": "pending_approval",
         "project_path": str(Path(project_path).resolve()),
         "approval": approval,
-        "next_step": (
-            "A project owner must approve this request locally. Run "
-            f"`impact-engine --json approvals approve \"{Path(project_path).resolve()}\" "
-            f"\"{approval['approval_id']}\"`, then supply the returned one-time "
-            "approval_id and approval_token to the original action."
-        ),
+        "next_step": _approval_next_step(project_path, approval["approval_id"]),
     }
 
 
@@ -73,6 +101,27 @@ def _consume_approval(project_path: str, approval_id: str | None, approval_token
     if not approval_id or not approval_token:
         raise ValueError("a one-time local-host approval_id and approval_token are required")
     ApprovalStore(project_path).consume(approval_id, approval_token, action, payload)
+
+
+def _consume_or_request_approval(
+    project_path: str,
+    approval_id: str | None,
+    approval_token: str | None,
+    action: str,
+    payload: dict[str, Any],
+    tool: str,
+) -> Dict[str, Any] | None:
+    """Consume an approved request or return a precise pending response.
+
+    A partial credential pair is deliberately rejected: silently replacing a
+    supplied identifier/token would make approval failures hard to diagnose.
+    """
+    if approval_id is None and approval_token is None:
+        return _pending_approval(project_path, action, payload, tool)
+    if not approval_id or not approval_token:
+        raise ValueError("approval_id and approval_token must be supplied together")
+    _consume_approval(project_path, approval_id, approval_token, action, payload)
+    return None
 
 
 def health_check() -> Dict[str, Any]:
@@ -216,7 +265,7 @@ def onboard(
     try:
         if allow_network or graphify_mode != "off":
             approval_root = source if Path(source).is_dir() else (workspace or Path.cwd())
-            _consume_approval(
+            pending = _consume_or_request_approval(
                 str(approval_root), approval_id, approval_token, "project.onboard",
                 _approval_payload(
                     executable="git" if allow_network else "graphify",
@@ -224,7 +273,10 @@ def onboard(
                     cwd=str(Path(workspace or Path.cwd()).resolve()), timeout_seconds=graphify_timeout_seconds,
                     network_expected=allow_network, source=source, branch=branch or "", graphify_mode=graphify_mode,
                 ),
+                "onboard",
             )
+            if pending:
+                return pending
         result = onboard_project(source, allow_network=allow_network, workspace=workspace, branch=branch, graphify_mode=graphify_mode, graphify_timeout_seconds=graphify_timeout_seconds)
         return {"tool": "onboard", "status": result.get("status", "ok"), "result": result}
     except Exception as exc:
@@ -414,10 +466,13 @@ def investigate(
         if graph_path:
             _verify_path_exists(graph_path)
         if runtime_validate:
-            _consume_approval(
+            pending = _consume_or_request_approval(
                 project_path, approval_id, approval_token, "investigate.runtime_validate",
                 _approval_payload(executable="python", argv=["-m", "pytest"], cwd=str(Path(project_path).resolve()), timeout_seconds=60, network_expected=False, entity=entity, graph_path=graph_path or ""),
+                "investigate",
             )
+            if pending:
+                return pending
         result = build_investigate_report(project_path, entity=entity, graph_path=graph_path, direction=direction, depth=depth, runtime_validate=runtime_validate, max_nodes=max_nodes, max_edges=max_edges, refresh=refresh)
         return {"tool": "investigate", "status": "ok", "project_path": project_path, "result": result, "mode_response": _mode_response("investigate", project_path, result)}
     except Exception as e:
@@ -444,7 +499,9 @@ def ci(
                 _verify_path_exists(candidate)
         if run_tests:
             payload = _approval_payload(test_command=test_command or [], base=base or "", refresh=refresh)
-            _consume_approval(project_path, approval_id, approval_token, "ci.run_tests", payload)
+            pending = _consume_or_request_approval(project_path, approval_id, approval_token, "ci.run_tests", payload, "ci")
+            if pending:
+                return pending
         result = build_ci_report(project_path, base=base, policy_path=policy_path, graph_path=graph_path, diff_text=diff_text, refresh=refresh, run_tests=run_tests, test_command=test_command)
         return {"tool": "ci", "status": "ok", "project_path": project_path, "result": result, "mode_response": _mode_response("ci", project_path, result)}
     except Exception as e:
@@ -466,7 +523,9 @@ def runtime_trace(
         if graph_path:
             _verify_path_exists(graph_path)
         payload = _approval_payload(test_command=test_command or [], timeout_seconds=timeout_seconds, graph_path=graph_path or "")
-        _consume_approval(project_path, approval_id, approval_token, "runtime_trace", payload)
+        pending = _consume_or_request_approval(project_path, approval_id, approval_token, "runtime_trace", payload, "runtime_trace")
+        if pending:
+            return pending
         result = runtime_trace_project_core(
             project_path,
             graph_path=graph_path,
@@ -659,10 +718,13 @@ def prepare_library_research_input(
         if allow_network:
             approval_root = approval_project_path or str(Path.cwd())
             _verify_path_exists(approval_root)
-            _consume_approval(
+            pending = _consume_or_request_approval(
                 approval_root, approval_id, approval_token, "research.fetch_pages",
                 _approval_payload(executable="research-fetcher", argv=["fetch-pages", workflow_id], cwd=str(Path(approval_root).resolve()), timeout_seconds=120, network_expected=True, workflow_id=workflow_id),
+                "prepare_library_research_input",
             )
+            if pending:
+                return pending
             fetch_pages(workflow_id)
         input_pack = build_input_pack(workflow_id)
         return {
@@ -755,10 +817,13 @@ def registry_process_research_queue(
 
     _verify_path_exists(project_path)
     if allow_network:
-        _consume_approval(
+        pending = _consume_or_request_approval(
             project_path, approval_id, approval_token, "research.fetch_pages",
             _approval_payload(executable="research-fetcher", argv=["process-queue", str(limit)], cwd=str(Path(project_path).resolve()), timeout_seconds=120, network_expected=True, limit=limit),
+            "registry_process_research_queue",
         )
+        if pending:
+            return pending
     return {
         "tool": "registry_process_research_queue",
         **process_local_research_queue(project_path=project_path, limit=limit, allow_network=allow_network),
@@ -809,7 +874,9 @@ def connect_managed_tool(
     approval_token: str | None = None,
 ) -> Dict[str, Any]:
     _verify_path_exists(project_path)
-    _consume_approval(project_path, approval_id, approval_token, "managed_tool.connect", _approval_payload(tool_id=tool_id, ref=ref or ""))
+    pending = _consume_or_request_approval(project_path, approval_id, approval_token, "managed_tool.connect", _approval_payload(tool_id=tool_id, ref=ref or ""), "connect_managed_tool")
+    if pending:
+        return pending
     status = ToolRuntime(project_path).connect(tool_id, confirmed=True, ref=ref)
     return {
         "tool": "connect_managed_tool",
@@ -850,10 +917,13 @@ def managed_tool_help(
     _verify_path_exists(project_path)
     runtime = ToolRuntime(project_path)
     executable = runtime.status(tool_id).get("executable")
-    _consume_approval(
+    pending = _consume_or_request_approval(
         project_path, approval_id, approval_token, "managed_tool.help",
         _approval_payload(executable=executable or "", argv=["--help"], cwd=str(Path(project_path).resolve()), timeout_seconds=30, network_expected=False, tool_id=tool_id),
+        "managed_tool_help",
     )
+    if pending:
+        return pending
     result = runtime.help(tool_id)
     return {"tool": "managed_tool_help", "status": "ok", **result}
 
@@ -868,10 +938,13 @@ def run_managed_tool(
     approval_token: str | None = None,
 ) -> Dict[str, Any]:
     _verify_path_exists(project_path)
-    _consume_approval(
+    pending = _consume_or_request_approval(
         project_path, approval_id, approval_token, "managed_tool.run",
         _approval_payload(tool_id=tool_id, argv=argv, workspace=workspace, timeout_seconds=timeout_seconds),
+        "run_managed_tool",
     )
+    if pending:
+        return pending
     result = ToolRuntime(project_path).run(
         tool_id,
         argv=argv,
@@ -915,7 +988,7 @@ TOOLS = [
     },
     {
         "name": "onboard",
-        "description": "Onboard a local project. Git clone or optional Graphify execution requires a matching one-time local-host approval.",
+        "description": "Onboard a local project. If Git clone or Graphify execution needs consent, this call returns pending_approval with its exact host approval request.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1055,7 +1128,7 @@ TOOLS = [
     },
     {
         "name": "investigate",
-        "description": "Run an explicit bounded deep impact traversal with graph diagnostics and unresolved regions.",
+        "description": "Run an explicit bounded deep impact traversal. With runtime_validate=true, the first call returns pending_approval for the exact test execution.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1075,7 +1148,7 @@ TOOLS = [
     },
     {
         "name": "ci",
-        "description": "Evaluate the shared review projection with a local CI policy; no tests or network by default. Running tests needs a one-time local-host approval.",
+        "description": "Evaluate the shared review projection with a local CI policy; no tests or network by default. With run_tests=true, the first call returns pending_approval for the exact test execution.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1095,7 +1168,7 @@ TOOLS = [
     },
     {
         "name": "runtime_trace",
-        "description": "Run Python tests under runtime tracing and boost matched graph edges. Requires a one-time local-host approval because it starts a process.",
+        "description": "Run Python tests under runtime tracing and boost matched graph edges. The first call returns pending_approval because it starts a process.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1107,7 +1180,7 @@ TOOLS = [
                 "approval_id": {"type": "string"},
                 "approval_token": {"type": "string"}
             },
-            "required": ["project_path", "approval_id", "approval_token"]
+            "required": ["project_path"]
         }
     },
     {
@@ -1325,12 +1398,12 @@ TOOLS = [
 TOOLS.extend([
     {
         "name": "request_action_approval",
-        "description": "Create a pending approval for a process or network action. This MCP call cannot approve it; a local CodeSlicer host must do that separately.",
+        "description": "Advanced escape hatch to create a pending approval manually. Normally call the sensitive tool directly: it returns pending_approval with the exact payload automatically.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "project_path": {"type": "string"},
-                "action": {"type": "string", "enum": ["managed_tool.connect", "managed_tool.run", "managed_tool.help", "runtime_trace", "investigate.runtime_validate", "ci.run_tests", "project.onboard"]},
+                "action": {"type": "string", "enum": ["managed_tool.connect", "managed_tool.run", "managed_tool.help", "runtime_trace", "investigate.runtime_validate", "ci.run_tests", "project.onboard", "research.fetch_pages"]},
                 "payload": {"type": "object"},
                 "ttl_seconds": {"type": "integer", "minimum": 30, "maximum": 900, "default": 300},
             },
@@ -1348,7 +1421,7 @@ TOOLS.extend([
     },
     {
         "name": "connect_managed_tool",
-        "description": "Clone the complete upstream Git repository into private CodeSlicer storage after a matching one-time local-host approval. Does not build, install, or start it.",
+        "description": "Clone the complete upstream Git repository into private CodeSlicer storage. The first call returns pending_approval; after local approval, repeat it with the returned credentials. Does not build, install, or start it.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1358,7 +1431,7 @@ TOOLS.extend([
                 "approval_id": {"type": "string"},
                 "approval_token": {"type": "string"},
             },
-            "required": ["project_path", "tool_id", "approval_id", "approval_token"],
+            "required": ["project_path", "tool_id"],
         },
     },
     {
@@ -1396,16 +1469,16 @@ TOOLS.extend([
     },
     {
         "name": "managed_tool_help",
-        "description": "Run the configured local upstream executable with --help after a matching one-time local-host approval.",
+        "description": "Run the configured local upstream executable with --help. The first call returns pending_approval; after local approval, repeat it with the credentials.",
         "inputSchema": {
             "type": "object",
             "properties": {"project_path": {"type": "string"}, "tool_id": {"type": "string"}, "approval_id": {"type": "string"}, "approval_token": {"type": "string"}},
-            "required": ["project_path", "tool_id", "approval_id", "approval_token"],
+            "required": ["project_path", "tool_id"],
         },
     },
     {
         "name": "run_managed_tool",
-        "description": "Run a complete raw argv command on a configured local upstream executable. It never uses a shell and requires a matching one-time local-host approval for each invocation.",
+        "description": "Run a complete raw argv command on a configured local upstream executable. It never uses a shell. The first call returns pending_approval for the exact invocation.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1416,7 +1489,7 @@ TOOLS.extend([
                 "approval_id": {"type": "string"},
                 "approval_token": {"type": "string"},
             },
-            "required": ["project_path", "tool_id", "argv", "approval_id", "approval_token"],
+            "required": ["project_path", "tool_id", "argv"],
         },
     },
 ])

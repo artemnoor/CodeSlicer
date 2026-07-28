@@ -98,6 +98,15 @@ MCP-агент способен только создать pending-запрос
 токен, повторно использовать его или заменить параметры уже подтверждённой
 команды. Владелец проекта проверяет и подтверждает запрос локально:
 
+Для обычного MCP-сценария агенту **не нужно сначала собирать `payload` и
+вызывать `request_action_approval`**. Он вызывает нужный чувствительный
+инструмент (например, `runtime_trace`, `onboard` с clone, `managed_tool_help`
+или `run_managed_tool`) с его реальными параметрами. Без credentials тот сам
+возвращает `status: pending_approval`, уже связанный с точным action и
+payload. После локального approval агент повторяет тот же вызов с выданными
+`approval_id` и `approval_token`. Ручной `request_action_approval` оставлен
+только для advanced-интеграций.
+
 ```powershell
 impact-engine --json approvals list C:\Projects\my-app
 impact-engine --json approvals show C:\Projects\my-app <approval-id>

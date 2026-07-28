@@ -6,7 +6,14 @@ import threading
 
 from impact_engine.approvals import ApprovalStore
 from impact_engine.cli import main
-from impact_engine.mcp.server import connect_managed_tool, request_action_approval
+from impact_engine.mcp.server import (
+    connect_managed_tool,
+    investigate,
+    managed_tool_help,
+    onboard,
+    request_action_approval,
+    runtime_trace,
+)
 
 
 def test_approval_is_one_time_and_bound_to_its_payload(tmp_path):
@@ -30,6 +37,28 @@ def test_mcp_connect_rejects_a_plain_confirmation_boolean(tmp_path):
     assert pending["status"] == "pending_approval"
     with pytest.raises(TypeError):
         connect_managed_tool(str(tmp_path), "graphify", confirmed=True)  # type: ignore[call-arg]
+
+
+def test_sensitive_mcp_calls_create_their_own_exact_pending_approval(tmp_path):
+    """Agents call the target tool once; they never reconstruct approval payloads."""
+    cases = [
+        (connect_managed_tool(str(tmp_path), "graphify"), "connect_managed_tool", "managed_tool.connect"),
+        (managed_tool_help(str(tmp_path), "graphify"), "managed_tool_help", "managed_tool.help"),
+        (runtime_trace(str(tmp_path)), "runtime_trace", "runtime_trace"),
+        (investigate(str(tmp_path), "missing", runtime_validate=True), "investigate", "investigate.runtime_validate"),
+        (onboard(str(tmp_path), graphify_mode="auto"), "onboard", "project.onboard"),
+    ]
+    for result, tool, action in cases:
+        assert result["tool"] == tool
+        assert result["status"] == "pending_approval"
+        assert result["approval"]["action"] == action
+        assert result["approval"]["approval_id"] in result["next_step"]
+
+
+def test_partial_mcp_approval_credentials_are_rejected_not_replaced(tmp_path):
+    result = runtime_trace(str(tmp_path), approval_id="only-an-id")
+    assert result["status"] == "error"
+    assert "supplied together" in result["error"]
 
 
 def test_host_listing_redacts_verifier_and_rejects_path_like_ids(tmp_path):

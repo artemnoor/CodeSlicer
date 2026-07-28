@@ -1,43 +1,22 @@
 ---
 name: graphify-architecture-analysis
-description: Анализ верхнеуровневой архитектуры, детекция сообществ (community detection), навигация по ADR, связям модулей и нативный запуск Graphify CLI.
+description: Нативный Graphify для карты архитектуры, сообществ, документации и ADR; его отдельный граф не подменяет evidence CodeSlicer.
 ---
 
-# Скилл 2: Graphify Architecture Analysis (Архитектура & ADR)
+# Graphify: архитектурная карта
 
-Этот скилл применяется, когда задача требует **верхнеуровневого понимания структуры репозитория, поиска архитектурных сообществ или навигации по ADR/документации**.
+Применяйте Graphify для первого знакомства с репозиторием, групп модулей, community detection, документации и ADR. Его исходный artefact и визуализация остаются отдельными от canonical graph CodeSlicer.
 
-## Основные назначения скилла
-- Построение и просмотр граф-карт сообществ (Community Detection).
-- Индексация архитектуры проекта нативным CLI Graphify.
-- Поиск архитектурных документов (ADR) и связывание их с модулями.
-- Поверхностный обзор незнакомого репозитория.
+## Порядок работы
 
----
+1. Проверьте `project_status` и список подключённых tools/adapters.
+2. Если Graphify ещё не построен, предложите нативный запуск `impact-engine adapters native <project> graphify index --confirm` или managed Graphify tool.
+3. Запрашивайте темы/модули нативной командой Graphify и читайте его документы через managed-tool API, когда checkout подключён.
+4. Импортируйте `graphify-out/graph.json` как supplemental overlay только по явному действию пользователя. Он расширяет навигацию и объяснения, но не меняет canonical ranking сам по себе.
+5. Когда пользователь выбирает файл или символ на архитектурной карте, передавайте его в CodeSlicer `inspect`/`review` для доказуемого impact и тестов.
 
-## Порядок работы Агента
+## Границы и approvals
 
-### 1. Нативное индексирование проекта через Graphify CLI
-Если пользователь хочет обновить архитектурную карту через отдельный инструмент Graphify:
-```bash
-impact-engine adapters native <path_to_project> graphify index --confirm
-```
-*Примечание*: Выполнение создаст или обновит локальный артефакт `graphify-out/graph.json`.
+Graphify может быть установлен, подключён и использован полностью как самостоятельный upstream-инструмент. Подключение/clone и запуск CLI — чувствительные действия: вызовите соответствующий managed MCP tool напрямую. Он вернёт `pending_approval` с точным запросом; после локального подтверждения повторите тот же вызов с credentials. Не формируйте approval payload вручную.
 
-### 2. Запрос к архитектурному графу Graphify
-Для выполнения нативного запроса к графу Graphify:
-```bash
-impact-engine adapters native <path_to_project> graphify query --query "<ArchitecturalConceptOrModule>" --confirm
-```
-
-### 3. Импорт и включение оверлея Graphify в карту CodeSlicer
-Если требуется отобразить оверлей сообществ Graphify в общем веб-интерфейсе CodeSlicer:
-```bash
-impact-engine adapters import <path_to_project> graphify <path_to_project>/graphify-out/graph.json --enable
-```
-
----
-
-## Правила взаимодействия
-1. **Изоляция доказательств**: Результаты Graphify используются для объяснения архитектуры, комьюнити и концепций модулей.
-2. **Отображение пользователю**: Формируйте ответ в виде высокоуровневой карты кластеров (например, `Community: Core Services`, `Community: UI Components`), указывая привязанные ADR и документы.
+В ответах всегда подписывайте источник: `Graphify architecture context` либо `CodeSlicer canonical evidence`.

@@ -1,57 +1,28 @@
 ---
 name: codeslicer-impact-analysis
-description: Evidence-gated статический анализ влияния изменений, PR-review, оценки рисков, поиска затронутых тестов и глубокого исследования цепочек вызовов.
+description: Evidence-gated анализ влияния изменений: статусы проекта, bounded review, inspect, investigate, Git diff и targeted tests.
 ---
 
-# Скилл 1: CodeSlicer Impact Analysis (Точный граф влияния)
+# CodeSlicer: точный анализ влияния
 
-Этот скилл применяется, когда задача требует воспроизводимого анализа влияния. Он опирается на evidence и confidence, но не обещает абсолютную точность: динамические зависимости, неподдержанный язык и неполное покрытие остаются в диагностике.
+Используйте этот skill для изменений, PR, рефакторинга, поиска затронутого кода и выбора тестов. CodeSlicer — источник canonical evidence; он различает `confirmed`, `likely` и `unresolved`.
 
-## Основные назначения скилла
-- Анализ влияния рефакторинга (`impact_query`).
-- Оценка рисков Pull Request (`pr_review`).
-- Автоматический подбор минимально необходимого набора тестов (`linked_tests`).
-- Разбор строгих доказательств связей (`explain_edge`).
+## Рабочий порядок
 
----
+1. Вызовите `project_status`. Если граф отсутствует, сначала `scan_plan`, затем `analyze_project`.
+2. Для diff/ветки начните с `review(project_path, max_results=10)`. Это компактная decision-проекция, а не полный технический closure.
+3. Для важной сущности вызовите `inspect`: в ответе должны быть причина, evidence, coverage и рекомендации тестов.
+4. Только при вопросе о глубокой цепочке используйте `investigate` с ограниченными `depth`, `max_nodes`, `max_edges`.
+5. Для двух точных символов используйте `impact_path` и `explain_edge`; для неоднозначного имени обработайте `needs_selection`.
 
-## Порядок работы Агента
+## Git и тесты
 
-### 1. Первичная инвентаризация и граф (при необходимости)
-Если граф проекта не построен или устарел:
-```bash
-impact-engine analyze <path_to_project> --use-scan-plan
-```
-Или вызовите MCP-инструмент `analyze_project`.
+- `review` и `ci(run_tests=false)` только анализируют diff и подбирают тесты.
+- Показывайте top-5/top-10, уровень риска, причины и рекомендуемые тесты. Не оценивайте качество по количеству nodes.
+- Прежде чем реально запускать тесты, покажите команду и получите явное согласие владельца. В MCP вызов `ci(run_tests=true)`, `runtime_trace` или `investigate(runtime_validate=true)` без credentials вернёт `pending_approval`; после локального подтверждения повторите тот же вызов с токеном.
 
-### 2. Исполнение Impact Query
-Для поиска цепочек влияния вызовите MCP-инструмент `impact_query` или CLI:
-```bash
-impact-engine --json impact <graph.json> --symbol "<TargetSymbol>" --direction both
-```
-**Допустимые направления**:
-- `upstream` — кто зависит от данного символа (что сломается выше).
-- `downstream` — от кого зависит данный символ (что ему нужно ниже).
-- `both` — полный вектор связей.
+## Правила достоверности
 
-### 3. Выполнение PR-Review
-При проверке Git diff или PR вызовите MCP `pr_review` или CLI:
-```bash
-impact-engine --json pr-review <path_to_project> --graph <graph.json> --diff-file <diff.patch>
-```
-Ответ возвращает:
-- `risk.level`: `LOW` | `MEDIUM` | `HIGH` | `CRITICAL`.
-- `test_recommendations`: список рекомендованных к запуску тестов.
-- `breaking_contracts`: список нарушенных сигнатур.
-
-### 4. Объяснение связи (Explain Edge)
-Для получения строгой цепочки доказательств:
-```bash
-impact-engine explain-edge <graph.json> --from "<SymbolA>" --to "<SymbolB>"
-```
-
----
-
-## Правила взаимодействия
-1. **Никаких выдуманных связей**: разделяйте `confirmed`, `likely` и `unresolved`; по умолчанию не выдавайте вероятную связь за подтверждённую.
-2. **Результаты**: Указывайте пользователю точные файлы, строки и рекомендуемые тесты.
+- Не показывайте assignments, built-ins, внешние библиотеки и speculative edges в default review, если они не несут объяснения риска.
+- Отдельно сообщайте языки/части проекта с limited или unsupported coverage.
+- Если traversal ограничен budget или truncated, это ограничение результата, а не отрицательное доказательство связи.

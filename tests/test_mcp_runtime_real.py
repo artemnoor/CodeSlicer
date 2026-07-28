@@ -61,10 +61,16 @@ def test_all_mcp_tools_return_json_serializable_dicts_without_unexpected_network
             "install_support_pack": server.install_support_pack(str(FASTAPI_PACK), registry_root=str(tmp_path / "registry")),
             "create_library_research_request": server.create_library_research_request("fastapi", "unknown", "pip"),
             "create_library_research_workflow": workflow,
-            "prepare_library_research_input": server.prepare_library_research_input(wf_id, allow_network=True),
-            "validate_library_research_candidate": server.validate_library_research_candidate(wf_id, candidate),
-            "install_library_support_pack": server.install_library_support_pack(wf_id, candidate),
+            "prepare_library_research_input_pending": server.prepare_library_research_input(wf_id, allow_network=True),
         }
+        pending = calls["prepare_library_research_input_pending"]
+        approved = server.approve_action_locally(str(tmp_path), pending["approval"]["approval_id"])
+        calls["prepare_library_research_input"] = server.prepare_library_research_input(
+            wf_id, allow_network=True,
+            approval_id=approved["approval_id"], approval_token=approved["approval_token"],
+        )
+        calls["validate_library_research_candidate"] = server.validate_library_research_candidate(wf_id, candidate)
+        calls["install_library_support_pack"] = server.install_library_support_pack(wf_id, candidate)
     finally:
         os.chdir(old_cwd)
 
@@ -78,6 +84,7 @@ def test_all_mcp_tools_return_json_serializable_dicts_without_unexpected_network
     assert calls["impact_query"]["status"] == "ok"
     assert calls["explain_edge"]["status"] == "ok"
     assert calls["validate_support_pack"]["valid"] is True
+    assert calls["prepare_library_research_input_pending"]["status"] == "pending_approval"
     assert calls["prepare_library_research_input"]["status"] == "ok"
     assert calls["validate_library_research_candidate"]["valid"] is True
     assert calls["install_library_support_pack"]["status"] == "installed"
