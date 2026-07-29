@@ -26,17 +26,70 @@
 
 ![Семантический граф CodeSlicer](docs/images/codeslicer-hero.png)
 
-## Установка из исходников и анализ проекта
+## Начните здесь: Windows, IDE и первый проект
+
+Для первого запуска достаточно Git и Python 3.10+. Не нужно вручную выбирать
+версию Python, ставить `pip`-зависимости глобально или вводить длинную команду
+`py -m impact_engine...`.
 
 ```powershell
+# 1. Скачать CodeSlicer
 git clone https://github.com/artemnoor/CodeSlicer.git
 cd CodeSlicer
 
-# Создаёт изолированное .venv, устанавливает CodeSlicer и сразу открывает меню IDE.
+# 2. Создать изолированное .venv, установить CodeSlicer и открыть меню IDE
 powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
 ```
 
-Ручной вариант для разработки:
+В меню: `↑`/`↓` — перемещение, `Space` — отметить IDE, `Enter` — установить.
+Installer по умолчанию настраивает `user` scope: skills доступны во всех
+последующих проектах. Перезапустите IDE и откройте свой рабочий репозиторий.
+
+### Что делать в новом репозитории
+
+Агент уже может работать: skills дают ему workflow, а при доступе к терминалу
+он запускает CodeSlicer через CLI. MCP — дополнительное удобство для прямых
+структурированных вызовов из IDE, но не обязательное требование.
+
+Чтобы самостоятельно построить граф конкретного проекта, выполните из его
+папки (укажите путь к клону CodeSlicer один раз):
+
+```powershell
+$codeslicer = 'C:\work\CodeSlicer\.venv\Scripts\codeslicer.exe'
+& $codeslicer onboard .
+& $codeslicer review .
+```
+
+Для Codex после установки достаточно перезапустить IDE. Для Kodik skills
+работают сразу; его MCP подключается отдельно только если нужен, после создания
+MCP-настройки в Kodik UI: `& $codeslicer agent repair`.
+
+### CodeSlicer и Graphify — разные слои
+
+| Что | Ставится при первом запуске | Для чего | Где результат |
+| --- | --- | --- | --- |
+| CodeSlicer core | Да | impact, review, inspect, тесты | `.impact_engine/graph.json` |
+| Skills для IDE | Да, для выбранных IDE | чтобы агент знал workflow | настройки выбранной IDE |
+| MCP | Да, где клиент поддерживает конфигурацию | прямые tool-вызовы из IDE | локальная конфигурация IDE |
+| Graphify | Нет | широкий обзор архитектуры и communities | `.codeslicer/artifacts/graphify/graphify-out/` |
+
+Установка CodeSlicer **не клонирует и не скачивает репозиторий Graphify**.
+Skills с названием Graphify — это только инструкция для агента, а не установка
+внешнего инструмента. Graphify подключается позже, для конкретного проекта и
+явным действием:
+
+```powershell
+# Проверить, доступен ли локальный Graphify: без сети и без запуска
+& $codeslicer adapters native . graphify profile --json
+
+# Если он настроен — явно построить отдельную архитектурную карту
+& $codeslicer adapters native . graphify index --confirm
+```
+
+Graphify не заменяет CodeSlicer: его карта помогает найти communities и связи
+архитектуры, а CodeSlicer доказывает конкретный impact и выбирает тесты.
+
+### Ручной вариант для разработки
 
 ```powershell
 py -3 -m venv .venv
@@ -48,7 +101,7 @@ python -m pip install -e .
 codeslicer agent install
 
 # Построить граф проекта и открыть локальный UI
-codeslicer onboard C:\work\my-project --graphify auto
+codeslicer onboard C:\work\my-project
 impact-engine-local-api --default-project C:\work\my-project
 ```
 
@@ -100,8 +153,8 @@ codeslicer agent uninstall
 ## Локальный UI и MCP
 
 Веб-интерфейс работает только на localhost и отображает настоящий
-`GraphDocument`; Graphify появляется отдельно, только когда существует
-`graphify-out/graph.json`.
+`GraphDocument`. Graphify — отдельная, optional-карта: без явного index её нет,
+и UI не подставляет вместо неё данные CodeSlicer.
 
 ![Текущий экран Review в локальном UI](docs/images/codeslicer-current-ui.png)
 

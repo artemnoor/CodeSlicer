@@ -27,6 +27,14 @@ cd CodeSlicer
 powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
 ```
 
+The script creates an isolated `.venv`, installs the package, and opens a
+checkbox menu: arrows move, Space selects IDEs, Enter installs. It uses the
+recommended `user` scope, so the selected IDE integrations are available in
+future projects. Restart the IDE when it finishes.
+
+MCP is optional. The installed skills can guide an agent that has terminal
+access to run the `codeslicer` CLI; MCP only adds direct structured tool calls.
+
 Manual developer setup:
 
 ```powershell
@@ -70,18 +78,27 @@ sqlite
 
 ## Connect a new project
 
-Use onboarding for an existing local folder. It builds a canonical CodeSlicer
-graph for impact and a separate optional Graphify graph for architecture; the
-Graphify artifact never changes CodeSlicer ranking.
+Use onboarding for an existing local folder. Start with the canonical
+CodeSlicer graph for impact, review, and tests:
 
 ```bash
-impact-engine --json onboard /path/to/project --graphify auto
+codeslicer --json onboard /path/to/project
+```
+
+Graphify is separate and optional. Installing CodeSlicer does not clone or
+download the Graphify repository. If you later configure Graphify locally, use
+an explicit confirmed index for a broad architecture/community map; it never
+changes CodeSlicer ranking:
+
+```bash
+codeslicer adapters native /path/to/project graphify profile --json
+codeslicer adapters native /path/to/project graphify index --confirm
 ```
 
 For a repository URL, cloning is an explicit network action:
 
 ```bash
-impact-engine --json onboard https://github.com/AlekseyYudin-161/JunMate.git \
+codeslicer --json onboard https://github.com/AlekseyYudin-161/JunMate.git \
   --allow-network --graphify auto
 ```
 
