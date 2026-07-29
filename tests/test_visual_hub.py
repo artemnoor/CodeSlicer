@@ -90,6 +90,28 @@ def test_overview_keeps_a_confirmed_route_handler_edge_when_handler_is_not_high_
     assert projection["total_edges"] == 1
 
 
+def test_projection_explicitly_returns_all_canonical_connections(tmp_path):
+    project = tmp_path / "complete-map"
+    project.mkdir()
+    graph = GraphDocument()
+    for index in range(4):
+        graph.add_node(Node(id=f"module:{index}", kind="MODULE", name=f"module-{index}"))
+    for index in range(3):
+        graph.add_edge(Edge(id=f"imports:{index}", kind="IMPORTS", from_node=f"module:{index}", to_node=f"module:{index + 1}", confidence=0.9))
+    graph_path = project / ".impact_engine" / "graph.json"
+    graph_path.parent.mkdir()
+    graph_path.write_text(json.dumps(graph.to_dict()), encoding="utf-8")
+
+    bounded = _graph_projection(str(project), {"level": "overview", "max_nodes": 1, "max_edges": 1})
+    complete = _graph_projection(str(project), {"level": "overview", "show_all": True, "max_nodes": 1, "max_edges": 1})
+
+    assert len(bounded["nodes"]) == 1
+    assert complete["show_all"] is True
+    assert complete["truncated"] is False
+    assert {node["id"] for node in complete["nodes"]} == {f"module:{index}" for index in range(4)}
+    assert {edge["id"] for edge in complete["edges"]} == {f"imports:{index}" for index in range(3)}
+
+
 def test_projection_missing_graph_is_an_explicit_empty_state(tmp_path):
     project = tmp_path / "empty-project"
     project.mkdir()
@@ -144,6 +166,7 @@ def test_frontend_is_a_minimal_map_with_an_optional_graphify_entrypoint():
     assert 'data-route-view="map"' in html
     assert 'data-route-view="graphify"' in html
     assert 'id="graphViewSelect"' in html
+    assert 'id="graphScopeSelect"' in html
     assert 'id="graphifyContent"' in html
     assert 'data-route-view="review"' in html
     assert "Проверка текущих изменений" in html
@@ -157,3 +180,5 @@ def test_frontend_is_a_minimal_map_with_an_optional_graphify_entrypoint():
     assert "original interaction model intact" in app
     assert "analyzedAt" in app
     assert "graphProjectionContent" in html
+    assert "show_all" in app
+    assert "mapScope" in app

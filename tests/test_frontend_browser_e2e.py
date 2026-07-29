@@ -120,6 +120,11 @@ def test_browser_shows_a_single_project_map_and_optional_graphify():
             page.get_by_role("link", name="Карта проекта").click()
             page.locator(".projection-svg").wait_for()
             assert page.locator(".graph-edge").count() == 1
+            # The user can deliberately leave the fast overview and render
+            # every relationship returned by the canonical graph.
+            page.select_option("#graphScopeSelect", "all")
+            page.locator(".projection-svg").wait_for()
+            assert page.locator("#graphProjectionStatus").inner_text().endswith("показаны все связи")
             page.locator('[data-projection-entity="service"]').click()
             page.locator("#mapInspector").get_by_text("service", exact=True).wait_for()
             assert "src/app.py" in page.locator("#mapInspector").inner_text()

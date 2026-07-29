@@ -296,6 +296,10 @@ def _graph_projection(project_path: str, payload: dict[str, Any]) -> dict[str, A
     level = str(payload.get("level") or "overview").lower()
     if level not in {"overview", "detail"}:
         raise ValueError("level must be overview or detail")
+    # A bounded overview is the safe default for an interactive browser map.
+    # The user can explicitly request the complete canonical graph from the
+    # visual UI; that request must not be silently re-bounded here.
+    show_all = bool(payload.get("show_all"))
     query = str(payload.get("query") or "").strip().lower()
     filters = payload.get("filters") if isinstance(payload.get("filters"), dict) else {}
     node_kinds = {str(value).upper() for value in (filters.get("node_kinds") or [])}
@@ -309,7 +313,7 @@ def _graph_projection(project_path: str, payload: dict[str, Any]) -> dict[str, A
     except (TypeError, ValueError):
         min_confidence = 0.0
     candidate_nodes = list(graph.nodes)
-    if level == "overview":
+    if level == "overview" and not show_all:
         high_level = [node for node in candidate_nodes if node.kind in _PROJECTION_HIGH_LEVEL_KINDS]
         if high_level:
             candidate_nodes = high_level
@@ -348,6 +352,12 @@ def _graph_projection(project_path: str, payload: dict[str, Any]) -> dict[str, A
         candidate_edges = [edge for edge in candidate_edges if "codeslicer" in evidence_sources or str(edge.source).lower() in evidence_sources]
     if relation_scopes:
         candidate_edges = [edge for edge in candidate_edges if _projection_relation_scope(edge) in relation_scopes]
+    if show_all:
+        # The selector is intentional: retain every matching canonical node
+        # and edge, including lower-level implementation nodes normally
+        # deferred by the progressive overview.
+        max_nodes = max(1, len(candidate_nodes))
+        max_edges = max(1, len(candidate_edges))
     graph_nodes = {node.id: node for node in graph.nodes}
     edges_by_node: dict[str, list[Any]] = {}
     for edge in candidate_edges:
@@ -395,14 +405,18 @@ def _graph_projection(project_path: str, payload: dict[str, Any]) -> dict[str, A
     # valid local graph can still render while one optional language/plugin is
     # unsupported; do not return contradictory "unsupported" plus nodes/edges.
     projection_status = health_status if health_status in {"stale", "missing", "unknown"} else "ready"
-    projection_diagnostics = ["progressive overview shows structural node kinds first"] if level == "overview" else []
+    projection_diagnostics = (
+        ["complete canonical graph requested by the user"]
+        if show_all
+        else ["progressive overview shows structural node kinds first"] if level == "overview" else []
+    )
     if health_status not in {"ready", "fresh"}:
         projection_diagnostics.append(f"project health is {health_status}; projection availability does not imply complete language coverage")
     if freshness.get("status") not in {"fresh", "unknown"}:
         projection_diagnostics.append(f"canonical graph freshness is {freshness.get('status')}; refresh analysis before relying on this view")
     return {
         "status": projection_status, "health_status": health_status, "freshness": freshness,
-        "level": level, "canonical_only": True, "nodes": nodes, "edges": edges,
+        "level": level, "show_all": show_all, "canonical_only": True, "nodes": nodes, "edges": edges,
         "total_nodes": len(candidate_nodes), "total_edges": len(candidate_edges),
         "truncated": len(candidate_nodes) > len(selected_nodes) or len(candidate_edges) > len(selected_edges),
         "filters": {"query": query, "node_kinds": sorted(node_kinds), "edge_kinds": sorted(edge_kinds), "evidence_classes": sorted(evidence_classes), "evidence_sources": sorted(evidence_sources), "relation_scopes": sorted(relation_scopes), "min_confidence": min_confidence},

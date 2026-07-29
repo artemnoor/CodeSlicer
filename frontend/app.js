@@ -13,7 +13,7 @@ let graphRenderSequence = 0;
 const state = {
   ready: false, project: '', hasAnalysis: false, analysis: null, graph: null, overview: null,
   inventory: null, adapters: [], tools: [], review: null, projection: null, inspect: null, investigate: null,
-  selectedEntity: '', selectedFile: '', reviewFilter: 'all', showMore: false, mapLevel: 'overview',
+  selectedEntity: '', selectedFile: '', reviewFilter: 'all', showMore: false, mapLevel: 'overview', mapScope: 'overview',
   mapKind: '', mapWorkspace: 'impact', mapSource: '', lastTest: null, analyzedAt: null, modalOpener: null, route: 'review', pending: new Set(),
   apiCompatibility: null, toolRuntimeError: null,
 };
@@ -213,7 +213,9 @@ let activeGraphNavigator = null;
 function createNetworkGraph(projection, { compact = false } = {}) {
   const allNodes = projection.nodes || [];
   const allEdges = projection.edges || [];
-  const requestedLimit = compact ? 10 : Math.min(allNodes.length, 42);
+  // The overview stays deliberately readable.  The explicit UI selector lets
+  // a developer inspect every returned canonical relationship when needed.
+  const requestedLimit = compact ? 10 : state.mapScope === 'all' ? allNodes.length : Math.min(allNodes.length, 42);
   const ordered = graphOrder(allNodes, allEdges, requestedLimit);
   const visibleNodes = ordered.nodes;
   const visibleIds = new Set(visibleNodes.map((node) => node.id));
@@ -352,16 +354,19 @@ async function loadProjection(force = false) {
     let response;
     if (state.mapWorkspace === 'impact') {
       const filters = { node_kinds: state.mapKind ? [state.mapKind] : [], edge_kinds: [], evidence_sources: [], evidence_classes: [], relation_scopes: [], min_confidence: 0 };
-      response = await ImpactApi.graphProjection({ project_path: state.project, level: state.mapLevel, query: $('#graphProjectionQuery')?.value.trim() || '', filters, max_nodes: 120, max_edges: 200 });
+      response = await ImpactApi.graphProjection({ project_path: state.project, level: state.mapLevel, query: $('#graphProjectionQuery')?.value.trim() || '', filters, show_all: state.mapScope === 'all', max_nodes: 120, max_edges: 200 });
       response.workspace = { id: 'impact', title: 'Влияние изменений', ranking_owner: true };
     } else {
       response = await ImpactApi.graphWorkspace({ project_path: state.project, workspace: state.mapWorkspace, source_id: state.mapSource || undefined, max_nodes: 120, max_edges: 200 });
     }
     state.projection = response;
     renderWorkspaceControls(response.workspaces || [], response.selected_source);
+    const scopeControl = $('#graphScopeSelect');
+    if (scopeControl) { scopeControl.disabled = state.mapWorkspace !== 'impact'; scopeControl.value = state.mapScope; }
     const workspaceName = response.workspace?.title || 'CodeSlicer';
     const bridgeText = response.total_bridges ? ` · ${response.total_bridges} bridge-связей` : '';
-    if (status) status.textContent = `${workspaceName} · ${statusLabel(response.status)} · ${response.nodes?.length || 0} узлов · ${response.edges?.length || 0} связей${bridgeText}${response.truncated ? ' · результат ограничен' : ''}`;
+    const scopeText = state.mapWorkspace === 'impact' && state.mapScope === 'all' ? ' · показаны все связи' : response.truncated ? ' · результат ограничен' : '';
+    if (status) status.textContent = `${workspaceName} · ${statusLabel(response.status)} · ${response.nodes?.length || 0} узлов · ${response.edges?.length || 0} связей${bridgeText}${scopeText}`;
     renderMapMetrics(response, workspaceName);
     renderProjection(response); updateEntitySuggestions(response.nodes || []);
   } catch (error) { if (target) { clear(target); target.append(stateCard('Карта недоступна', error.message, 'error-state')); } if (status) status.textContent = 'Выбранный граф не отдан API.'; renderMapMetrics(null); }
@@ -375,7 +380,7 @@ function renderMapMetrics(projection, workspaceName = '—') {
   setText('#mapNodeMetric', projection ? String(nodeTotal) : '—');
   setText('#mapEdgeMetric', projection ? String(edgeTotal) : '—');
   setText('#mapMeterLabel', projection
-    ? (graphify ? 'Фиолетовый — отдельная карта Graphify. Она не меняет результаты CodeSlicer.' : 'Зелёный — основной граф CodeSlicer для анализа зависимостей и влияния.')
+    ? (graphify ? 'Фиолетовый — отдельная карта Graphify. Она не меняет результаты CodeSlicer.' : state.mapScope === 'all' ? 'Зелёный — показан полный canonical-граф CodeSlicer; на большом проекте отрисовка может занять время.' : 'Зелёный — основной граф CodeSlicer для анализа зависимостей и влияния.')
     : 'Ожидаю данные выбранной карты.');
   $('#mapMeterPrimary')?.style.setProperty('width', graphify ? '0%' : projection ? '100%' : '0%');
   $('#mapMeterSecondary')?.style.setProperty('width', graphify && projection ? '100%' : '0%');
@@ -508,7 +513,9 @@ function renderProjection(projection) {
   }
   const scene = createNetworkGraph(projection);
   activeGraphNavigator = attachGraphNavigator(scene);
-  const canvasNote = el('p', 'graph-canvas-note', scene.totalNodes > scene.visibleNodes.length
+  const canvasNote = el('p', 'graph-canvas-note', state.mapScope === 'all' && projection.show_all
+    ? `На карте все ${scene.visibleNodes.length} узлов и ${scene.visibleEdges.length} связей canonical-графа. Центр — наиболее связанная сущность; наведите или выберите точку, чтобы увидеть её связи.`
+    : scene.totalNodes > scene.visibleNodes.length
     ? `На карте ${scene.visibleNodes.length} из ${scene.totalNodes} узлов. Центр — наиболее связанная сущность; наведите или выберите точку, чтобы увидеть её связи.`
     : 'Центр — наиболее связанная сущность. Наведите или выберите точку, чтобы увидеть её связи.');
   target.append(scene.svg, canvasNote);
@@ -783,6 +790,7 @@ listen('#graphZoomIn', 'click', () => activeGraphNavigator?.zoomIn());
 listen('#graphZoomOut', 'click', () => activeGraphNavigator?.zoomOut());
 listen('#graphResetView', 'click', () => activeGraphNavigator?.reset());
 listen('#graphWorkspaceSource', 'change', (event) => { state.mapSource = event.target.value; loadProjection(true); });
+listen('#graphScopeSelect', 'change', (event) => { state.mapScope = event.target.value === 'all' ? 'all' : 'overview'; loadProjection(true); });
 listen('#graphViewSelect', 'change', (event) => {
   if (event.target.value === 'graphify') {
     // Keep Graphify's original interaction model intact rather than drawing
