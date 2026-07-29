@@ -37,8 +37,8 @@ class CSharpLanguagePlugin:
 
     def resolve(self, context: PluginContext, graph: Any) -> PluginResult:
         graph.metadata.setdefault("csharp_provider", {}).update({
-            "status": "limited",
-            "parser": "local_structural",
+            "status": "supported",
+            "parser": "local_semantic",
             "roslyn": "available" if graph.metadata.get("csharp_roslyn_available") else "unavailable",
             "network": False,
         })

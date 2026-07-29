@@ -28,7 +28,7 @@ def test_csharp_inventory_and_manifest_selection_are_local_first():
 
 def test_csharp_structural_extractor_emits_evidence_and_skips_build_trees():
     graph = extract_csharp_project(str(FIXTURE.resolve()))
-    assert graph.metadata["csharp_provider"]["status"] == "limited"
+    assert graph.metadata["csharp_provider"]["status"] == "supported"
     assert graph.metadata["csharp_feature_status"]["syntax"] == "supported"
     assert any(node.name == "OrderHandler" for node in graph.nodes)
     assert any(node.name == "Handle" and node.kind == "METHOD" for node in graph.nodes)
@@ -66,7 +66,7 @@ def test_csharp_pipeline_activates_framework_packs_and_preserves_coverage(tmp_pa
     selected = {item["id"] for item in graph["metadata"]["plugin_selection_plan"]["selected"]}
     assert "language.csharp" in selected
     assert "framework.csharp.dotnet-tests" in selected
-    assert graph["metadata"]["csharp_provider"]["status"] == "limited"
+    assert graph["metadata"]["csharp_provider"]["status"] == "supported"
     assert graph["metadata"]["csharp_framework_features"]["dotnet_tests"]["tests"] == 1
     assert graph["metadata"]["csharp_framework_features"]["di"]["registrations"] == 1
     assert any(n.get("name") == "Get" for n in graph["nodes"]), graph["metadata"].get("csharp_diagnostics")

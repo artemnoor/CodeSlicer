@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 
 from impact_engine.analysis.pipeline import analyze_project_core
 from impact_engine.impact import impact_query
@@ -8,6 +9,12 @@ from impact_engine.models import GraphDocument
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "next_react_fastapi_fullstack"
+
+
+def _fresh_fixture(tmp_path: Path) -> Path:
+    target = tmp_path / "fullstack"
+    shutil.copytree(FIXTURE, target, ignore=shutil.ignore_patterns(".impact_engine", "__pycache__"))
+    return target
 
 
 def test_next_react_fastapi_endpoint_change_reaches_client_hook_component_and_test():
@@ -44,11 +51,22 @@ def test_next_react_fastapi_endpoint_change_reaches_client_hook_component_and_te
     assert (test, component, "TESTS") in affected_edges
 
 
-def test_js_ts_capability_diagnostics_stay_honest_for_fullstack_fixture():
-    result = analyze_project_core(str(FIXTURE))
+def test_js_ts_capability_diagnostics_stay_honest_for_fullstack_fixture(tmp_path):
+    result = analyze_project_core(str(_fresh_fixture(tmp_path)))
     capabilities = result["diagnostics"]["language_semantic_capabilities"]
 
     assert capabilities["python"]["capabilities"]["production_semantic_baseline"] is True
     assert capabilities["typescript"]["capabilities"]["production_semantic_baseline"] is False
     assert capabilities["typescript"]["capabilities"]["endpoint_resolution"] is True
-    assert capabilities["typescript"]["capabilities"]["call_resolution"] == "limited"
+    assert capabilities["typescript"]["capabilities"]["call_resolution"] == "semantic"
+
+
+def test_typescript_local_import_edges_are_exact_and_not_name_only(tmp_path):
+    graph = GraphDocument.from_dict(analyze_project_core(str(_fresh_fixture(tmp_path)))["graph"])
+    assert any(
+        edge.from_node == "useOrders"
+        and edge.to_node == "createOrder"
+        and edge.properties.get("resolution_status") == "resolved_exact"
+        and edge.properties.get("evidence_class") == "explicit_local_import"
+        for edge in graph.edges
+    ), [(edge.from_node, edge.to_node) for edge in graph.edges if edge.properties.get("provider") == "typescript_local_import_resolver"]

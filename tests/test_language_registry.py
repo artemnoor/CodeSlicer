@@ -62,21 +62,21 @@ def test_language_semantic_provider_capabilities_are_honest():
 
     assert typescript is not None
     assert typescript.capabilities.production_semantic_baseline is False
-    assert typescript.capabilities.call_resolution == "limited"
+    assert typescript.capabilities.call_resolution == "semantic"
     assert typescript.capabilities.endpoint_resolution is True
     assert typescript.capabilities.framework_rules is True
 
     assert go is not None
     assert go.capabilities.production_semantic_baseline is False
     assert go.capabilities.structural_extraction is True
-    assert go.capabilities.call_resolution == "limited"
-    assert go.capabilities.endpoint_resolution is False
+    assert go.capabilities.call_resolution == "semantic"
+    assert go.capabilities.endpoint_resolution is True
 
     assert java is not None
     assert java.capabilities.production_semantic_baseline is False
     assert java.capabilities.structural_extraction is True
-    assert java.capabilities.call_resolution == "limited"
-    assert java.capabilities.framework_rules is False
+    assert java.capabilities.call_resolution == "semantic"
+    assert java.capabilities.framework_rules is True
 
 
 def test_build_language_capability_diagnostics_contains_unknown_fallback():

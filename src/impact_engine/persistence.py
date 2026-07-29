@@ -30,7 +30,9 @@ from impact_engine import __version__
 from impact_engine.scope import iter_project_files
 
 
-CACHE_SCHEMA_VERSION = "impact-engine.cache.v2"
+# v3 invalidates graphs produced before evidence-first local semantic
+# resolution existed for the non-Python language plugins.
+CACHE_SCHEMA_VERSION = "impact-engine.cache.v3"
 PIPELINE_VERSION = "performance-incremental.v2"
 MARKER_NAME = ".cache.complete"
 JOURNAL_NAME = ".cache.journal.json"

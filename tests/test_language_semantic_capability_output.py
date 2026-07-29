@@ -16,10 +16,10 @@ def test_analyze_output_includes_honest_language_semantic_capabilities():
     assert capabilities == diagnostics_capabilities
     assert capabilities["javascript"]["capabilities"]["production_semantic_baseline"] is False
     assert capabilities["javascript"]["capabilities"]["endpoint_resolution"] is True
-    assert capabilities["typescript"]["capabilities"]["call_resolution"] == "limited"
-    assert capabilities["go"]["capabilities"]["endpoint_resolution"] is False
-    assert capabilities["java"]["capabilities"]["framework_rules"] is False
-    assert "not full" in " ".join(capabilities["typescript"]["capabilities"]["notes"]).lower()
+    assert capabilities["typescript"]["capabilities"]["call_resolution"] == "semantic"
+    assert capabilities["go"]["capabilities"]["endpoint_resolution"] is True
+    assert capabilities["java"]["capabilities"]["framework_rules"] is True
+    assert "compiler-only" in " ".join(capabilities["typescript"]["capabilities"]["notes"]).lower()
 
 
 def test_python_output_declares_only_python_as_production_semantic_baseline():

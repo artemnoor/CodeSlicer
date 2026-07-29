@@ -707,14 +707,18 @@ confidence, evidence, `source_fact_ids`, `dependency_keys`, `resolver_id` и
 | Язык | Статус |
 | --- | --- |
 | Python | strongest semantic baseline |
-| JavaScript / TypeScript | structural + limited semantic и frontend endpoint bridge |
-| Go | structural + limited semantic resolution |
-| Java | structural + limited semantic resolution |
+| JavaScript / TypeScript | local import/re-export и direct-call resolution; endpoint bridge и framework rules |
+| Go | typed receiver/struct-field calls и literal Gin routes |
+| Java | typed receiver/constructor injection и literal Spring routes |
+| C# | typed member/DI calls, ASP.NET routes, explicit DI, MediatR и EF Core packs |
 
-Для JavaScript, TypeScript, Go и Java возможен явный `fallback`, если native
-Tree-sitter недоступен. Это не означает compiler-level parity с Python.
-Некоторые framework-specific связи появляются только после установки
-проверенного support pack.
+Каждое confirmed static edge требует явной локальной синтаксической причины:
+declaration/import, typed receiver, literal route или явную DI-регистрацию.
+Dynamic import, reflection, generated code, proxy/interface dispatch с
+несколькими implementation и compiler-only overload/type facts остаются
+`limited`/`unresolved`; для них нужен явный LSP или SCIP overlay. Для
+JavaScript, TypeScript, Go и Java возможен fallback, если native Tree-sitter
+недоступен.
 
 ## Структура репозитория
 

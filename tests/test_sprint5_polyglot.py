@@ -12,8 +12,8 @@ def test_go_limited_provider_resolves_typed_receiver_only():
     assert any(
         edge["from"] == "main.Service.Process"
         and edge["to"] == "main.Service.Save"
-        and edge["properties"].get("provider") == "polyglot_limited_semantics"
-        and edge["properties"].get("resolution_status") == "resolved_inferred"
+        and edge["properties"].get("provider") == "polyglot_typed_semantics"
+        and edge["properties"].get("resolution_status") == "resolved_exact"
         for edge in edges
     )
     assert not any(edge["to"] == "lib.Call" and edge["source"] == "INFERRED" for edge in edges)
@@ -25,7 +25,7 @@ def test_java_limited_provider_resolves_this_call_without_name_only_matching():
     assert any(
         edge["from"] == "com.example.OrderService.createOrder"
         and edge["to"] == "com.example.OrderService.save"
-        and edge["properties"].get("provider") == "polyglot_limited_semantics"
+        and edge["properties"].get("provider") == "polyglot_typed_semantics"
         for edge in edges
     )
     assert result["graph"]["metadata"]["polyglot_semantic_resolution"]["capabilities"]["java"]

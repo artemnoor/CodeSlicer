@@ -16,13 +16,14 @@ from typing import Iterable
 from impact_engine.models import Edge, Evidence, GraphDocument, Node
 
 
-_TYPE_RE = re.compile(r"\b(?:public|internal|private|protected|static|abstract|sealed|partial|new|file|readonly|unsafe|\s)*(class|interface|record|struct)\s+([A-Za-z_]\w*)(?:\s*<[^>{}]+>)?(?:\s*\([^)]*\))?(?:\s*:\s*([^\{]+))?\s*\{", re.MULTILINE)
+_TYPE_RE = re.compile(r"\b(?:public|internal|private|protected|static|abstract|sealed|partial|new|file|readonly|unsafe|\s)*(class|interface|record|struct)\s+([A-Za-z_]\w*)(?:\s*<[^>{}]+>)?(?:\s*\([^)]*\))?(?:\s*:\s*([^;\{]+))?\s*\{", re.MULTILINE)
 _METHOD_RE = re.compile(r"(?:^|[;{}])\s*(?:public|private|protected|internal|static|virtual|override|abstract|sealed|async|extern|unsafe|new|partial|readonly|ref|out|in|[A-Za-z_][\w<>,.?\[\]]*\s+)*([A-Za-z_]\w*)\s*\(([^(){};]*)\)\s*(?:where\s+[^\{]+)?(?:\{|=>)", re.MULTILINE)
 _CTOR_RE = re.compile(r"(?:^|[;{}])\s*(?:public|private|protected|internal|static)\s*([A-Za-z_]\w*)\s*\(([^(){};]*)\)\s*\{", re.MULTILINE)
 _PROPERTY_RE = re.compile(r"(?:^|[;{}])\s*(?:public|private|protected|internal|static|virtual|override|sealed|readonly|required|new|\s)+([A-Za-z_]\w*(?:<[^>{}]+>)?(?:\[\])?)\s+([A-Za-z_]\w*)\s*\{\s*(?:get|set|init)\b", re.MULTILINE)
 _USING_RE = re.compile(r"^\s*using\s+(?:static\s+)?(?:[A-Za-z_]\w*\s*=\s*)?([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*;", re.MULTILINE)
 _NAMESPACE_RE = re.compile(r"\bnamespace\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*(?:;|\{)")
 _CALL_RE = re.compile(r"\b([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?)\s*\(")
+_FIELD_TYPE_RE = re.compile(r"\b(?:private|protected|public|internal)\s+(?:readonly\s+)?([A-Za-z_]\w*(?:<[^;=]+>)?)\s+([A-Za-z_]\w*)\s*(?:[;=])")
 _KEYWORDS = {"if", "for", "foreach", "while", "switch", "catch", "using", "lock", "nameof", "typeof", "return", "new", "when", "fixed", "checked", "unchecked", "base", "this"}
 _BUILTINS = {"Assert", "Configure", "Get", "Set", "Add", "Remove", "ToString", "Equals", "GetHashCode", "WriteLine", "WriteAsync", "ReadLine", "Select", "Where", "Any", "First", "FirstOrDefault", "Single", "Count", "ToList", "ToArray", "Contains", "CreateScope", "Build", "Use", "MapControllers"}
 _BUILTINS.update({"Ok", "BadRequest", "NotFound", "NoContent", "CreatedAtAction", "StatusCode", "Send", "Publish", "AnyAsync", "ToListAsync", "FirstAsync", "FirstOrDefaultAsync", "Include", "ThenInclude", "ConfigureAwait", "AddControllers", "AddDbContext", "AddHealthChecks", "AddOpenApi"})
@@ -250,6 +251,17 @@ def _resolve_structural_relations(graph: GraphDocument, types: list[_Type], memb
     for item in types:
         by_name.setdefault(item.name, []).append(item)
         by_name.setdefault(item.qualified, []).append(item)
+    # A receiver is resolved only when its type is explicitly declared on the
+    # containing class.  This is stronger than the historical unique-name
+    # fallback and handles the normal DI/member-call shape without Roslyn.
+    field_types: dict[str, dict[str, str]] = {}
+    for item in types:
+        text = _mask(file_texts.get(item.file, ""))
+        body = text[item.body_start + 1:item.body_end]
+        field_types[item.qualified] = {
+            field: typ.split("<", 1)[0].rsplit(".", 1)[-1]
+            for typ, field in _FIELD_TYPE_RE.findall(body)
+        }
     for item in types:
         for base in item.bases:
             candidates = by_name.get(base_name(base), [])
@@ -270,7 +282,21 @@ def _resolve_structural_relations(graph: GraphDocument, types: list[_Type], memb
             if name in _KEYWORDS or name in _BUILTINS:
                 continue
             candidates = methods_by_name.get(name, [])
-            if len(candidates) == 1 and candidates[0].node_id != member.node_id:
+            receiver = raw_name.rsplit(".", 1)[0] if "." in raw_name else ""
+            receiver = receiver.removeprefix("this.")
+            receiver_type = field_types.get(member.owner.qualified, {}).get(receiver)
+            implementation_names = {
+                item.name for item in types
+                if receiver_type and any(base_name(base) == receiver_type for base in item.bases)
+            }
+            typed_candidates = [
+                candidate for candidate in candidates
+                if receiver_type and candidate.owner.name in {receiver_type, *implementation_names}
+            ]
+            if len(typed_candidates) == 1 and typed_candidates[0].node_id != member.node_id:
+                target = typed_candidates[0]
+                _add_edge(graph, f"typed-call:{member.node_id}:{target.node_id}", "TESTS" if member.kind == "test" else "CALLS", member.node_id, target.node_id, member.file, member.line, confidence=.97, relationship="typed_member_call", resolution_status="resolved_exact", evidence_class="explicit_typed_receiver", receiver=receiver, receiver_type=receiver_type)
+            elif len(candidates) == 1 and candidates[0].node_id != member.node_id:
                 target = candidates[0]
                 _add_edge(graph, f"call:{member.node_id}:{target.node_id}", "TESTS" if member.kind == "test" else "CALLS", member.node_id, target.node_id, member.file, member.line, confidence=.92, relationship="direct_call", resolution_status="resolved_exact", evidence_class="syntax_name_unique")
             elif not candidates and name not in {"Send", "Publish", "GetRequiredService", "GetService", "MapGet", "MapPost", "MapPut", "MapDelete"}:
@@ -287,7 +313,7 @@ def extract_csharp_project(
     progress_callback=None,
 ) -> GraphDocument:
     root = Path(project_path).resolve()
-    graph = GraphDocument(metadata={"language": "csharp", "csharp_provider": {"status": "limited", "parser": "local_structural", "network": False}, "csharp_roslyn_available": bool(shutil.which("dotnet")), "csharp_coverage": {"status": "limited", "supported": ["namespace", "declarations", "members", "imports", "calls", "project_references"], "limited": ["DI", "ASP.NET", "MediatR", "EF Core", "test mapping", "overload resolution"], "unsupported": ["source generators", "reflection", "dynamic dispatch", "compiler diagnostics"]}})
+    graph = GraphDocument(metadata={"language": "csharp", "csharp_provider": {"status": "supported", "parser": "local_semantic", "network": False}, "csharp_roslyn_available": bool(shutil.which("dotnet")), "csharp_coverage": {"status": "supported", "supported": ["namespace", "declarations", "members", "imports", "typed_member_calls", "project_references"], "limited": ["DI factories", "ASP.NET composed routes", "MediatR runtime pipeline", "EF Core query semantics", "overload resolution"], "unsupported": ["source generators", "reflection", "dynamic dispatch", "compiler diagnostics"]}})
     selected = set(str(item).replace("\\", "/") for item in files) if files is not None else None
     if selected is not None:
         # The pipeline already owns the pruned inventory. Do not recursively
@@ -328,5 +354,5 @@ def extract_csharp_project(
     _resolve_structural_relations(graph, types, members, texts)
     graph.metadata["csharp_counts"] = {"files": len(paths), "types": len(types), "members": len(members)}
     graph.metadata["csharp_diagnostics"] = graph.metadata.get("csharp_diagnostics", [])
-    graph.metadata["csharp_feature_status"] = {"syntax": "supported", "project_references": "supported", "calls": "limited", "frameworks": "limited", "compiler_binding": "unavailable"}
+    graph.metadata["csharp_feature_status"] = {"syntax": "supported", "project_references": "supported", "calls": "supported", "frameworks": "supported", "compiler_binding": "unavailable"}
     return graph
