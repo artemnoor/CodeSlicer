@@ -70,6 +70,26 @@ def test_progressive_projection_is_canonical_only_and_bounded(tmp_path):
     assert transitive["edges"][0]["relation_scope"] == "transitive"
 
 
+def test_overview_keeps_a_confirmed_route_handler_edge_when_handler_is_not_high_level(tmp_path):
+    """Regression for Spring PetClinic: ROUTE must not be rendered disconnected."""
+    project = tmp_path / "petclinic-shape"
+    project.mkdir()
+    graph = GraphDocument()
+    graph.add_node(Node(id="HTTP GET /owners", kind="ROUTE", name="HTTP GET /owners", properties={"file": "OwnerController.java", "line": 94}))
+    graph.add_node(Node(id="method:OwnerController.processFindForm", kind="METHOD", name="processFindForm", properties={"file": "OwnerController.java", "line": 94}))
+    for index in range(8):
+        graph.add_node(Node(id=f"module:{index}", kind="MODULE", name=f"module-{index}"))
+    graph.add_edge(Edge(id="route-handles", kind="ROUTE_HANDLES", from_node="HTTP GET /owners", to_node="method:OwnerController.processFindForm", confidence=0.8))
+    graph_path = project / ".impact_engine" / "graph.json"
+    graph_path.parent.mkdir()
+    graph_path.write_text(json.dumps(graph.to_dict()), encoding="utf-8")
+
+    projection = _graph_projection(str(project), {"level": "overview", "max_nodes": 2, "max_edges": 10})
+    assert [edge["id"] for edge in projection["edges"]] == ["route-handles"]
+    assert {node["id"] for node in projection["nodes"]} == {"HTTP GET /owners", "method:OwnerController.processFindForm"}
+    assert projection["total_edges"] == 1
+
+
 def test_projection_missing_graph_is_an_explicit_empty_state(tmp_path):
     project = tmp_path / "empty-project"
     project.mkdir()

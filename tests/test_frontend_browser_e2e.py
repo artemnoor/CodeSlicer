@@ -119,9 +119,11 @@ def test_browser_shows_a_single_project_map_and_optional_graphify():
             page.evaluate("document.getElementById('modalBackdrop').hidden = true")
             page.get_by_role("link", name="Карта проекта").click()
             page.locator(".projection-svg").wait_for()
-            page.locator(".network-node").first.click()
+            assert page.locator(".graph-edge").count() == 1
+            page.locator('[data-projection-entity="service"]').click()
             page.locator("#mapInspector").get_by_text("service", exact=True).wait_for()
             assert "src/app.py" in page.locator("#mapInspector").inner_text()
+            assert "ИСХОДЯЩИЕ СВЯЗИ\n1" in page.locator("#mapInspector").inner_text()
 
             page.select_option("#graphViewSelect", "graphify")
             page.locator(".graphify-native-frame").wait_for()
@@ -216,6 +218,42 @@ def test_browser_missing_project_stays_on_simple_onboarding(tmp_path: Path):
             page.locator("#onboardingError").get_by_text("Папка проекта не найдена", exact=False).wait_for()
             assert page.locator("#onboarding").is_visible()
             assert page.url.endswith("#review")
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_browser_petclinic_route_keeps_its_confirmed_handler_edge():
+    """Optional real-project regression for the Local Hub bounded projection."""
+    configured_root = os.environ.get("IMPACT_ENGINE_PETCLINIC_ROOT")
+    if not configured_root:
+        pytest.skip("set IMPACT_ENGINE_PETCLINIC_ROOT to run the real Spring PetClinic browser E2E")
+    project = Path(configured_root).resolve()
+    if not (project / ".impact_engine" / "graph.json").is_file():
+        pytest.skip("PetClinic canonical graph is not available")
+    playwright = _browser_runtime()
+    root = Path(__file__).parents[1]
+    server, thread = _server(root, project)
+    try:
+        with playwright.sync_playwright() as runtime:
+            browser = _launch_chromium(runtime)
+            page = browser.new_page(viewport={"width": 1280, "height": 800})
+            page.goto(f"http://127.0.0.1:{server.server_port}/#map", wait_until="networkidle")
+            page.locator(".projection-svg").wait_for()
+            assert page.locator(".graph-edge").count() > 0
+            route = page.locator('[data-projection-entity="HTTP GET /owners"]')
+            route.wait_for()
+            route.click()
+            inspector = page.locator("#mapInspector")
+            inspector.get_by_text("HTTP GET /owners", exact=True).wait_for()
+            details = inspector.inner_text()
+            assert "ИСХОДЯЩИЕ СВЯЗИ\n1" in details
+            assert "processFindForm · ROUTE_HANDLES" in details
+            screenshot_path = os.environ.get("IMPACT_ENGINE_PETCLINIC_SCREENSHOT")
+            if screenshot_path:
+                page.screenshot(path=screenshot_path, full_page=True)
             browser.close()
     finally:
         server.shutdown()

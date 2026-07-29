@@ -323,9 +323,23 @@ def _graph_projection(project_path: str, payload: dict[str, Any]) -> dict[str, A
         candidate_nodes = [node for node in candidate_nodes if "codeslicer" in evidence_sources]
     max_nodes = min(max(int(payload.get("max_nodes", 120)), 1), 300)
     max_edges = min(max(int(payload.get("max_edges", 200)), 1), 600)
-    selected_nodes = candidate_nodes[:max_nodes]
-    selected_ids = {node.id for node in selected_nodes}
-    candidate_edges = [edge for edge in graph.edges if edge.from_node in selected_ids and edge.to_node in selected_ids and float(edge.confidence) >= min_confidence]
+    candidate_ids = {node.id for node in candidate_nodes}
+    # An overview deliberately starts from high-level entities such as routes
+    # and modules. Their confirmed handler/method is often not high-level,
+    # though, so requiring both endpoints to be in that initial set silently
+    # erased every meaningful relationship from real projects (for example
+    # Spring PetClinic's ROUTE_HANDLES edges).  Keep one-hop canonical edges
+    # available and add their endpoint while constructing the bounded view.
+    include_one_hop_neighbors = level == "overview" or bool(query)
+    candidate_edges = [
+        edge for edge in graph.edges
+        if float(edge.confidence) >= min_confidence
+        and (
+            edge.from_node in candidate_ids or edge.to_node in candidate_ids
+            if include_one_hop_neighbors
+            else edge.from_node in candidate_ids and edge.to_node in candidate_ids
+        )
+    ]
     if edge_kinds:
         candidate_edges = [edge for edge in candidate_edges if edge.kind.upper() in edge_kinds]
     if evidence_classes:
@@ -334,8 +348,42 @@ def _graph_projection(project_path: str, payload: dict[str, Any]) -> dict[str, A
         candidate_edges = [edge for edge in candidate_edges if "codeslicer" in evidence_sources or str(edge.source).lower() in evidence_sources]
     if relation_scopes:
         candidate_edges = [edge for edge in candidate_edges if _projection_relation_scope(edge) in relation_scopes]
+    graph_nodes = {node.id: node for node in graph.nodes}
+    edges_by_node: dict[str, list[Any]] = {}
+    for edge in candidate_edges:
+        edges_by_node.setdefault(edge.from_node, []).append(edge)
+        edges_by_node.setdefault(edge.to_node, []).append(edge)
+    selected_nodes = []
+    selected_ids: set[str] = set()
+
+    def include(node_id: str) -> bool:
+        node = graph_nodes.get(node_id)
+        if node is None or node_id in selected_ids or len(selected_nodes) >= max_nodes:
+            return False
+        selected_nodes.append(node)
+        selected_ids.add(node_id)
+        return True
+
+    for node in candidate_nodes:
+        if len(selected_nodes) >= max_nodes:
+            break
+        include(node.id)
+        # Kind-filtered views are intentionally exact.  Default/detail/query
+        # views may include a direct endpoint so every displayed edge remains
+        # inspectable instead of becoming an invisible dangling relation.
+        if node_kinds:
+            continue
+        for edge in edges_by_node.get(node.id, []):
+            other = edge.to_node if edge.from_node == node.id else edge.from_node
+            include(other)
+            if len(selected_nodes) >= max_nodes:
+                break
+    selected_edges = [
+        edge for edge in candidate_edges
+        if edge.from_node in selected_ids and edge.to_node in selected_ids
+    ][:max_edges]
     nodes = [{**node.to_dict(), "canonical": True, "source": "CodeSlicer", "evidence_source": "CodeSlicer", "evidence_class": "STATIC_EXTRACTED", "overlay": False} for node in selected_nodes]
-    edges = [{**edge.to_dict(), "canonical": True, "source": edge.source, "evidence_source": "CodeSlicer", "evidence_class": "STATIC_EXTRACTED", "relation_scope": _projection_relation_scope(edge), "overlay": False} for edge in candidate_edges[:max_edges]]
+    edges = [{**edge.to_dict(), "canonical": True, "source": edge.source, "evidence_source": "CodeSlicer", "evidence_class": "STATIC_EXTRACTED", "relation_scope": _projection_relation_scope(edge), "overlay": False} for edge in selected_edges]
     # Resolve this through the stable facade at call time.  Existing extension
     # points patch ``impact_engine.local_api._project_overview``.
     from impact_engine import local_api as local_api_facade
@@ -356,7 +404,7 @@ def _graph_projection(project_path: str, payload: dict[str, Any]) -> dict[str, A
         "status": projection_status, "health_status": health_status, "freshness": freshness,
         "level": level, "canonical_only": True, "nodes": nodes, "edges": edges,
         "total_nodes": len(candidate_nodes), "total_edges": len(candidate_edges),
-        "truncated": len(candidate_nodes) > max_nodes or len(candidate_edges) > max_edges,
+        "truncated": len(candidate_nodes) > len(selected_nodes) or len(candidate_edges) > len(selected_edges),
         "filters": {"query": query, "node_kinds": sorted(node_kinds), "edge_kinds": sorted(edge_kinds), "evidence_classes": sorted(evidence_classes), "evidence_sources": sorted(evidence_sources), "relation_scopes": sorted(relation_scopes), "min_confidence": min_confidence},
         "diagnostics": projection_diagnostics,
         "privacy": {"mode": "local-only", "network_used": False}, "evidence_sources": _adapter_evidence_sources(project_path),
