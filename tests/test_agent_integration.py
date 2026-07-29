@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import sys
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 
 from impact_engine import cli
 from impact_engine.agent_integration import bundled_skills, client_catalog, install, installation_status, plan_install, repair, uninstall
-from impact_engine.terminal_ui import choose_agent_clients
+from impact_engine.terminal_ui import InstallationProgress, choose_agent_clients
 
 
 def test_bundled_install_assets_are_valid_and_limited_to_two_skills() -> None:
@@ -47,6 +48,30 @@ def test_kodik_dry_run_does_not_create_project_files(tmp_path: Path) -> None:
     assert result["changed"] is False
     assert not (project / ".kodik").exists() and not (project / ".codeslicer").exists()
     assert len(plan_install(["kodik"], project_path=project, skills_only=True)["writes"]) == 2
+
+
+def test_agent_install_reports_real_completed_actions(tmp_path: Path) -> None:
+    project = tmp_path / "project"; project.mkdir()
+    events: list[dict[str, object]] = []
+
+    result = install(["codex"], project_path=project, skills_only=True, progress_callback=events.append)
+
+    assert result["status"] == "ok"
+    assert events[0]["phase"] == "preparing"
+    assert [event["phase"] for event in events].count("skills") == 2
+    assert events[-1] == {"phase": "complete", "completed": 3, "total": 3, "message": "Local setup is ready"}
+
+
+def test_installation_progress_uses_real_remaining_actions_and_phase_style(monkeypatch) -> None:
+    monkeypatch.setenv("NO_COLOR", "1")
+    panel = InstallationProgress(stream=StringIO(), enabled=False)
+    panel.update({"phase": "skills", "completed": 2, "total": 5, "message": "Codex: impact analysis"})
+    skill_lines = panel._lines(final=False)
+    assert "Installing AI skills" in skill_lines[1]
+    assert "3 actions left" in skill_lines[2]
+
+    panel.update({"phase": "mcp", "completed": 4, "total": 5, "message": "Codex: MCP registration"})
+    assert "Configuring MCP connection" in panel._lines(final=False)[1]
 
 
 def test_kodik_reinstall_is_idempotent_and_uninstall_removes_only_owned_entry(tmp_path: Path) -> None:
@@ -124,6 +149,14 @@ def test_interactive_install_offers_supported_ide_choices_when_nothing_is_detect
     output = capsys.readouterr().out
     assert '"client": "codex"' in output
     assert '"scope": "user"' in output
+
+
+def test_json_agent_install_keeps_progress_ui_off_stderr(tmp_path: Path, capsys) -> None:
+    cli.main(["agent", "install", "--client", "codex", "--project", str(tmp_path), "--skills-only", "--json"])
+
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["status"] == "ok"
+    assert captured.err == ""
 
 
 def test_terminal_menu_uses_checkbox_selection_with_keyboard_instructions(monkeypatch) -> None:

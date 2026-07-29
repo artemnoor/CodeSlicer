@@ -19,7 +19,7 @@ import subprocess
 import sys
 import tempfile
 import threading
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import yaml
 
@@ -436,7 +436,7 @@ def _remove_mcp(adapter: ClientAdapter, path: Path, server_name: str) -> bool:
     return _remove_toml_server(path, server_name) if adapter.mcp_format == "toml" else _remove_jsonc_server(path, adapter.mcp_key, server_name)
 
 
-def install(client_ids: Iterable[str], *, scope: str = "project", project_path: str | Path = ".", home: str | Path | None = None, skills_only: bool = False, mcp_only: bool = False, link: bool = False, force: bool = False, dry_run: bool = False, server_name: str = "codeslicer", backup: bool = True) -> dict[str, Any]:
+def install(client_ids: Iterable[str], *, scope: str = "project", project_path: str | Path = ".", home: str | Path | None = None, skills_only: bool = False, mcp_only: bool = False, link: bool = False, force: bool = False, dry_run: bool = False, server_name: str = "codeslicer", backup: bool = True, progress_callback: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
     """Install only managed files and a single named MCP entry, transactionally enough for local files."""
     plan = plan_install(client_ids, scope=scope, project_path=project_path, home=home, skills_only=skills_only, mcp_only=mcp_only, server_name=server_name)
     project = Path(plan["project"]); user_home = _home(home); assets = bundled_skills(); state_file = _state_path(project, scope, user_home)
@@ -444,20 +444,30 @@ def install(client_ids: Iterable[str], *, scope: str = "project", project_path: 
     state = _read_state(state_file); state.update({"schema_version": STATE_VERSION, "installer_version": "0.5.0", "scope": scope, "project_path": str(project), "installed_at": _now()})
     changed = False; warnings = list(plan["warnings"]); errors: list[str] = []; backups: list[dict[str, str]] = []
     selected = [resolve_client(value) for value in client_ids]
+    total = (len(selected) * len(assets) if not mcp_only else 0) + (len(selected) if not skills_only else 0) + 1
+    completed = 0
+
+    def report(phase: str, message: str) -> None:
+        if progress_callback:
+            progress_callback({"phase": phase, "completed": completed, "total": total, "message": message})
+
+    report("preparing", f"Preparing {total} local installation actions")
     for adapter in selected:
         record = state.setdefault("clients", {}).setdefault(adapter.id, {"skills": []})
         if not mcp_only:
             skills = []
             for asset in assets.values():
+                report("skills", f"{adapter.display_name}: {asset['name']}")
                 destination = _skill_destination(adapter, project, scope, user_home, asset["name"])
                 rendered = _render_skill(adapter, asset)
                 if destination.exists():
                     current = destination.read_text(encoding="utf-8")
                     if current == rendered:
                         skills.append({"name": asset["name"], "source_hash": asset["source_hash"], "installed_path": str(destination), "installed_hash": _sha256(destination), "ownership": "managed-copy"})
+                        completed += 1
                         continue
                     if not force:
-                        errors.append(f"unmanaged or modified skill exists: {destination}"); continue
+                        errors.append(f"unmanaged or modified skill exists: {destination}"); completed += 1; continue
                     if backup: _backup_once(destination, backups)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 if link:
@@ -465,11 +475,14 @@ def install(client_ids: Iterable[str], *, scope: str = "project", project_path: 
                     warnings.append(f"--link fell back to copy for packaged asset {asset['name']}")
                 _atomic_write(destination, rendered); changed = True
                 skills.append({"name": asset["name"], "source_hash": asset["source_hash"], "installed_path": str(destination), "installed_hash": _sha256(destination), "ownership": "managed-copy"})
+                completed += 1
             record["skills"] = skills
         if not skills_only:
+            report("mcp", f"{adapter.display_name}: MCP registration")
             config = next((Path(item["path"]) for item in plan["writes"] if item["kind"] == "mcp" and item["client"] == adapter.id), None)
             if config is None:
                 if adapter.id == "kodik": warnings.append("Kodik MCP not registered: create/open its global mcp.json through Kodik UI, then run repair.")
+                completed += 1
                 continue
             entry = mcp_launcher()
             try:
@@ -480,8 +493,12 @@ def install(client_ids: Iterable[str], *, scope: str = "project", project_path: 
                 elif status != "already_installed": changed = True
                 record["mcp"] = {"server_name": server_name, "config_path": str(config), "launcher": entry, "entry_hash": hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest()}
             except (OSError, ValueError) as exc: errors.append(str(exc))
+            completed += 1
     state["backups"] = backups
+    report("saving", "Saving managed installation state")
     _atomic_write(state_file, json.dumps(state, ensure_ascii=False, indent=2) + "\n")
+    completed += 1
+    report("complete", "Local setup is ready")
     return {"command": "agent.install", "status": "partial" if errors else ("ok" if changed else "already_installed"), "changed": changed, "result": {"state_path": str(state_file), "plan": plan, "backups": backups}, "warnings": warnings, "errors": errors}
 
 

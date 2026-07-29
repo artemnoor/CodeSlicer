@@ -22,7 +22,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
 
     elif args.command == "agent":
         from impact_engine.agent_integration import client_catalog, detect_clients, doctor as agent_doctor_report, install, installation_status, repair, uninstall
-        from impact_engine.terminal_ui import choose_agent_clients
+        from impact_engine.terminal_ui import InstallationProgress, choose_agent_clients
         local_json = bool(getattr(args, "local_json", False) or getattr(args, "json", False))
         try:
             if args.agent_command == "detect":
@@ -53,7 +53,27 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                     requested = [item["id"] for item in detect_clients(args.project) if item["detected"]]
                 if not requested:
                     raise ValueError("no AI clients were selected or detected")
-                result = install(requested, scope=args.scope, project_path=args.project, skills_only=args.skills_only, mcp_only=args.mcp_only, link=args.link, force=args.force, dry_run=args.dry_run, server_name=args.server_name, backup=not args.no_backup)
+                # The visual installer is a stderr-only TTY affordance. JSON
+                # callers keep byte-for-byte machine-readable stdout.
+                with InstallationProgress(
+                    title="CodeSlicer · IDE setup",
+                    enabled=not local_json and not args.dry_run,
+                ) as progress:
+                    result = install(
+                        requested,
+                        scope=args.scope,
+                        project_path=args.project,
+                        skills_only=args.skills_only,
+                        mcp_only=args.mcp_only,
+                        link=args.link,
+                        force=args.force,
+                        dry_run=args.dry_run,
+                        server_name=args.server_name,
+                        backup=not args.no_backup,
+                        progress_callback=progress.update,
+                    )
+                    if result.get("status") in {"error", "partial"}:
+                        progress.update({"phase": "failed", "message": "Installation completed with warnings; review the result below"})
             elif args.agent_command == "repair":
                 result = repair(scope=args.scope, project_path=args.project, force=args.force, dry_run=args.dry_run, backup=not args.no_backup)
             elif args.agent_command == "uninstall":
@@ -946,39 +966,47 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
         elif args.sp_command == "install":
             try:
                 from impact_engine.support_packs.schema import validate_support_pack_dict
+                from impact_engine.terminal_ui import InstallationProgress
 
-                pack_dict = _load_support_pack_candidate(args.path)
-                install_pack = pack_dict
-                adapted_from = None
-                validation_errors = validate_support_pack_dict(install_pack)
-                if validation_errors:
-                    try:
-                        from impact_engine.research.pro_adapter import adapt_researcher_pro_draft
-                        install_pack = adapt_researcher_pro_draft(pack_dict)
-                        adapted_from = "ai_library_researcher_pro"
-                        validation_errors = validate_support_pack_dict(install_pack)
-                    except Exception as exc:
-                        validation_errors = validation_errors + [f"researcher-pro adaptation failed: {exc}"]
+                with InstallationProgress(title="CodeSlicer · support pack", enabled=not args.json) as progress:
+                    progress.update({"phase": "preparing", "completed": 0, "total": 3, "message": "Reading support-pack candidate"})
+                    pack_dict = _load_support_pack_candidate(args.path)
+                    install_pack = pack_dict
+                    adapted_from = None
+                    progress.update({"phase": "validating", "completed": 1, "total": 3, "message": "Validating support-pack schema"})
+                    validation_errors = validate_support_pack_dict(install_pack)
+                    if validation_errors:
+                        try:
+                            from impact_engine.research.pro_adapter import adapt_researcher_pro_draft
+                            install_pack = adapt_researcher_pro_draft(pack_dict)
+                            adapted_from = "ai_library_researcher_pro"
+                            validation_errors = validate_support_pack_dict(install_pack)
+                        except Exception as exc:
+                            validation_errors = validation_errors + [f"researcher-pro adaptation failed: {exc}"]
 
-                if validation_errors:
-                    res = {"valid": False, "errors": validation_errors, "path": None}
-                else:
-                    target_path = _registry_pack_path(install_pack)
-                    if target_path.exists() and not args.overwrite:
-                        staged_path = _save_staged_support_pack(install_pack)
-                        res = {
-                            "valid": False,
-                            "status": "blocked_existing_pack",
-                            "errors": [f"Support pack already exists: {target_path.as_posix()}"],
-                            "path": str(staged_path.as_posix()),
-                            "target_path": str(target_path.as_posix()),
-                            "message": "Existing pack was not overwritten. Use --overwrite if replacement is intentional.",
-                        }
+                    if validation_errors:
+                        res = {"valid": False, "errors": validation_errors, "path": None}
                     else:
-                        res = store.validate_and_save_pack(install_pack)
-                        res["status"] = "installed" if res.get("valid") else "error"
-                        if adapted_from and res.get("valid", False):
-                            res["adapted_from"] = adapted_from
+                        target_path = _registry_pack_path(install_pack)
+                        if target_path.exists() and not args.overwrite:
+                            staged_path = _save_staged_support_pack(install_pack)
+                            res = {
+                                "valid": False,
+                                "status": "blocked_existing_pack",
+                                "errors": [f"Support pack already exists: {target_path.as_posix()}"],
+                                "path": str(staged_path.as_posix()),
+                                "target_path": str(target_path.as_posix()),
+                                "message": "Existing pack was not overwritten. Use --overwrite if replacement is intentional.",
+                            }
+                        else:
+                            progress.update({"phase": "support_pack", "completed": 2, "total": 3, "message": "Writing validated support pack"})
+                            res = store.validate_and_save_pack(install_pack)
+                            res["status"] = "installed" if res.get("valid") else "error"
+                            if adapted_from and res.get("valid", False):
+                                res["adapted_from"] = adapted_from
+                    progress.update({"phase": "complete", "completed": 3, "total": 3, "message": "Support-pack installation finished"})
+                    if not res.get("valid", True):
+                        progress.update({"phase": "failed", "message": "Support-pack installation needs attention"})
                 if args.json:
                     _print_json(res)
                 else:
