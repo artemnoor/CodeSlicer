@@ -9,6 +9,12 @@ import pytest
 from impact_engine.incremental import incremental_update
 from impact_engine.analysis.pipeline import analyze_project_core
 from impact_engine.models import GraphDocument, Node
+from impact_engine.models import Edge
+from impact_engine.graph_quality import graph_quality_report
+from impact_engine.plugin_architecture.integrity import plugin_graph_integrity_gate
+from impact_engine.resolution.helpers import build_module_scope_resolver
+from semantic_binding.symbol_table import SymbolTable
+from semantic_binding.models import Symbol
 from impact_engine.persistence import (
     AtomicCacheStore,
     CacheBusyError,
@@ -97,6 +103,69 @@ def test_warm_pipeline_uses_persistent_cache(tmp_path: Path):
     assert second["graph"]["metadata"]["cache"]["cache_status"] == "hit"
     assert second["graph"]["metadata"]["cache"]["facts_reused"] > 0
     assert second["profiling"]["work"]["facts_reused"] == second["graph"]["metadata"]["cache"]["facts_reused"]
+
+
+def test_warm_cache_does_not_rescan_the_project_inventory(tmp_path: Path, monkeypatch):
+    """Warm validation may stat files, but must not rebuild inventory facts."""
+    (tmp_path / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+    analyze_project_core(str(tmp_path), scope=".")
+
+    def fail_inventory_scan(*_args, **_kwargs):
+        raise AssertionError("warm cache must not call scan_project_inventory")
+
+    monkeypatch.setattr("impact_engine.analysis.pipeline.scan_project_inventory", fail_inventory_scan)
+    warm = analyze_project_core(str(tmp_path), scope=".")
+    assert warm["graph"]["metadata"]["cache"]["cache_status"] == "hit"
+
+
+def test_warm_cache_invalidates_when_plugin_registry_changes(tmp_path: Path, monkeypatch):
+    (tmp_path / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+    analyze_project_core(str(tmp_path), scope=".")
+    monkeypatch.setattr("impact_engine.persistence.plugin_registry_fingerprint", lambda _project: "changed-registry")
+    rebuilt = analyze_project_core(str(tmp_path), scope=".")
+    assert "persistent_cache" not in rebuilt["extractors_used"]
+
+
+def test_graph_quality_orphans_are_computed_from_one_edge_index():
+    """Large graphs must not perform a nodes-times-edges orphan scan."""
+    graph = GraphDocument(
+        nodes=[Node(f"n{index}", "FUNCTION", f"n{index}") for index in range(500)],
+        edges=[Edge(f"e{index}", "CALLS", f"n{index}", f"n{index + 1}") for index in range(0, 499)],
+    )
+    report = graph_quality_report(graph)
+    assert report["orphan_node_count"] == 0
+
+
+def test_plugin_integrity_gate_reuses_one_node_index_for_all_edges():
+    graph = GraphDocument(
+        nodes=[Node(f"n{index}", "FUNCTION", f"n{index}") for index in range(500)],
+        edges=[Edge(f"e{index}", "CALLS", f"n{index}", f"n{index + 1}") for index in range(499)],
+    )
+    result = plugin_graph_integrity_gate(graph, "language.python")
+    assert result.metadata["plugin_graph_integrity"][-1]["dangling_edges_after"] == 0
+
+
+def test_symbol_table_indexes_qualified_suffixes_without_changing_ambiguity():
+    table = SymbolTable()
+    first = Symbol(name="run", qualified_name="one.worker.run", kind="function")
+    second = Symbol(name="run", qualified_name="two.worker.run", kind="function")
+    table.register(first)
+    table.register(second)
+    assert table.lookup("one.worker.run") is first
+    assert table.lookup("worker.run") is None
+
+
+def test_module_scope_resolver_reuses_a_longest_prefix_index():
+    graph = GraphDocument(
+        nodes=[
+            Node("module:app", "MODULE", "app"),
+            Node("module:app.services", "MODULE", "services"),
+        ]
+    )
+    resolver = build_module_scope_resolver(graph)
+    assert resolver("app.services.orders.create") == "app.services"
+    assert resolver("app.services.orders.update") == "app.services"
+    assert resolver("other.worker.run") == "other"
 
 
 def test_solution_files_are_manifests_not_source_files():

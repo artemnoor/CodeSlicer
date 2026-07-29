@@ -12,18 +12,26 @@ class SymbolTable:
     def __init__(self) -> None:
         self._by_name: Dict[str, Symbol] = {}
         self._by_qualified: Dict[str, Symbol] = {}
+        # ``lookup`` accepts trailing qualified fragments (``module.symbol``
+        # or ``symbol``).  Index every dotted suffix at registration time so
+        # semantic binding never scans all symbols per assignment.
+        self._by_suffix: Dict[str, Dict[str, Symbol]] = {}
 
     def register(self, symbol: Symbol) -> None:
         self._by_name.setdefault(symbol.name, symbol)
         if symbol.qualified_name:
             self._by_qualified[symbol.qualified_name] = symbol
+            parts = symbol.qualified_name.split(".")
+            for offset in range(1, len(parts)):
+                suffix = ".".join(parts[offset:])
+                self._by_suffix.setdefault(suffix, {})[symbol.qualified_name] = symbol
 
     def lookup(self, name: str) -> Optional[Symbol]:
         if name in self._by_qualified:
             return self._by_qualified[name]
         if name in self._by_name:
             return self._by_name[name]
-        matches = [s for q, s in self._by_qualified.items() if q.endswith(f".{name}")]
+        matches = list(self._by_suffix.get(name, {}).values())
         if len(matches) == 1:
             return matches[0]
         return None

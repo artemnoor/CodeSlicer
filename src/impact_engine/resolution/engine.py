@@ -1,5 +1,6 @@
 """Resolution orchestrator engine. Stage 14."""
 from dataclasses import dataclass, field
+from collections.abc import Callable
 from typing import Dict, List, Tuple, Optional
 
 from impact_engine.models import GraphDocument, Node, Edge, Evidence
@@ -7,7 +8,8 @@ from impact_engine.resolution.symbol_index import build_symbol_index
 from impact_engine.resolution.helpers import (
     resolve_class_name,
     get_node_location,
-    module_for_scope
+    module_for_scope,
+    build_module_scope_resolver,
 )
 from impact_engine.nested_object_graph import apply_nested_object_graph_resolution
 from impact_engine.support_packs.rule_engine import apply_support_pack_rule_engine
@@ -73,7 +75,14 @@ def _add_exact_function_call(graph: GraphDocument, call: Node, target: str) -> N
     ))
 
 
-def resolve_receiver_type(receiver: str, scope: str, context: ResolutionContext, graph: GraphDocument, index) -> Optional[str]:
+def resolve_receiver_type(
+    receiver: str,
+    scope: str,
+    context: ResolutionContext,
+    graph: GraphDocument,
+    index,
+    module_resolver: Callable[[str], str] | None = None,
+) -> Optional[str]:
     # 1. If receiver is "self"
     if receiver == "self":
         if "." in scope:
@@ -103,7 +112,8 @@ def resolve_receiver_type(receiver: str, scope: str, context: ResolutionContext,
         return t
         
     # 4. If receiver is a module-level variable (scope is method/function/module)
-    current_module = module_for_scope(scope, graph)
+    scope_resolver = module_resolver or build_module_scope_resolver(graph)
+    current_module = scope_resolver(scope)
     t = context.variable_types.get((current_module, receiver))
     if t:
         return t
@@ -112,7 +122,7 @@ def resolve_receiver_type(receiver: str, scope: str, context: ResolutionContext,
     if "." in receiver:
         parts = receiver.split(".")
         base = parts[0]
-        base_type = resolve_receiver_type(base, scope, context, graph, index)
+        base_type = resolve_receiver_type(base, scope, context, graph, index, scope_resolver)
         if base_type:
             curr_type = base_type
             for prop in parts[1:]:
@@ -134,6 +144,7 @@ def resolve_receiver_type(receiver: str, scope: str, context: ResolutionContext,
 
 def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> GraphDocument:
     index = build_symbol_index(graph)
+    resolve_module_scope = build_module_scope_resolver(graph)
     graph.metadata["precision_resolver"] = "active"
 
     # Extraction of current facts from nodes
@@ -181,7 +192,7 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
             scope = str(call.properties.get("scope") or "")
             call_name = str(call.properties.get("call_name") or "")
             if scope and call_name and "." not in call_name:
-                target = index.resolve_function_name(call_name, module_for_scope(scope, graph), scope.rsplit(".", 1)[0])
+                target = index.resolve_function_name(call_name, resolve_module_scope(scope), scope.rsplit(".", 1)[0])
                 if target:
                     _add_exact_function_call(graph, call, target)
 
@@ -191,7 +202,7 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
             target = assign.properties.get("target")
             call_name = assign.properties.get("call_name")
             if call_name and scope and target:
-                current_module = module_for_scope(scope, graph)
+                current_module = resolve_module_scope(scope)
                 resolved_type = resolve_class_name(call_name, current_module, index)
                 if resolved_type:
                     key = (scope, target)
@@ -232,7 +243,7 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
             call_name = str(assign.properties.get("call_name") or "")
             if not scope or not target or not call_name or (scope, target) in context.variable_types:
                 continue
-            function_target = index.resolve_function_name(call_name, module_for_scope(scope, graph), scope.rsplit(".", 1)[0])
+            function_target = index.resolve_function_name(call_name, resolve_module_scope(scope), scope.rsplit(".", 1)[0])
             return_type = index.function_return_types.get(function_target or "")
             if not return_type:
                 continue
@@ -259,7 +270,7 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
                     call_name = positional_args[0]
                     positional_args = positional_args[1:]
                     
-                current_module = module_for_scope(scope, graph)
+                current_module = resolve_module_scope(scope)
                 resolved_target_type = resolve_class_name(call_name, current_module, index)
                 if resolved_target_type:
                     constructor_scope = f"{resolved_target_type}.__init__"
@@ -289,7 +300,9 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
                     for param_name, arg_val in arg_bindings.items():
                         arg_type = context.variable_types.get((scope, arg_val))
                         if not arg_type:
-                            arg_type = resolve_receiver_type(arg_val, scope, context, graph, index)
+                            arg_type = resolve_receiver_type(
+                                arg_val, scope, context, graph, index, resolve_module_scope
+                            )
                         if arg_type:
                             param_key = (constructor_scope, param_name)
                             if param_key not in context.parameter_types:
@@ -394,12 +407,14 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
             method_name = call.properties.get("method_name")
             if scope and receiver and method_name:
                 module_target = index.resolve_module_member(
-                    str(receiver), str(method_name), module_for_scope(scope, graph)
+                    str(receiver), str(method_name), resolve_module_scope(scope)
                 )
                 if module_target:
                     _add_exact_function_call(graph, call, module_target)
                     continue
-                receiver_type = resolve_receiver_type(receiver, scope, context, graph, index)
+                receiver_type = resolve_receiver_type(
+                    receiver, scope, context, graph, index, resolve_module_scope
+                )
                 if not receiver_type and str(receiver) == "super()" and "." in str(scope):
                     receiver_type = str(scope).rsplit(".", 1)[0]
                 confidence = 0.85 if receiver != "self" else 0.90
@@ -459,7 +474,7 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
                             else:
                                 chain_evidence = context.evidences.get((scope, base), [])
                                 if not chain_evidence:
-                                    current_module = module_for_scope(scope, graph)
+                                    current_module = resolve_module_scope(scope)
                                     chain_evidence = context.evidences.get((current_module, base), [])
                                     
                         file_path, line_no = get_node_location(call.id, graph)

@@ -8,9 +8,13 @@ from .selection import PluginSelectionPlan
 
 
 def plugin_graph_integrity_gate(graph: GraphDocument, plugin_id: str) -> GraphDocument:
+    node_ids = {node.id for node in graph.nodes}
     before = {
         "edge_count": len(graph.edges),
-        "dangling": sum(1 for edge in graph.edges if edge.from_node not in {node.id for node in graph.nodes} or edge.to_node not in {node.id for node in graph.nodes}),
+        "dangling": sum(
+            1 for edge in graph.edges
+            if edge.from_node not in node_ids or edge.to_node not in node_ids
+        ),
     }
     # Materialize unresolved endpoints without rewriting existing ids. The
     # gate can run between extraction and resolution; a full canonicalizing
@@ -18,7 +22,6 @@ def plugin_graph_integrity_gate(graph: GraphDocument, plugin_id: str) -> GraphDo
     # resolvers. Explicit suppressed nodes preserve the edge and its
     # diagnostic provenance while keeping the persisted document closed.
     normalized = graph
-    node_ids = {node.id for node in normalized.nodes}
     missing_endpoints = {
         endpoint
         for edge in normalized.edges

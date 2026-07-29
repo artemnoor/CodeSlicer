@@ -33,10 +33,9 @@ from impact_engine.scope import iter_project_files
 # v3 invalidates graphs produced before evidence-first local semantic
 # resolution existed for the non-Python language plugins.
 # Framework manifests and their hook provenance participate in the canonical
-# graph.  v4 invalidates v3's fast-path entries once so an installation that
-# gains a new pack cannot silently reuse a graph produced before that pack
-# existed.
-CACHE_SCHEMA_VERSION = "impact-engine.cache.v4"
+# graph. v5 records a registry fingerprint, so a warm cache can validate packs
+# without rebuilding the whole project's inventory.
+CACHE_SCHEMA_VERSION = "impact-engine.cache.v5"
 PIPELINE_VERSION = "performance-incremental.v2"
 MARKER_NAME = ".cache.complete"
 JOURNAL_NAME = ".cache.journal.json"
@@ -225,6 +224,39 @@ def root_identity(root: str | Path) -> str:
     return _sha256(project)
 
 
+def plugin_registry_fingerprint(project_path: str | Path) -> str:
+    """Fingerprint local plugin assets without walking project source files.
+
+    Framework selection cannot change while the source snapshot is unchanged;
+    only the registry's manifests or hook/recipe implementations can alter the
+    selected packs' output.  This small fixed-size check replaces an expensive
+    warm-cache inventory scan across the user's repository.
+    """
+    try:
+        from impact_engine.plugin_architecture.registry import discover_plugin_registry
+
+        registry = discover_plugin_registry(project_path)
+    except Exception:
+        return "unavailable"
+    entries: list[dict[str, str]] = []
+    for plugin_id, manifest in sorted(registry.manifests.items()):
+        manifest_path = Path(str(getattr(manifest, "path", "") or ""))
+        assets = [manifest_path]
+        if manifest_path:
+            assets.extend((manifest_path.parent / "hooks.py", manifest_path.parent / "recipes.py"))
+        digests: dict[str, str] = {}
+        for asset in assets:
+            if not asset:
+                continue
+            try:
+                if asset.is_file():
+                    digests[asset.name] = _sha256(asset.read_bytes())
+            except OSError:
+                digests[asset.name] = "missing"
+        entries.append({"id": str(plugin_id), "assets": _canonical_json(digests)})
+    return _sha256(_canonical_json(entries))
+
+
 def _plugin_entries(plugin_plan: Any) -> list[dict[str, str]]:
     if plugin_plan is None:
         return []
@@ -283,6 +315,7 @@ class CacheMetadata:
     source_snapshot_hash: str
     scan_scope: str
     scan_scope_hash: str
+    plugin_registry_fingerprint: str = ""
     selected_plugins: tuple[dict[str, str], ...] = ()
     selected_framework_packs: tuple[dict[str, str], ...] = ()
     graph_schema_version: str = "GraphDocument/v1"
@@ -308,6 +341,7 @@ class CacheMetadata:
             "source_snapshot_hash": self.source_snapshot_hash,
             "scan_scope": self.scan_scope,
             "scan_scope_hash": self.scan_scope_hash,
+            "plugin_registry_fingerprint": self.plugin_registry_fingerprint,
             "selected_plugins": list(self.selected_plugins),
             "selected_framework_packs": list(self.selected_framework_packs),
             "graph_schema_version": self.graph_schema_version,
@@ -351,7 +385,7 @@ class CacheMetadata:
             branch=str(git["branch"]), ref=str(git["ref"]),
             head_fingerprint=str(git["head_fingerprint"]), base_fingerprint=str(git["base_fingerprint"]),
             source_snapshot_hash=snapshot_hash(snap), scan_scope=scope_value,
-            scan_scope_hash=_sha256(scope_value), selected_plugins=language,
+            scan_scope_hash=_sha256(scope_value), plugin_registry_fingerprint=plugin_registry_fingerprint(project), selected_plugins=language,
             selected_framework_packs=packs, cache_status=cache_status, cache_reason=cache_reason,
             runtime_dependency_version=f"python-{platform.python_version()}|tree-sitter-{tree_sitter_status}",
         )
@@ -536,7 +570,7 @@ class AtomicCacheStore:
             for key in (
                 "project_root_identity", "branch", "ref", "head_fingerprint", "base_fingerprint",
                 "source_snapshot_hash", "scan_scope", "scan_scope_hash", "selected_plugins",
-                "selected_framework_packs", "graph_schema_version", "engine_version",
+                "selected_framework_packs", "plugin_registry_fingerprint", "graph_schema_version", "engine_version",
                 "analysis_pipeline_version", "runtime_dependency_version",
             ):
                 if metadata.get(key) != expected_data.get(key):

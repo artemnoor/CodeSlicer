@@ -484,24 +484,17 @@ class AnalysisPipeline:
             except Exception:
                 return None
         snapshot = loaded.artifacts.get("snapshot.json", {})
-        # A source snapshot says nothing about newly installed or upgraded
-        # framework packs.  Rebuild only the cheap inventory/selection plan
-        # and compare its manifest + hook fingerprints before accepting the
-        # fast path.  This keeps cache reuse safe across pack upgrades.
-        current_inventory = self._scan_inventory()
-        current_plan = build_plugin_selection_plan(self.project_path, current_inventory)
+        # A source snapshot says nothing about upgraded framework packs. Check
+        # their small registry fingerprint, not a second inventory traversal
+        # of the user's complete project, before accepting the fast path.
         current_metadata = CacheMetadata.from_project(
             self.project_path,
             scope=self.options.scope,
-            plugin_plan=current_plan,
             snapshot=snapshot if isinstance(snapshot, dict) else None,
             cache_status="hit",
             cache_reason="fast_cache_validation",
         )
-        if (
-            metadata.get("selected_plugins") != list(current_metadata.selected_plugins)
-            or metadata.get("selected_framework_packs") != list(current_metadata.selected_framework_packs)
-        ):
+        if metadata.get("plugin_registry_fingerprint") != current_metadata.plugin_registry_fingerprint:
             return None
         facts_payload = loaded.artifacts.get("facts.json", {})
         facts_reused = len(facts_payload.get("facts", [])) if isinstance(facts_payload, dict) else 0

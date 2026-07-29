@@ -152,6 +152,7 @@ def _materialize_unresolved_endpoints(graph: GraphDocument) -> None:
 def _canonicalize_scope_endpoints(graph: GraphDocument) -> None:
     """Map resolver display scopes to canonical node IDs before integrity checks."""
     node_ids = {node.id for node in graph.nodes}
+    node_by_id = {node.id: node for node in graph.nodes}
     aliases: dict[str, str] = {}
     for node in graph.nodes:
         for key in ("scope", "qualified_name", "canonical_name"):
@@ -171,7 +172,7 @@ def _canonicalize_scope_endpoints(graph: GraphDocument) -> None:
                 # keeps old API consumers working without dangling nodes and
                 # records the compatibility boundary in provenance.
                 if edge.source == "SUPPORT_PACK":
-                    original = next((node for node in graph.nodes if node.id == target_id), None)
+                    original = node_by_id.get(target_id)
                     if original is not None:
                         graph.add_node(Node(
                             id=endpoint_name,
@@ -180,9 +181,10 @@ def _canonicalize_scope_endpoints(graph: GraphDocument) -> None:
                             properties={**original.properties, "compatibility_alias_for": target_id},
                         ))
                         node_ids.add(endpoint_name)
+                        node_by_id[endpoint_name] = graph.get_node(endpoint_name)
                         changed += 1
                 else:
-                    original = next((node for node in graph.nodes if node.id == target_id), None)
+                    original = node_by_id.get(target_id)
                     if original is not None:
                         graph.add_node(Node(
                             id=endpoint_name,
@@ -191,6 +193,7 @@ def _canonicalize_scope_endpoints(graph: GraphDocument) -> None:
                             properties={**original.properties, "compatibility_alias_for": target_id},
                         ))
                         node_ids.add(endpoint_name)
+                        node_by_id[endpoint_name] = graph.get_node(endpoint_name)
                         changed += 1
     graph._rebuild_edge_indexes()
     graph.metadata["canonicalized_endpoint_rewrites"] = changed

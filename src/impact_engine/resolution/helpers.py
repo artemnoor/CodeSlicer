@@ -1,4 +1,5 @@
 """Internal helpers for resolver precision and scope resolution. Stage 15."""
+from collections.abc import Callable
 from typing import Optional, Tuple
 from impact_engine.models import GraphDocument
 from impact_engine.resolution.symbol_index import SymbolIndex
@@ -29,3 +30,41 @@ def module_for_scope(scope: str, graph: GraphDocument) -> str:
     if longest_module:
         return longest_module
     return scope.split(".")[0]
+
+
+def build_module_scope_resolver(graph: GraphDocument) -> Callable[[str], str]:
+    """Build a memoized module lookup for one precision-resolution run.
+
+    Precision inference asks for the owning module at several points in each
+    fixpoint pass.  Scanning all graph nodes for every lookup made resolution
+    quadratic on large projects.  Module nodes are immutable for this stage,
+    so one sorted index plus a scope cache preserves the exact longest-prefix
+    rule without repeated graph walks.
+    """
+    module_names = sorted(
+        {
+            node.id[7:] if node.id.startswith("module:") else node.id
+            for node in graph.nodes
+            if node.kind == "MODULE"
+        },
+        key=len,
+        reverse=True,
+    )
+    cache: dict[str, str] = {}
+
+    def resolve(scope: str) -> str:
+        cached = cache.get(scope)
+        if cached is not None:
+            return cached
+        result = next(
+            (
+                module_name
+                for module_name in module_names
+                if scope == module_name or scope.startswith(module_name + ".")
+            ),
+            scope.split(".")[0],
+        )
+        cache[scope] = result
+        return result
+
+    return resolve
