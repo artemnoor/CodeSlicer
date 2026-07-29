@@ -43,7 +43,7 @@ function Write-CodeSlicerBootstrapProgress {
     $innerWidth = 74
     $border = '+' + ('-' * ($innerWidth + 2)) + '+'
     if ($Final) {
-        $headline = if ($Failed) { 'CODE SLICER NEEDS ATTENTION' } else { 'SLICER READY / LOCAL TOOLS LINKED' }
+        $headline = if ($Failed) { 'CODE SLICER NEEDS ATTENTION' } else { 'CODE MAP READY / LOCAL TOOLS LINKED' }
         $status = if ($Failed) { '[!] Package installation stopped. The installer log is below.' } else { '[OK] Local environment and CodeSlicer packages are ready.' }
         $next = if ($Failed) { 'Fix the reported issue and run this command again.' } else { 'Next: choose IDEs with arrows + Space, then press Enter.' }
         $lines = @(
@@ -61,17 +61,20 @@ function Write-CodeSlicerBootstrapProgress {
         $bar = ('=' * $filled) + ('>' * [Math]::Min(1, $barWidth - $filled)) + ('.' * [Math]::Max(0, $barWidth - $filled - 1))
         $glyph = $Frames[$Frame % $Frames.Count]
         $remaining = $Total - $Completed
-        $detail = "Step $Completed of $Total - $remaining stage(s) left - $(Format-CodeSlicerRemaining -Completed $Completed -Total $Total)"
-        $track = '[ source ]---o---o---o---[ graph ]---o---[ agent ]'
-        $blade = '<====|'
-        $bladeOffset = ($Frame * 2) % [Math]::Max(1, $innerWidth - $blade.Length)
-        $sweep = (' ' * $bladeOffset) + $blade
+        $nodes = @('SOURCE', 'IMPORTS', 'SYMBOLS', 'IMPACT', 'AGENT')
+        $activeNode = $Frame % $nodes.Count
+        $map = (($nodes | ForEach-Object -Begin { $index = 0 } -Process {
+            $node = if ($index -eq $activeNode) { "[$_]" } else { " $_ " }
+            $index++
+            $node
+        }) -join '--')
+        $signal = (' ' * ($activeNode * 11)) + 'o'
         $lines = @(
             $border,
-            (Format-CodeSlicerBootstrapRow -Text "CodeSlicer / slicing local code into an impact graph              [$glyph]" -Width $innerWidth),
+            (Format-CodeSlicerBootstrapRow -Text "CodeSlicer / mapping local code and IDE context                   [$glyph]" -Width $innerWidth),
             (Format-CodeSlicerBootstrapRow -Text $Activity -Width $innerWidth),
-            (Format-CodeSlicerBootstrapRow -Text $track -Width $innerWidth),
-            (Format-CodeSlicerBootstrapRow -Text $sweep -Width $innerWidth),
+            (Format-CodeSlicerBootstrapRow -Text $map -Width $innerWidth),
+            (Format-CodeSlicerBootstrapRow -Text "local graph pulse: $signal" -Width $innerWidth),
             (Format-CodeSlicerBootstrapRow -Text "[$bar] $([Math]::Round(100 * $Completed / $Total))% | $Completed/$Total | $remaining left | ETA: $(Format-CodeSlicerRemaining -Completed $Completed -Total $Total)" -Width $innerWidth),
             $border
         )

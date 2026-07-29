@@ -177,8 +177,8 @@ def test_windows_bootstrap_hides_raw_pip_output_behind_real_stage_progress() -> 
     assert "Invoke-CodeSlicerPipStage" in script
     assert "GetTempFileName" in script and "echo %ERRORLEVEL%" in script
     assert "Installing CodeSlicer and dependencies" in script
-    assert "slicing local code into an impact graph" in script
-    assert "<====|" in script and "SLICER READY" in script
+    assert "mapping local code and IDE context" in script
+    assert "local graph pulse" in script and "CODE MAP READY" in script
     assert "& $venvPython -m pip" not in script
 
 
