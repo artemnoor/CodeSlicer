@@ -186,6 +186,25 @@ def _skill_destination(adapter: ClientAdapter, project: Path, scope: str, home: 
     return base / root / (f"{skill}{suffix}" if suffix != "SKILL.md" else f"{skill}/SKILL.md")
 
 
+def _skill_scope(adapter: ClientAdapter, requested_scope: str) -> tuple[str | None, str | None]:
+    """Choose a safe skills location without making one IDE break all others.
+
+    Cursor deliberately exposes project rules rather than a user-level skills
+    directory.  Its rules are still useful from the one-command setup, but
+    must be written into the selected workspace.  Some MCP-only adapters have
+    no skills target at all; they can still receive their MCP registration.
+    """
+    configured = adapter.project_skills if requested_scope == "project" else adapter.user_skills
+    if configured:
+        return requested_scope, None
+    if requested_scope == "user" and adapter.project_skills:
+        return (
+            "project",
+            f"{adapter.display_name} has no user skill destination; installed its project-level rules in {adapter.project_skills}.",
+        )
+    return None, f"{adapter.display_name} has no {requested_scope} skill destination; skipped CodeSlicer skills for this IDE."
+
+
 def _render_skill(adapter: ClientAdapter, skill: dict[str, Any]) -> str:
     if adapter.integration != "rule-adapter":
         return str(skill["text"])
@@ -202,9 +221,15 @@ def plan_install(client_ids: Iterable[str], *, scope: str = "project", project_p
     unsupported = [item.display_name for item in selected if item.support == "unsupported"]
     if unsupported: raise ValueError(f"unsupported AI client: {', '.join(unsupported)}")
     writes: list[dict[str, Any]] = []
+    warnings: list[str] = []
     for adapter in selected:
         if not mcp_only:
-            for skill in assets.values(): writes.append({"kind": "skill", "client": adapter.id, "path": str(_skill_destination(adapter, project, scope, user_home, skill["name"])), "source_hash": skill["source_hash"]})
+            effective_scope, warning = _skill_scope(adapter, scope)
+            if warning:
+                warnings.append(warning)
+            if effective_scope:
+                for skill in assets.values():
+                    writes.append({"kind": "skill", "client": adapter.id, "path": str(_skill_destination(adapter, project, effective_scope, user_home, skill["name"])), "source_hash": skill["source_hash"]})
         if not skills_only:
             config = None
             if adapter.id == "kodik":
@@ -212,7 +237,9 @@ def plan_install(client_ids: Iterable[str], *, scope: str = "project", project_p
             elif scope == "project" and adapter.project_mcp: config = project / adapter.project_mcp
             elif scope == "user" and adapter.user_mcp: config = user_home / adapter.user_mcp
             if config: writes.append({"kind": "mcp", "client": adapter.id, "path": str(config), "key": adapter.mcp_key, "server_name": server_name})
-    return {"project": str(project), "scope": scope, "writes": writes, "launcher": mcp_launcher(), "warnings": ["Kodik MCP is user-level only; use Kodik UI to create mcp.json first if it is not found."] if any(item.id == "kodik" and not any(write["kind"] == "mcp" and write["client"] == "kodik" for write in writes) for item in selected) else []}
+    if any(item.id == "kodik" and not any(write["kind"] == "mcp" and write["client"] == "kodik" for write in writes) for item in selected):
+        warnings.append("Kodik MCP is user-level only; use Kodik UI to create mcp.json first if it is not found.")
+    return {"project": str(project), "scope": scope, "writes": writes, "launcher": mcp_launcher(), "warnings": warnings}
 
 
 def _read_state(path: Path) -> dict[str, Any]:
@@ -444,7 +471,11 @@ def install(client_ids: Iterable[str], *, scope: str = "project", project_path: 
     state = _read_state(state_file); state.update({"schema_version": STATE_VERSION, "installer_version": "0.5.0", "scope": scope, "project_path": str(project), "installed_at": _now()})
     changed = False; warnings = list(plan["warnings"]); errors: list[str] = []; backups: list[dict[str, str]] = []
     selected = [resolve_client(value) for value in client_ids]
-    total = (len(selected) * len(assets) if not mcp_only else 0) + (len(selected) if not skills_only else 0) + 1
+    skill_destinations = {
+        adapter.id: [Path(write["path"]) for write in plan["writes"] if write["kind"] == "skill" and write["client"] == adapter.id]
+        for adapter in selected
+    }
+    total = (sum(len(destinations) for destinations in skill_destinations.values()) if not mcp_only else 0) + (len(selected) if not skills_only else 0) + 1
     completed = 0
 
     def report(phase: str, message: str) -> None:
@@ -456,9 +487,8 @@ def install(client_ids: Iterable[str], *, scope: str = "project", project_path: 
         record = state.setdefault("clients", {}).setdefault(adapter.id, {"skills": []})
         if not mcp_only:
             skills = []
-            for asset in assets.values():
+            for asset, destination in zip(assets.values(), skill_destinations[adapter.id]):
                 report("skills", f"{adapter.display_name}: {asset['name']}")
-                destination = _skill_destination(adapter, project, scope, user_home, asset["name"])
                 rendered = _render_skill(adapter, asset)
                 if destination.exists():
                     current = destination.read_text(encoding="utf-8")
@@ -568,7 +598,8 @@ def _recoverable_clients(project: Path, scope: str, home: Path) -> list[str]:
     for adapter in CLIENTS:
         if adapter.support == "unsupported": continue
         try:
-            destinations = [_skill_destination(adapter, project, scope, home, asset["name"]) for asset in assets.values()] if (adapter.project_skills if scope == "project" else adapter.user_skills) else []
+            effective_scope, _warning = _skill_scope(adapter, scope)
+            destinations = [_skill_destination(adapter, project, effective_scope, home, asset["name"]) for asset in assets.values()] if effective_scope else []
             skills_match = bool(destinations) and not any(path in claimed_skill_paths for path in destinations) and all(
                 destination.is_file() and destination.read_text(encoding="utf-8") == _render_skill(adapter, asset)
                 for destination, asset in zip(destinations, assets.values())

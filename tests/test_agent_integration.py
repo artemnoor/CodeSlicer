@@ -122,6 +122,39 @@ def test_codex_user_scope_uses_a_scoped_toml_mcp_section(tmp_path: Path) -> None
     assert status["result"]["clients"]["codex"]["mcp"]["registered"] is True
 
 
+def test_cursor_user_scope_falls_back_to_workspace_rules_without_aborting_install(tmp_path: Path) -> None:
+    project = tmp_path / "project"; project.mkdir()
+    home = tmp_path / "home"
+
+    plan = plan_install(["cursor"], scope="user", project_path=project, home=home, skills_only=True)
+    result = install(["cursor"], scope="user", project_path=project, home=home, skills_only=True)
+
+    assert result["status"] == "ok"
+    assert all(str(project / ".cursor" / "rules") in write["path"] for write in plan["writes"])
+    assert (project / ".cursor" / "rules" / "codeslicer-impact-analysis.mdc").is_file()
+    assert any("project-level rules" in warning for warning in result["warnings"])
+
+
+def test_installer_skips_missing_skill_destination_but_keeps_supported_mcp_setup(tmp_path: Path) -> None:
+    project = tmp_path / "project"; project.mkdir()
+    home = tmp_path / "home"
+
+    result = install(["zed"], scope="user", project_path=project, home=home)
+
+    assert result["status"] == "ok"
+    assert (home / ".config" / "zed" / "settings.json").is_file()
+    assert any("skipped CodeSlicer skills" in warning for warning in result["warnings"])
+
+
+def test_windows_bootstrap_hides_raw_pip_output_behind_real_stage_progress() -> None:
+    script = (Path(__file__).parents[1] / "scripts" / "install-windows.ps1").read_text(encoding="utf-8")
+
+    assert "Invoke-CodeSlicerPipStage" in script
+    assert "GetTempFileName" in script and "echo %ERRORLEVEL%" in script
+    assert "Installing CodeSlicer and dependencies" in script
+    assert "& $venvPython -m pip" not in script
+
+
 def test_compatibility_document_lists_every_registry_adapter() -> None:
     document = (Path(__file__).parents[1] / "docs" / "AGENT_CLIENT_COMPATIBILITY.md").read_text(encoding="utf-8")
     for adapter in client_catalog():
