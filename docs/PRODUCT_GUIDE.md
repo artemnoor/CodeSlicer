@@ -1,12 +1,28 @@
-# CodeSlicer: функционал, режимы и практические сценарии
+# CodeSlicer workspace: движки, возможности и практические сценарии
 
-## 1. Что это за продукт
+## 1. Что это за система
 
-CodeSlicer — local-first система анализа влияния изменений в коде. Она строит
-свой **canonical evidence graph**: файлы, модули, символы, импорты, вызовы,
-тесты, маршруты, зависимости и подтверждённые framework-связи. По этому графу
-система отвечает на практический вопрос: **что может затронуть конкретное
-изменение и что стоит проверить до merge**.
+CodeSlicer — local-first workspace для работы с кодом, а не просто один
+графовый анализатор. Он объединяет несколько независимых локальных движков и
+поверхностей работы: CLI для автоматизации, Local Hub для исследования,
+agent skills/MCP для IDE и optional adapters для специализированного контекста.
+Система намеренно не «склеивает всё в один graph»: у каждого источника есть
+собственный формат, владелец, provenance и граница доверия.
+
+| Задача | Владелец результата | Что получается |
+| --- | --- | --- |
+| Оценить риск правки, найти impact и тесты | **CodeSlicer engine** | canonical evidence graph, `review`, `inspect`, `investigate`, CI report |
+| Понять крупную архитектуру, communities, код и документацию | **Graphify engine** (optional) | самостоятельный Graphify graph и upstream viewer |
+| Перейти к declaration/references/implementations | **LSP / SCIP** (optional) | bounded semantic navigation overlay |
+| Посмотреть runtime, contracts, SBOM или security context | explicit artifact/runtime adapters | отдельные provenance-bearing overlays |
+| Дать задачу IDE-агенту | bundled skills, CLI, optional MCP | локальный workflow; MCP не обязателен |
+
+CodeSlicer engine строит свой **canonical evidence graph**: файлы, модули,
+символы, импорты, вызовы, тесты, маршруты, зависимости и подтверждённые
+framework-связи. По нему система отвечает на практический вопрос: **что может
+затронуть конкретное изменение и что стоит проверить до merge**. Graphify
+решает соседнюю, но другую задачу — навигацию по архитектуре — и не повышает
+риск PR и не меняет рекомендации CodeSlicer.
 
 Это не облачный IDE и не замена компилятора. CodeSlicer работает с локальной
 копией проекта, сохраняет результаты рядом с проектом и показывает степень
@@ -17,17 +33,41 @@ CodeSlicer — local-first система анализа влияния изме
 Основная ценность — не размер графа и не число узлов, а компактный,
 объяснимый список top-impact сущностей, связанных тестов и evidence chains.
 
+### 1.1. Что происходит при работе агента
+
+После `codeslicer agent install` выбранная IDE получает два skills:
+`codeslicer-impact-analysis` и `graphify-architecture-analysis`. Это не
+автозапуск двух программ и не загрузка Graphify. Skills подсказывают агенту
+правильный маршрут:
+
+1. Для изменения, PR, риска или «что проверить?» — обратиться к CodeSlicer
+   через CLI, а при наличии MCP можно использовать прямые structured calls.
+2. Для вопроса «как устроены communities/модули/документация?» — проверить,
+   что пользователь отдельно настроил Graphify и существует его local graph;
+   затем использовать нативные Graphify operations.
+3. Для symbol navigation или runtime/security context — не выдавать overlay за
+   canonical факт, а явно показать источник и его ограничения.
+
+Агент может работать только через CLI: MCP добавляет удобный транспорт, но не
+является условием анализа. Ни CodeSlicer, ни агент не клонируют Graphify или
+не запускают внешние движки без явного действия пользователя.
+
 ## 2. Как устроен рабочий поток
 
 ```text
 Исходники + Git diff
         │
-        ├─ scan-plan: определяет безопасную область анализа
-        ├─ extractors: извлекают факты по языкам
-        ├─ resolvers/support packs: связывают символы, routes, DI, тесты и т.д.
-        ├─ canonical GraphDocument: проектный evidence graph
-        ├─ review projection: компактный ranking для ежедневного решения
-        └─ optional overlays: внешний дополнительный контекст
+        ├─ CodeSlicer: scan-plan → extractors → resolvers/support packs
+        │      └─ canonical GraphDocument → impact/review/tests/CI
+        │
+        ├─ Graphify (явно настроен и запущен отдельно)
+        │      └─ independent architecture graph → communities/docs/viewer
+        │
+        └─ optional adapters (явный import/configure)
+               └─ LSP, SCIP, contracts, runtime, SBOM, SARIF, Joern overlays
+
+CLI / Local Hub / IDE skills / optional MCP выбирают подходящий слой, но не
+меняют владельца графа и не повышают trust level автоматически.
 ```
 
 ### 2.1. Постоянные локальные данные
@@ -195,9 +235,14 @@ Local API и localhost Hub дают четыре пользовательски�
 - **Architecture** — map canonical graph и подключённых overlays.
 
 В UI можно открыть файл/строку, увидеть evidence, выбрать overlay и подключить
-local artifacts. Отдельные `visualize` и `visualize-compare` создают HTML
-представления graph и comparison с Graphify. MCP предоставляет те же local
-operational capabilities AI-агенту без обязательного внешнего сервиса.
+local artifacts. В карте CodeSlicer по умолчанию включён быстрый обзор; явный
+переключатель **«Показать все связи»** запрашивает весь canonical graph без
+лимита проекции. На очень больших codebase это намеренно может быть медленнее
+и визуально плотнее — полный режим нужен для полноты, а `Review` и
+`Investigate` остаются удобнее для ежедневного решения. Отдельные `visualize`
+и `visualize-compare` создают HTML представления graph и comparison с
+Graphify. MCP предоставляет те же local operational capabilities AI-агенту
+без обязательного внешнего сервиса.
 
 ## 4. Практические сценарии
 

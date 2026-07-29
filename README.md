@@ -4,16 +4,30 @@
   <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/artemnoor/CodeSlicer/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/release-v0.5.0-7c3aed?style=flat-square" alt="Release v0.5.0"></a>
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/regression-728%20passed-22c55e?style=flat-square" alt="728 regression tests passed">
+  <img src="https://img.shields.io/badge/regression-745%20passed-22c55e?style=flat-square" alt="745 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
   <img src="https://img.shields.io/badge/agent%20skills-2-f97316?style=flat-square" alt="2 bundled agent skills">
   <img src="https://img.shields.io/badge/MCP-stdio%20JSON--RPC-ec4899?style=flat-square" alt="MCP stdio JSON-RPC">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0ea5e9?style=flat-square" alt="MIT license"></a>
 </p>
 
-**CodeSlicer** — local-first система анализа влияния изменений. Она строит
-доказуемый граф проекта, объясняет последствия правки и подсказывает, что
-проверить: от функции и сервиса до route, frontend-клиента и теста.
+**CodeSlicer** — local-first рабочая система для понимания и безопасного
+изменения кода. Это не только один анализатор: система объединяет независимые
+движки, локальный UI, CLI и агентские интеграции, чтобы отвечать на разные
+вопросы о проекте без смешения доказательств.
+
+| Вопрос | Слой системы | Результат |
+| --- | --- | --- |
+| Что сломает эта правка и какие тесты запустить? | **CodeSlicer engine** | canonical evidence graph, impact, review, evidence chains и рекомендации тестов |
+| Как в целом устроена архитектура, communities и документация? | **Graphify** — отдельный optional engine | собственный Graphify graph и его upstream viewer |
+| Где объявлен символ или какая реализация вызывается? | optional **LSP / SCIP** | отдельная semantic navigation/evidence overlay |
+| Как агенту применить всё это к задаче? | IDE skills, CLI и optional MCP | управляемый локальный workflow в выбранной IDE |
+
+CodeSlicer engine строит доказуемый граф проекта, объясняет последствия правки
+и подсказывает, что проверить: от функции и сервиса до route,
+frontend-клиента и теста. Graphify отвечает за свой, изолированный
+архитектурный граф. Local Hub показывает оба представления рядом, но не
+подменяет один результат другим.
 
 Внутреннее имя Python-пакета и команд — `impact_engine`.
 
@@ -26,11 +40,12 @@
 
 ![Семантический граф CodeSlicer](docs/images/codeslicer-hero.png)
 
-## Начните здесь: Windows, IDE и первый проект
+## Начните здесь: Windows, macOS, Linux, IDE и первый проект
 
-Для первого запуска достаточно Git и Python 3.10+. Не нужно вручную выбирать
-версию Python, ставить `pip`-зависимости глобально или вводить длинную команду
-`py -m impact_engine...`.
+Для первого запуска достаточно Git и Python 3.10+. Все команды ниже создают
+изолированную `.venv`: глобальные Python-пакеты и старый `impact-engine` в
+`PATH` не используются. Рекомендуемая команда после установки —
+`codeslicer`.
 
 ```powershell
 # 1. Скачать CodeSlicer
@@ -45,14 +60,36 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
 Installer по умолчанию настраивает `user` scope: skills доступны во всех
 последующих проектах. Перезапустите IDE и откройте свой рабочий репозиторий.
 
+### macOS и Linux (bash/zsh)
+
+```bash
+# 1. Скачать CodeSlicer
+git clone https://github.com/artemnoor/CodeSlicer.git
+cd CodeSlicer
+
+# 2. Создать изолированную среду и установить систему локально
+python3 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install -e .
+
+# 3. Открыть то же интерактивное меню IDE
+./.venv/bin/codeslicer agent install
+```
+
+В меню: `↑`/`↓` — перемещение, `Space` — отметить IDE, `Enter` — установить.
+Если `python3 -m venv` сообщает об отсутствующем модуле `venv`, установите
+стандартный пакет Python venv вашей ОС и повторите команду. Не нужен `sudo pip`
+и не нужно активировать окружение: команды выше всегда обращаются к `.venv`
+напрямую.
+
 ### Что делать в новом репозитории
 
 Агент уже может работать: skills дают ему workflow, а при доступе к терминалу
 он запускает CodeSlicer через CLI. MCP — дополнительное удобство для прямых
 структурированных вызовов из IDE, но не обязательное требование.
 
-Чтобы самостоятельно построить граф конкретного проекта, выполните из его
-папки (укажите путь к клону CodeSlicer один раз):
+Чтобы самостоятельно построить canonical-граф конкретного проекта, выполните
+из его папки (укажите путь к клону CodeSlicer один раз):
 
 ```powershell
 $codeslicer = 'C:\work\CodeSlicer\.venv\Scripts\codeslicer.exe'
@@ -60,23 +97,33 @@ $codeslicer = 'C:\work\CodeSlicer\.venv\Scripts\codeslicer.exe'
 & $codeslicer review .
 ```
 
+macOS/Linux:
+
+```bash
+CODESLICER="/absolute/path/to/CodeSlicer/.venv/bin/codeslicer"
+"$CODESLICER" onboard .
+"$CODESLICER" review .
+```
+
 Для Codex после установки достаточно перезапустить IDE. Для Kodik skills
 работают сразу; его MCP подключается отдельно только если нужен, после создания
 MCP-настройки в Kodik UI: `& $codeslicer agent repair`.
 
-### CodeSlicer и Graphify — разные слои
+### Как система выбирает CodeSlicer, Graphify и агентские инструменты
 
 | Что | Ставится при первом запуске | Для чего | Где результат |
 | --- | --- | --- | --- |
-| CodeSlicer core | Да | impact, review, inspect, тесты | `.impact_engine/graph.json` |
+| CodeSlicer engine | Да | impact, review, inspect, тесты | `.impact_engine/graph.json` |
 | Skills для IDE | Да, для выбранных IDE | чтобы агент знал workflow | настройки выбранной IDE |
 | MCP | Да, где клиент поддерживает конфигурацию | прямые tool-вызовы из IDE | локальная конфигурация IDE |
-| Graphify | Нет | широкий обзор архитектуры и communities | `.codeslicer/artifacts/graphify/graphify-out/` |
+| Graphify engine | Нет | широкий обзор архитектуры и communities | `.codeslicer/artifacts/graphify/graphify-out/graph.json` |
 
 Установка CodeSlicer **не клонирует и не скачивает репозиторий Graphify**.
 Skills с названием Graphify — это только инструкция для агента, а не установка
-внешнего инструмента. Graphify подключается позже, для конкретного проекта и
-явным действием:
+внешнего инструмента. Агент использует CodeSlicer для evidence/impact-задач, а
+Graphify — только для архитектурного вопроса и только когда отдельный локальный
+Graphify runtime уже настроен и его graph существует. Graphify подключается
+позже, для конкретного проекта и явным действием:
 
 ```powershell
 # Проверить, доступен ли локальный Graphify: без сети и без запуска
@@ -86,8 +133,9 @@ Skills с названием Graphify — это только инструкци
 & $codeslicer adapters native . graphify index --confirm
 ```
 
-Graphify не заменяет CodeSlicer: его карта помогает найти communities и связи
-архитектуры, а CodeSlicer доказывает конкретный impact и выбирает тесты.
+Graphify не заменяет CodeSlicer и CodeSlicer не «встраивает» Graphify: это два
+движка с разными graph и запросами. Graphify помогает найти communities и
+связи архитектуры, а CodeSlicer доказывает конкретный impact и выбирает тесты.
 На время запуска Graphify CodeSlicer автоматически исключает `.venv`, `venv`,
 `env`, `node_modules` и свои служебные каталоги; исходный `.graphifyignore`,
 если он был, восстанавливается без изменений.
@@ -178,6 +226,8 @@ python -m impact_engine.mcp.server
 ## Содержание
 
 - [Возможности](#возможности)
+- [Система целиком](docs/PRODUCT_GUIDE.md)
+- [Первый запуск на Windows, macOS и Linux](docs/GETTING_STARTED.md)
 - [Как строятся связи](#как-строятся-связи)
 - [Как агент работает с графом](#как-агент-работает-с-графом)
 - [Быстрый старт](#быстрый-старт)
@@ -340,6 +390,9 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -e .
+
+# Откройте интерактивный выбор IDE: стрелки, Space, Enter.
+codeslicer agent install
 ```
 
 Проверьте установку:
@@ -482,7 +535,10 @@ GET /api/graph   -> непустые nodes и edges
 ### Карта CodeSlicer
 
 Маршрут `#map` показывает граф CodeSlicer. Точки — сущности проекта, линии —
-связи с evidence. Карту можно перетаскивать, масштабировать колесом или
+связи с evidence. По умолчанию селектор **«Обзор связей»** оставляет карту
+быстрой. Выберите **«Показать все связи»**, чтобы отрисовать полный canonical
+graph без лимита проекции; для очень большого проекта это может занять время
+и линии станут плотными. Карту можно перетаскивать, масштабировать колесом или
 кнопками, а выбор узла открывает его тип, ближайшие связи, источник и
 доказательство. Это удобная отправная точка для понимания незнакомого кода и
 последствий изменения.
@@ -492,7 +548,8 @@ GET /api/graph   -> непустые nodes и edges
 ### Отдельная карта Graphify
 
 Маршрут `#graphify` не перерисовывает данные Graphify собственным SVG-кодом.
-При наличии `<project>/graphify-out/graph.json` CodeSlicer локально запускает
+При наличии `<project>/.codeslicer/artifacts/graphify/graphify-out/graph.json`
+CodeSlicer локально запускает
 оригинальный HTML renderer Graphify в отдельном iframe: поиск по узлам,
 комьюнити и поведение графа остаются возможностями самого Graphify. Этот
 граф помогает исследовать общую архитектуру; canonical graph и ranking

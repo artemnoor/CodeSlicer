@@ -1,7 +1,9 @@
-# Getting Started
+# Начало работы: локальная система анализа кода
 
-This guide takes CodeSlicer from a clean checkout to a real project graph,
-impact query, visual interface, and MCP connection.
+Это руководство проводит от чистого checkout до рабочего local-first
+пространства: canonical impact-анализ CodeSlicer, optional архитектурная карта
+Graphify, локальный UI, CLI и навыки для AI-агента. Эти части сотрудничают, но
+не превращаются в один недоказуемый граф.
 
 ## Requirements
 
@@ -15,7 +17,7 @@ Windows 10/11, Linux, and macOS are supported. CodeSlicer itself uses local
 Python, SQLite, JSON, and HTTP APIs; it does not require Supabase or another
 hosted service.
 
-## Install
+## Установка и подключение IDE
 
 Windows PowerShell:
 
@@ -27,13 +29,14 @@ cd CodeSlicer
 powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
 ```
 
-The script creates an isolated `.venv`, installs the package, and opens a
-checkbox menu: arrows move, Space selects IDEs, Enter installs. It uses the
-recommended `user` scope, so the selected IDE integrations are available in
-future projects. Restart the IDE when it finishes.
+Скрипт создаёт изолированную `.venv`, устанавливает пакет и открывает меню:
+стрелки перемещают, `Space` выбирает IDE, `Enter` устанавливает. Используется
+рекомендуемый `user` scope, поэтому выбранные интеграции доступны в следующих
+проектах. Перезапустите IDE после завершения.
 
-MCP is optional. The installed skills can guide an agent that has terminal
-access to run the `codeslicer` CLI; MCP only adds direct structured tool calls.
+MCP необязателен. Установленные skills направляют агента, у которого есть
+доступ к терминалу, к `codeslicer` CLI; MCP лишь добавляет прямые
+структурированные tool-вызовы.
 
 Manual developer setup:
 
@@ -44,31 +47,48 @@ python -m pip install --upgrade pip
 pip install -e .
 ```
 
-Linux or macOS:
+macOS и Linux (bash/zsh):
 
 ```bash
 git clone https://github.com/artemnoor/CodeSlicer.git
 cd CodeSlicer
 python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -e .
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install -e .
+
+# То же интерактивное меню IDE, без глобального pip и без активации venv.
+./.venv/bin/codeslicer agent install
 ```
+
+`python3 -m venv` должен быть доступен в системной установке Python. Если его
+нет, добавьте стандартный OS-пакет venv для вашей версии Python и повторите
+команду; `sudo pip` не требуется. Для ручной разработки можно активировать
+среду через `source .venv/bin/activate`, но это лишь удобство shell.
 
 If PowerShell blocks activation, run the command in a terminal with an
 appropriate execution policy or use the installed environment's Python
 directly. Activation is only a shell convenience.
 
-Verify the installation:
+Проверьте именно новую изолированную установку, а не случайный старый console
+script из `PATH`:
 
-```bash
-codeslicer doctor
-codeslicer --json registry status
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\codeslicer.exe doctor
+.\.venv\Scripts\codeslicer.exe --json registry status
 ```
 
-Use the activated virtual environment and the `codeslicer` command for new
-installations. It avoids a possible collision with an older `impact-engine`
-console script from another Python installation.
+macOS/Linux:
+
+```bash
+./.venv/bin/codeslicer doctor
+./.venv/bin/codeslicer --json registry status
+```
+
+После активации `.venv` допустима короткая команда `codeslicer`, но прямой
+путь выше исключает коллизию со старым `impact-engine` из другой установки
+Python.
 
 Expected registry mode:
 
@@ -76,7 +96,28 @@ Expected registry mode:
 sqlite
 ```
 
-## Connect a new project
+## Как части системы взаимодействуют
+
+```text
+AI agent / developer
+        │ CLI, skills, optional MCP
+        ▼
+CodeSlicer local workspace ────── Local Hub (localhost)
+        │                                  │
+        ├─ CodeSlicer engine               ├─ Review / evidence / full map
+        │  canonical impact graph           └─ отдельная вкладка Graphify
+        │  review / tests / confidence
+        │
+        └─ Graphify engine (optional, independent)
+           architecture graph / communities / docs
+```
+
+CodeSlicer engine владеет `impact`, `review`, ranking риска и рекомендациями
+тестов. Graphify владеет собственной архитектурной картой и запросами. Агент
+не скачивает Graphify сам: Graphify используется только для архитектурной
+задачи, когда пользователь отдельно настроил runtime и построил его graph.
+
+## Подключить новый проект
 
 Use onboarding for an existing local folder. Start with the canonical
 CodeSlicer graph for impact, review, and tests:
@@ -85,10 +126,10 @@ CodeSlicer graph for impact, review, and tests:
 codeslicer --json onboard /path/to/project
 ```
 
-Graphify is separate and optional. Installing CodeSlicer does not clone or
-download the Graphify repository. If you later configure Graphify locally, use
-an explicit confirmed index for a broad architecture/community map; it never
-changes CodeSlicer ranking:
+Graphify — отдельный optional engine. Установка CodeSlicer не клонирует и не
+скачивает его repository. Если позже вы настроите Graphify локально, выполните
+явный confirmed index для широкой архитектурной/community-карты; она никогда
+не меняет ranking CodeSlicer:
 
 ```bash
 codeslicer adapters native /path/to/project graphify profile --json

@@ -1,14 +1,28 @@
-# Интеграции и отдельные графы
+# Интеграции: одна рабочая система, несколько независимых графов
 
-CodeSlicer не смешивает все данные в один граф. Канонический evidence graph
+CodeSlicer workspace связывает локальные инструменты в единый workflow, но не
+смешивает все данные в один граф. Канонический evidence graph CodeSlicer
 используется для impact, review, риска и рекомендаций тестов; каждый внешний
-инструмент хранит свой graph/workspace и свой уровень доверия.
+инструмент хранит свой graph/workspace и свой уровень доверия. CLI, Local Hub,
+IDE skills и optional MCP помогают выбрать нужный инструмент для вопроса, но
+не меняют владельца результата.
 
 ```text
 CodeSlicer canonical graph      impact, risk, explain, targeted tests
 External native graph/workspace собственные запросы и специализированная работа
 Bridge / overlay                явно помеченный локальный контекст между ними
 ```
+
+| Вопрос пользователя | Куда направляет система |
+| --- | --- |
+| «Что затронет эта правка?» / «Какие тесты?» | CodeSlicer canonical graph и `review`/`inspect` |
+| «Как устроены модули и communities?» | самостоятельный Graphify graph, если он явно построен |
+| «Где declaration / reference / implementation?» | явно подключённый LSP или SCIP |
+| «Что наблюдалось в runtime или security scan?» | явно импортированный OTel/SARIF/SBOM/Joern overlay |
+
+Bundled agent skills используют ту же границу: они не устанавливают и не
+запускают Graphify автоматически. MCP удобен для structured tool calls, но
+агент с терминалом может выполнять те же операции через CLI.
 
 Canonical graph находится в `<project>/.impact_engine/graph.json`. Только он
 участвует в `review` и `pr-review`. Отключение внешнего adapter не повреждает
