@@ -17,7 +17,7 @@ from impact_engine.models import Edge, Evidence, GraphDocument, Node
 
 
 _TYPE_RE = re.compile(r"\b(?:public|internal|private|protected|static|abstract|sealed|partial|new|file|readonly|unsafe|\s)*(class|interface|record|struct)\s+([A-Za-z_]\w*)(?:\s*<[^>{}]+>)?(?:\s*\([^)]*\))?(?:\s*:\s*([^;\{]+))?\s*\{", re.MULTILINE)
-_METHOD_RE = re.compile(r"(?:^|[;{}])\s*(?:public|private|protected|internal|static|virtual|override|abstract|sealed|async|extern|unsafe|new|partial|readonly|ref|out|in|[A-Za-z_][\w<>,.?\[\]]*\s+)*([A-Za-z_]\w*)\s*\(([^(){};]*)\)\s*(?:where\s+[^\{]+)?(?:\{|=>)", re.MULTILINE)
+_METHOD_RE = re.compile(r"(?:^|[;{}])\s*(?:\[[^\]]+\]\s*)*(?:public|private|protected|internal|static|virtual|override|abstract|sealed|async|extern|unsafe|new|partial|readonly|ref|out|in|[A-Za-z_][\w<>,.?\[\]]*\s+)*([A-Za-z_]\w*)\s*\(([^(){};]*)\)\s*(?:where\s+[^\{]+)?(?:\{|=>)", re.MULTILINE)
 _CTOR_RE = re.compile(r"(?:^|[;{}])\s*(?:public|private|protected|internal|static)\s*([A-Za-z_]\w*)\s*\(([^(){};]*)\)\s*\{", re.MULTILINE)
 _PROPERTY_RE = re.compile(r"(?:^|[;{}])\s*(?:public|private|protected|internal|static|virtual|override|sealed|readonly|required|new|\s)+([A-Za-z_]\w*(?:<[^>{}]+>)?(?:\[\])?)\s+([A-Za-z_]\w*)\s*\{\s*(?:get|set|init)\b", re.MULTILINE)
 _USING_RE = re.compile(r"^\s*using\s+(?:static\s+)?(?:[A-Za-z_]\w*\s*=\s*)?([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*;", re.MULTILINE)
@@ -134,6 +134,13 @@ def _add_edge(graph: GraphDocument, edge_id: str, kind: str, source: str, target
 
 
 def _type_id(namespace: str, name: str) -> str:
+    """Keep established identities stable; disambiguate collisions at parse time.
+
+    Public quickstart repositories often contain several independently
+    runnable projects with an ``ApiController`` in the global namespace.  A
+    graph must not merge those unrelated source symbols merely because their
+    short names match.
+    """
     return f"class:{namespace + '.' if namespace else ''}{name}"
 
 
@@ -181,9 +188,23 @@ def _parse_cs_file(root: Path, path: Path, graph: GraphDocument, types: list[_Ty
         # Keep generic base text intact for MediatR/EF rules; local inheritance
         # resolution below derives a simple name separately.
         base_items = tuple(item.strip() for item in re.split(r",\s*(?![^<]*>)", base_text) if item.strip())
-        type_item = _Type(name, qualified, _type_id(namespace, name), rel, _line(text, match.start()), kind, base_items, opening, ending, attrs)
+        node_id = _type_id(namespace, name)
+        existing = graph.get_node(node_id)
+        current_is_partial = bool(re.search(r"\bpartial\b", text[match.start():opening]))
+        if (
+            existing is not None
+            and str(existing.properties.get("file") or "") != rel
+            and not current_is_partial
+            and not bool(existing.properties.get("partial"))
+        ):
+            # A monorepo may contain multiple independently runnable samples
+            # in the same namespace.  Keep their canonical symbols separate
+            # instead of attaching the later file's methods to the first one.
+            qualified = f"{qualified}@{rel}"
+            node_id = f"class:{qualified}"
+        type_item = _Type(name, qualified, node_id, rel, _line(text, match.start()), kind, base_items, opening, ending, attrs)
         types.append(type_item)
-        graph.add_node(Node(type_item.node_id, "CLASS", name, {"file": rel, "line": type_item.line, "language": "csharp", "namespace": namespace, "qualified_name": qualified, "type_kind": kind, "attributes": list(attrs), "scope": "source"}))
+        graph.add_node(Node(type_item.node_id, "CLASS", name, {"file": rel, "line": type_item.line, "language": "csharp", "namespace": namespace, "qualified_name": qualified, "type_kind": kind, "attributes": list(attrs), "partial": current_is_partial, "scope": "source"}))
         _add_edge(graph, f"declares:{module_id}:{type_item.node_id}", "DECLARES", module_id, type_item.node_id, rel, type_item.line, relationship="namespace_type")
         for base in type_item.bases:
             graph.metadata.setdefault("csharp_base_relations", []).append({"source": type_item.node_id, "base": base, "file": rel, "line": type_item.line, "kind": "interface" if base.startswith("I") else "base_class"})

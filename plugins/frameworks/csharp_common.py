@@ -35,6 +35,98 @@ def _simple_types(graph):
     return {node.name: node for node in graph.nodes if node.kind == "CLASS" and node.properties.get("language") == "csharp"}
 
 
+def _controller_for_file(graph, name: str, file: str):
+    """Find a controller without collapsing identically named sample classes."""
+    candidates = [
+        node for node in graph.nodes
+        if node.kind == "CLASS" and node.name == name
+        and str(node.properties.get("file") or "") == file
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _controller_method(methods, *, name: str, file: str, controller) -> Any | None:
+    candidates = [
+        node for node in methods
+        if node.name == name and str(node.properties.get("file") or "") == file
+    ]
+    owned = [
+        node for node in candidates
+        if str(node.properties.get("owner") or "") == controller.id
+        or str(node.properties.get("owner") or "").endswith(f".{controller.name}")
+    ]
+    if owned:
+        candidates = owned
+    return candidates[0] if len(candidates) == 1 else None
+
+
+_ATTRIBUTE_BLOCK = r"(?P<attrs>(?:\s*\[[^\]]+\]\s*){1,8})"
+_CONTROLLER = re.compile(
+    _ATTRIBUTE_BLOCK + r"(?:public\s+)?(?:sealed\s+)?(?:partial\s+)?class\s+(?P<name>[A-Za-z_]\w*)"
+)
+_CONTROLLER_METHOD = re.compile(
+    _ATTRIBUTE_BLOCK
+    + r"(?:(?:public|private|protected|internal|static|async|virtual|override|sealed|new|partial)\s+)*"
+    + r"[\w<>,.?\[\]]+\s+(?P<name>[A-Za-z_]\w*)\s*\("
+)
+
+
+def _attribute_value(attrs: str, name: str) -> str | None:
+    match = re.search(rf"\[\s*{name}\s*\(\s*[\"']([^\"']*)[\"']\s*\)", attrs)
+    return match.group(1) if match else None
+
+
+def _apply_controller_routes(graph, methods, rel: str, text: str) -> int:
+    """Materialize literal ASP.NET controller attributes from one source file."""
+    route_count = 0
+    controllers = list(_CONTROLLER.finditer(text))
+    for index, class_match in enumerate(controllers):
+        prefix = _attribute_value(class_match.group("attrs"), "Route")
+        if prefix is None:
+            continue
+        controller = _controller_for_file(graph, class_match.group("name"), rel)
+        if controller is None:
+            continue
+        body_end = controllers[index + 1].start() if index + 1 < len(controllers) else len(text)
+        body = text[class_match.end():body_end]
+        body_offset = class_match.end()
+        for method_match in _CONTROLLER_METHOD.finditer(body):
+            attrs = method_match.group("attrs")
+            verb = re.search(r"\[\s*(HttpGet|HttpPost|HttpPut|HttpDelete|HttpPatch)\b", attrs)
+            if verb is None:
+                continue
+            handler = _controller_method(
+                methods, name=method_match.group("name"), file=rel, controller=controller,
+            )
+            if handler is None:
+                continue
+            suffix = _attribute_value(attrs, verb.group(1))
+            if suffix is None:
+                suffix = _attribute_value(attrs, "Route") or ""
+            path = "/".join(item.strip("/") for item in (prefix, suffix) if item) or "/"
+            composed = "[controller]" in path or "[action]" in path
+            resolved_path = path.replace(
+                "[controller]",
+                controller.name[:-10].lower() if controller.name.lower().endswith("controller") else controller.name.lower(),
+            ).replace("[action]", handler.name.lower())
+            line = text.count("\n", 0, body_offset + method_match.start()) + 1
+            route_id = f"route:{rel}:{verb.group(1).lower()}:{path}"
+            graph.add_node(Node(route_id, "ROUTE", resolved_path, {
+                "file": rel, "line": line, "language": "csharp",
+                "http_method": verb.group(1)[4:].upper(), "path": resolved_path,
+                "raw_path": path, "handler_id": handler.id, "boundary_category": "api",
+                "confidence_status": "likely" if composed else "confirmed", "framework": "aspnetcore",
+            }))
+            _add(
+                graph, f"route:{route_id}:{handler.id}", "ROUTE_HANDLES", route_id, handler.id,
+                rel, line, relationship="controller_route", confidence=.72 if composed else .96,
+                boundary_category="api", http_method=verb.group(1)[4:].upper(), path=path,
+                resolution_status="likely" if composed else "resolved_exact",
+            )
+            route_count += 1
+    return route_count
+
+
 def apply_aspnet(graph, root: Path) -> None:
     methods = [node for node in graph.nodes if node.kind == "METHOD" and node.properties.get("language") == "csharp"]
     types = _simple_types(graph)
@@ -52,24 +144,7 @@ def apply_aspnet(graph, root: Path) -> None:
             graph.add_node(Node(route_id, "ROUTE", match.group(2), {"file": rel, "line": line, "language": "csharp", "http_method": match.group(1)[3:].upper(), "path": match.group(2), "boundary_category": "api", "confidence_status": "confirmed", "framework": "aspnetcore"}))
             _add(graph, f"route:{route_id}:{handler.id}", "ROUTE_HANDLES", route_id, handler.id, rel, line, relationship="minimal_api_route", confidence=.98, boundary_category="api", http_method=match.group(1)[3:].upper(), path=match.group(2))
             route_count += 1
-        # Keep the class/attribute lookahead line-bounded. A dot-star across a
-        # whole generated controller file can otherwise create catastrophic
-        # backtracking in a regex fallback parser.
-        class_route = re.search(r"\[\s*Route\s*\(\s*[\"']([^\"']+)[\"']\s*\)\s*\]\s*(?:[^\n]*\r?\n\s*){0,5}(?:public\s+)?(?:sealed\s+)?class\s+([A-Za-z_]\w*)", text)
-        if class_route:
-            controller = types.get(class_route.group(2)); prefix = class_route.group(1)
-            if controller:
-                for method in re.finditer(r"\[\s*(HttpGet|HttpPost|HttpPut|HttpDelete|HttpPatch)\s*(?:\(\s*[\"']([^\"']*)[\"']\s*\))?\s*\]\s*(?:[^\n]*\r?\n\s*){0,5}(?:(?:public|private|protected|internal|static|async|virtual|override|sealed|new|partial)\s+)*[\w<>,.?\[\]]+\s+([A-Za-z_]\w*)\s*\(", text):
-                    handler = next((node for node in methods if node.name == method.group(3) and node.properties.get("owner") == controller.id), None); path = "/".join(item.strip("/") for item in (prefix, method.group(2) or "") if item) or "/"
-                    if not handler:
-                        continue
-                    line = text.count("\n", 0, method.start()) + 1
-                    route_id = f"route:{rel}:{method.group(1).lower()}:{path}"
-                    composed = "[controller]" in path or "[action]" in path
-                    resolved_path = path.replace("[controller]", controller.name[:-10].lower() if controller.name.lower().endswith("controller") else controller.name.lower()).replace("[action]", handler.name.lower())
-                    graph.add_node(Node(route_id, "ROUTE", resolved_path, {"file": rel, "line": line, "language": "csharp", "http_method": method.group(1)[4:].upper(), "path": resolved_path, "raw_path": path, "handler_id": handler.id, "boundary_category": "api", "confidence_status": "likely" if composed else "confirmed", "framework": "aspnetcore"}))
-                    _add(graph, f"route:{route_id}:{handler.id}", "ROUTE_HANDLES", route_id, handler.id, rel, line, relationship="controller_route", confidence=.72 if composed else .96, boundary_category="api", http_method=method.group(1)[4:].upper(), path=path, resolution_status="likely" if composed else "resolved_exact")
-                    route_count += 1
+        route_count += _apply_controller_routes(graph, methods, rel, text)
         # Integration tests with a literal HttpClient path are direct local
         # contract evidence. They are intentionally separate from frontend
         # bridging and do not claim runtime route discovery.

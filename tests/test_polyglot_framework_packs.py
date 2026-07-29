@@ -26,6 +26,11 @@ CASES = [
         "framework.javascript.fastify", "HTTP GET /books", "listBooks", "ROUTE_HANDLES",
     ),
     (
+        "express", "package.json", json.dumps({"dependencies": {"express": "^5.0.0"}}), "src/routes.ts",
+        "import express from 'express';\nconst router = express.Router();\nfunction listBooks() { return []; }\nrouter.get('/books', listBooks);\n",
+        "framework.javascript.express", "HTTP GET /books", "listBooks", "ROUTE_HANDLES",
+    ),
+    (
         "chi", "go.mod", "module example.com/chi\nrequire github.com/go-chi/chi/v5 v5.0.0\n", "main.go",
         "package main\nimport \"github.com/go-chi/chi/v5\"\nfunc List(w int) {}\nfunc main() { r := chi.NewRouter(); r.Get(\"/books\", List) }\n",
         "framework.go.chi", "HTTP GET /books", "List", "ROUTE_HANDLES",
@@ -39,6 +44,11 @@ CASES = [
         "fiber", "go.mod", "module example.com/fiber\nrequire github.com/gofiber/fiber/v2 v2.0.0\n", "main.go",
         "package main\nimport \"github.com/gofiber/fiber/v2\"\nfunc List(c int) error { return nil }\nfunc main() { app := fiber.New(); app.Get(\"/books\", List) }\n",
         "framework.go.fiber", "HTTP GET /books", "List", "ROUTE_HANDLES",
+    ),
+    (
+        "gin", "go.mod", "module example.com/gin\nrequire github.com/gin-gonic/gin v1.10.0\n", "main.go",
+        "package main\nimport \"github.com/gin-gonic/gin\"\nfunc List(c *gin.Context) {}\nfunc main() { router := gin.Default(); router.GET(\"/books\", List) }\n",
+        "framework.go.gin", "HTTP GET /books", "List", "ROUTE_HANDLES",
     ),
     (
         "jaxrs", "pom.xml", "<project><dependencies><dependency><groupId>jakarta.ws.rs</groupId></dependency></dependencies></project>", "src/main/java/example/BooksResource.java",
@@ -81,6 +91,20 @@ def test_nestjs_incomplete_decorator_is_not_invented(tmp_path):
     source.write_text("import { Controller, Get } from '@nestjs/common';\n@Controller('books')\nexport class BooksController { @Get() /* no following method declaration */ }\n", encoding="utf-8")
     graph = GraphDocument.from_dict(analyze_project_core(str(tmp_path), create_research_requests=False)["graph"])
     assert not any(edge.kind == "ROUTE_HANDLES" and edge.from_node == "HTTP GET /books" for edge in graph.edges)
+
+
+def test_express_and_gin_inline_callbacks_remain_confirmed_routes_without_invented_handler_edges(tmp_path):
+    """Real consumers commonly declare inline handlers; preserve that fact honestly."""
+    (tmp_path / "package.json").write_text(json.dumps({"dependencies": {"express": "^5.0.0"}}), encoding="utf-8")
+    (tmp_path / "routes.js").write_text(
+        "import express from 'express';\nconst router = express.Router();\n"
+        "router.get('/inline', (req, res) => res.json({ ok: true }));\n",
+        encoding="utf-8",
+    )
+    graph = GraphDocument.from_dict(analyze_project_core(str(tmp_path), create_research_requests=False)["graph"])
+    route = graph.get_node("HTTP GET /inline")
+    assert route is not None and route.properties["confidence_status"] == "confirmed"
+    assert not any(edge.kind == "ROUTE_HANDLES" and edge.from_node == route.id for edge in graph.edges)
 
 
 def test_jaxrs_pack_activates_from_a_qualified_import_without_dependency_declaration(tmp_path):

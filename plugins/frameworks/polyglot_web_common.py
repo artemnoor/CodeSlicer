@@ -1,9 +1,9 @@
 """Evidence-gated route helpers shared by optional polyglot framework packs.
 
-The helpers deliberately operate only on literal source declarations and an
-already extracted local method symbol.  They never manufacture a handler from
-the route name alone: a route is omitted when the referenced method cannot be
-found in the canonical graph.
+Literal route declarations are useful boundary facts in their own right.  A
+``ROUTE_HANDLES`` edge is added only when the target is an exact local method;
+an inline callback therefore creates a confirmed route without pretending that
+CodeSlicer resolved a named handler symbol.
 """
 from __future__ import annotations
 
@@ -52,6 +52,31 @@ def method_for(graph, *, language: str, name: str, file: str, owner: str | None 
     return candidates[0] if len(candidates) == 1 else None
 
 
+def add_literal_route(
+    graph,
+    *,
+    framework: str,
+    language: str,
+    method: str,
+    path: str,
+    file: str,
+    line: int,
+):
+    """Add a source-backed literal route, without inferring its handler."""
+    route_id = f"HTTP {method.upper()} {path}"
+    route = graph.get_node(route_id)
+    if route is None:
+        route = Node(route_id, "ROUTE", route_id, {
+            "file": file, "line": line, "language": language,
+            "http_method": method.upper(), "path": path,
+            "framework": framework, "boundary_category": "api",
+            "confidence_status": "confirmed",
+            "handler_resolution": "not_requested",
+        })
+        graph.add_node(route)
+    return route
+
+
 def add_route(
     graph,
     *,
@@ -75,14 +100,10 @@ def add_route(
     target = method_for(graph, language=language, name=handler, file=file, owner=owner)
     if target is None:
         return False
-    route_id = f"HTTP {method.upper()} {path}"
-    if graph.get_node(route_id) is None:
-        graph.add_node(Node(route_id, "ROUTE", route_id, {
-            "file": file, "line": line, "language": language,
-            "http_method": method.upper(), "path": path,
-            "framework": framework, "boundary_category": "api",
-            "confidence_status": "confirmed",
-        }))
+    route_id = add_literal_route(
+        graph, framework=framework, language=language, method=method,
+        path=path, file=file, line=line,
+    ).id
     from_node, to_node = (route_id, target.id) if direction == "route_to_handler" else (target.id, route_id)
     edge_id = f"plugin_{framework.replace('.', '_').replace('-', '_')}__{edge_kind.lower()}__{from_node}__{to_node}"
     if any(edge.id == edge_id for edge in graph.edges):
@@ -107,7 +128,7 @@ def result(graph, pack_id: str, framework: str, routes: int) -> PluginResult:
         "status": "supported" if routes else "limited",
         "literal_routes": routes,
         "review_usable": bool(routes),
-        "review_usable_features": ["literal_route_to_local_handler"],
-        "note": "Only literal framework declarations with an extracted local handler are emitted.",
+        "review_usable_features": ["literal_route", "literal_route_to_local_handler"],
+        "note": "Literal declarations are confirmed; route-to-handler edges require an exact extracted local handler.",
     }
     return PluginResult(graph=graph, provenance={"pack_id": pack_id, "framework": framework, "literal_routes": routes})

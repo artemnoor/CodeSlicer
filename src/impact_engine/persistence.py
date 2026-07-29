@@ -35,7 +35,7 @@ from impact_engine.scope import iter_project_files
 # Framework manifests and their hook provenance participate in the canonical
 # graph. v5 records a registry fingerprint, so a warm cache can validate packs
 # without rebuilding the whole project's inventory.
-CACHE_SCHEMA_VERSION = "impact-engine.cache.v5"
+CACHE_SCHEMA_VERSION = "impact-engine.cache.v7"
 PIPELINE_VERSION = "performance-incremental.v2"
 MARKER_NAME = ".cache.complete"
 JOURNAL_NAME = ".cache.journal.json"

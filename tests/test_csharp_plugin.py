@@ -4,6 +4,7 @@ import shutil
 import pytest
 
 from impact_engine.analysis.pipeline import analyze_project_core
+from impact_engine.models import GraphDocument
 from impact_engine.inventory.scanner import scan_project_inventory
 from impact_engine.languages.registry import detect_languages
 from impact_engine.languages.registry import get_language_profile
@@ -73,6 +74,34 @@ def test_csharp_pipeline_activates_framework_packs_and_preserves_coverage(tmp_pa
     assert graph["metadata"]["csharp_framework_features"]["aspnetcore"]["routes"] == 1
     assert graph["metadata"]["csharp_framework_features"]["entityframework"]["dbset_relations"] == 1
     assert "csharp" in graph["metadata"]["resolution_coverage"].get("by_language", {})
+
+
+def test_aspnet_controller_routes_allow_api_controller_and_duplicate_sample_class_names(tmp_path):
+    """A real Auth0 quickstart shape: [Route], [ApiController], then actions."""
+    (tmp_path / "Api.csproj").write_text(
+        "<Project><ItemGroup><PackageReference Include=\"Microsoft.AspNetCore.Mvc\" Version=\"8.0.0\" /></ItemGroup></Project>",
+        encoding="utf-8",
+    )
+    source = (
+        "using Microsoft.AspNetCore.Mvc;\n"
+        "[Route(\"api\")]\n[ApiController]\npublic class ApiController : ControllerBase\n{\n"
+        "  [HttpGet(\"public\")] public IActionResult Public() { return Ok(); }\n"
+        "  [HttpGet]\n  [Route(\"private\")] public IActionResult Private() { return Ok(); }\n}\n"
+    )
+    for folder in ("QuickstartA/Controllers", "QuickstartB/Controllers"):
+        controller = tmp_path / folder / "ApiController.cs"
+        controller.parent.mkdir(parents=True, exist_ok=True)
+        controller.write_text(source, encoding="utf-8")
+
+    graph = GraphDocument.from_dict(analyze_project_core(str(tmp_path), create_research_requests=False)["graph"])
+    selected = {item["id"] for item in graph.metadata["plugin_selection_plan"]["selected"]}
+    assert "framework.csharp.aspnetcore" in selected
+    routes = [node for node in graph.nodes if node.kind == "ROUTE" and node.properties.get("framework") == "aspnetcore"]
+    assert len(routes) == 4
+    assert {node.properties["path"] for node in routes} == {"api/public", "api/private"}
+    edges = [edge for edge in graph.edges if edge.kind == "ROUTE_HANDLES" and edge.properties.get("relationship") == "controller_route"]
+    assert len(edges) == 4
+    assert all(edge.properties.get("resolution_status") == "resolved_exact" for edge in edges)
 
 
 def test_cruxa_review_uses_evidence_backed_limited_csharp_features():
