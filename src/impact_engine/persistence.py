@@ -32,7 +32,11 @@ from impact_engine.scope import iter_project_files
 
 # v3 invalidates graphs produced before evidence-first local semantic
 # resolution existed for the non-Python language plugins.
-CACHE_SCHEMA_VERSION = "impact-engine.cache.v3"
+# Framework manifests and their hook provenance participate in the canonical
+# graph.  v4 invalidates v3's fast-path entries once so an installation that
+# gains a new pack cannot silently reuse a graph produced before that pack
+# existed.
+CACHE_SCHEMA_VERSION = "impact-engine.cache.v4"
 PIPELINE_VERSION = "performance-incremental.v2"
 MARKER_NAME = ".cache.complete"
 JOURNAL_NAME = ".cache.journal.json"

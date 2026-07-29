@@ -4,7 +4,7 @@
   <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/artemnoor/CodeSlicer/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/release-v0.5.0-7c3aed?style=flat-square" alt="Release v0.5.0"></a>
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/regression-709%20passed-22c55e?style=flat-square" alt="709 regression tests passed">
+  <img src="https://img.shields.io/badge/regression-728%20passed-22c55e?style=flat-square" alt="728 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
   <img src="https://img.shields.io/badge/agent%20skills-2-f97316?style=flat-square" alt="2 bundled agent skills">
   <img src="https://img.shields.io/badge/MCP-stdio%20JSON--RPC-ec4899?style=flat-square" alt="MCP stdio JSON-RPC">
@@ -289,7 +289,8 @@ sequenceDiagram
 - инвентаризация проекта и детерминированный план области анализа;
 - Python AST-анализ с наиболее полным semantic resolution;
 - structural и limited semantic extraction для JavaScript, TypeScript, Go и
-  Java через Tree-sitter;
+  Java через Tree-sitter, с optional framework packs для популярных web/API
+  фреймворков и их поддерживаемых версий;
 - разрешение импортов, constructor/field/provider binding и nested object chains;
 - frontend → backend endpoint bridge по service, HTTP method и canonical path;
 - versioned support packs с provenance, trust level и confidence caps;
@@ -707,10 +708,10 @@ confidence, evidence, `source_fact_ids`, `dependency_keys`, `resolver_id` и
 | Язык | Статус |
 | --- | --- |
 | Python | strongest semantic baseline |
-| JavaScript / TypeScript | local import/re-export и direct-call resolution; endpoint bridge и framework rules |
-| Go | typed receiver/struct-field calls и literal Gin routes |
-| Java | typed receiver/constructor injection и literal Spring routes |
-| C# | typed member/DI calls, ASP.NET routes, explicit DI, MediatR и EF Core packs |
+| JavaScript / TypeScript | local import/re-export и direct-call resolution; endpoint bridge; Express, React, NestJS 8–11 и Fastify 4–5 packs |
+| Go | typed receiver/struct-field calls; literal Gin, Chi v5, Echo v4 и Fiber v2–3 routes |
+| Java | typed receiver/constructor injection; literal Spring, JAX-RS 2–3 и Micronaut 3–4 routes |
+| C# | typed member/DI calls; ASP.NET routes, explicit DI, MediatR, EF Core и Refit 6–7 packs |
 
 Каждое confirmed static edge требует явной локальной синтаксической причины:
 declaration/import, typed receiver, literal route или явную DI-регистрацию.
@@ -718,7 +719,13 @@ Dynamic import, reflection, generated code, proxy/interface dispatch с
 несколькими implementation и compiler-only overload/type facts остаются
 `limited`/`unresolved`; для них нужен явный LSP или SCIP overlay. Для
 JavaScript, TypeScript, Go и Java возможен fallback, если native Tree-sitter
-недоступен.
+недоступен. Framework pack создаёт route/client edge только если в исходнике
+есть literal declaration и уже извлеченный локальный обработчик. Например,
+анонимный callback, переменная с динамическим маршрутом или prefix, собранный
+во время выполнения, честно не превращается в «подтверждённую» связь.
+Для Chi пока так же пропускаются parameterized nested routes (`Route("/{id}",
+...)`): текущая canonical route identity объединяет их со статическим базовым
+маршрутом, поэтому выдавать связь как точную было бы неверно.
 
 ## Структура репозитория
 

@@ -50,7 +50,16 @@ def _inventory_values(inventory: dict[str, Any], key: str, language: str) -> set
 
 def _matches(value: str, candidates: set[str]) -> bool:
     normalized = value.lower().replace("_", "-")
-    return any(normalized == candidate.replace("_", "-") or normalized.startswith(candidate.replace("_", "-") + "/") for candidate in candidates)
+    for candidate in candidates:
+        normalized_candidate = candidate.replace("_", "-")
+        if normalized == normalized_candidate or normalized.startswith(normalized_candidate + "/"):
+            return True
+        # Inventories retain the imported symbol (for example
+        # ``jakarta.ws.rs.GET``), while packs declare its package root.
+        # A dotted child is direct local evidence; a bare substring is not.
+        if normalized_candidate.startswith(normalized + "."):
+            return True
+    return False
 
 
 def _language_selected(manifest, inventory: dict[str, Any]) -> tuple[bool, str]:

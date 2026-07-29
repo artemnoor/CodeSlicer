@@ -402,7 +402,14 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
             declared_dependencies_by_ecosystem.setdefault(ecosystem, set()).update(deps)
             refs = re.findall(r"<ProjectReference\s+Include=[\"']([^\"']+)", text, flags=re.I)
             for ref in refs:
-                _add_map_value(local_modules_by_ecosystem, ecosystem, Path(ref).stem)
+                project_name = Path(ref).stem
+                _add_map_value(local_modules_by_ecosystem, ecosystem, project_name)
+                # A referenced C# project is an explicit build-time dependency
+                # even when it lives in the same repository.  Keeping it in
+                # the inventory lets framework packs such as Refit activate
+                # for source-built/monorepo variants, not only NuGet copies.
+                declared_dependencies.add(project_name)
+                _add_map_value(declared_dependencies_by_ecosystem, ecosystem, project_name)
 
     for m_path in iter_project_files(root):
         if not m_path.is_file():
