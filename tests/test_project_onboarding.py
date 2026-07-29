@@ -24,6 +24,11 @@ def test_onboard_local_project_builds_canonical_graph_and_keeps_graphify_separat
     def fake_graphify(command, **kwargs):
         if command[0] != "graphify.exe":
             return real_run(command, **kwargs)
+        temporary_ignore = project / ".graphifyignore"
+        assert temporary_ignore.is_file()
+        ignored = temporary_ignore.read_text(encoding="utf-8")
+        assert ".venv/" in ignored
+        assert "node_modules/" in ignored
         out = Path(command[command.index("--out") + 1]) / "graphify-out"
         out.mkdir(parents=True)
         (out / "graph.json").write_text(json.dumps({
@@ -45,6 +50,7 @@ def test_onboard_local_project_builds_canonical_graph_and_keeps_graphify_separat
     assert report["architecture_graph"]["participates_in_ranking"] is False
     assert Path(report["architecture_graph"]["graph_path"]).is_file()
     assert Path(report["report_path"]).is_file()
+    assert not (project / ".graphifyignore").exists()
 
 
 def test_onboard_rejects_git_url_without_explicit_network_permission() -> None:

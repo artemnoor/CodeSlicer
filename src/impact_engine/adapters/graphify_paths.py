@@ -7,7 +7,9 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+from contextlib import contextmanager
 from importlib.resources import files as package_files
+from typing import Iterator
 
 
 def graphify_artifact_root(project_path: str | Path) -> Path:
@@ -56,6 +58,41 @@ _EXTERNAL_SCRIPT = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _ANY_EXTERNAL_SCRIPT = re.compile(r"<script\b[^>]*\bsrc=[\"'][^\"']+[\"'][^>]*>", re.IGNORECASE)
+
+# Graphify owns its own traversal, so CodeSlicer cannot pass its usual
+# scan-plan. These are tooling/dependency trees rather than source code.
+_GRAPHIFY_TRANSIENT_IGNORES = (
+    ".git/", ".venv/", "venv/", "env/", "node_modules/", "__pycache__/",
+    ".impact_engine/", ".codeslicer/", "graphify-out/", "dist/", "build/",
+)
+
+
+@contextmanager
+def temporary_graphify_ignore(project_path: str | Path) -> Iterator[None]:
+    """Temporarily add CodeSlicer's dependency exclusions to Graphify.
+
+    Any pre-existing user file is restored byte-for-byte after the external
+    process exits; a project without one is left unchanged.
+    """
+    project = Path(project_path).resolve()
+    ignore_file = project / ".graphifyignore"
+    existed = ignore_file.exists()
+    original = ignore_file.read_text(encoding="utf-8") if existed else ""
+    existing = {line.strip() for line in original.splitlines() if line.strip() and not line.lstrip().startswith("#")}
+    additions = [value for value in _GRAPHIFY_TRANSIENT_IGNORES if value not in existing]
+    wrote = False
+    if additions:
+        prefix = original if not original or original.endswith("\n") else original + "\n"
+        ignore_file.write_text(prefix + "\n".join(additions) + "\n", encoding="utf-8")
+        wrote = True
+    try:
+        yield
+    finally:
+        if wrote:
+            if existed:
+                ignore_file.write_text(original, encoding="utf-8")
+            else:
+                ignore_file.unlink(missing_ok=True)
 
 
 def _vis_network_bundle() -> str | None:

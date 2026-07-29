@@ -22,7 +22,7 @@ from urllib.parse import urlparse
 from impact_engine.analysis.pipeline import analyze_project_core
 from impact_engine.inventory.scanner import scan_project_inventory
 from impact_engine.project_storage import ensure_project_storage
-from impact_engine.adapters.graphify_paths import graphify_artifact_root, record_graphify_interpreter
+from impact_engine.adapters.graphify_paths import graphify_artifact_root, record_graphify_interpreter, temporary_graphify_ignore
 
 
 ONBOARDING_SCHEMA = "CodeSlicerProjectOnboarding/v1"
@@ -114,7 +114,8 @@ def _graphify_summary(project: Path, artifact_root: Path, *, mode: str, timeout_
 
     command = [executable, "extract", str(project), "--code-only", "--out", str(artifact_root)]
     try:
-        process = subprocess.run(command, cwd=project, capture_output=True, text=True, shell=False, timeout=max(1, min(timeout_seconds, 300)), check=False)
+        with temporary_graphify_ignore(project):
+            process = subprocess.run(command, cwd=project, capture_output=True, text=True, shell=False, timeout=max(1, min(timeout_seconds, 300)), check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"status": "error", "reason": str(exc), "command": command, "participates_in_ranking": False}
     graph_path = artifact_root / "graphify-out" / "graph.json"

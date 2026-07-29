@@ -21,7 +21,7 @@ import shutil
 import subprocess
 from typing import Any
 
-from .graphify_paths import cache_graphify_viewer, graphify_artifact_root, graphify_graph_path, record_graphify_interpreter
+from .graphify_paths import cache_graphify_viewer, graphify_artifact_root, graphify_graph_path, record_graphify_interpreter, temporary_graphify_ignore
 
 
 MAX_OUTPUT_CHARS = 24_000
@@ -391,7 +391,11 @@ def run_native_operation(
         environment = None
         if adapter_id == "joern" and (java_home := _joern_java_home()):
             environment = {**os.environ, "JAVA_HOME": java_home, "PATH": str(Path(java_home) / "bin") + os.pathsep + os.environ.get("PATH", "")}
-        completed = subprocess.run(command, cwd=str(project), text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=timeout, shell=False, check=False, env=environment)
+        if adapter_id == "graphify" and operation_id in {"index", "refresh"}:
+            with temporary_graphify_ignore(project):
+                completed = subprocess.run(command, cwd=str(project), text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=timeout, shell=False, check=False, env=environment)
+        else:
+            completed = subprocess.run(command, cwd=str(project), text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=timeout, shell=False, check=False, env=environment)
         stdout, stderr = completed.stdout[-MAX_OUTPUT_CHARS:], completed.stderr[-MAX_OUTPUT_CHARS:]
         viewer_artifact = None
         if adapter_id == "graphify" and operation_id in {"index", "refresh"} and completed.returncode == 0:
