@@ -12,16 +12,16 @@ $script:bootstrapStarted = $null
 $script:bootstrapProgressDrawn = $false
 $script:bootstrapAnimation = -not [Console]::IsOutputRedirected -and -not $env:CI -and $env:CODESLICER_NO_ANIMATION -notin @('1', 'true', 'yes')
 $script:bootstrapAnsi = $script:bootstrapAnimation -and [bool]($env:WT_SESSION -or $env:TERM -or $env:TERM_PROGRAM)
-$script:bootstrapRows = 6
+$script:bootstrapRows = 7
 $script:bootstrapEscape = [char]27
 
 function Format-CodeSlicerRemaining {
     param([int]$Completed, [int]$Total)
 
-    if ($Completed -le 0 -or $null -eq $script:bootstrapStarted) { return 'estimating remaining time' }
+    if ($Completed -le 0 -or $null -eq $script:bootstrapStarted) { return 'pending' }
     $remainingSeconds = [Math]::Max(0, [Math]::Round(($script:bootstrapStarted.Elapsed.TotalSeconds / $Completed) * ($Total - $Completed)))
-    if ($remainingSeconds -ge 60) { return "{0}:{1:D2} remaining" -f [Math]::Floor($remainingSeconds / 60), ($remainingSeconds % 60) }
-    return "$remainingSeconds`s remaining"
+    if ($remainingSeconds -ge 60) { return "{0}:{1:D2}" -f [Math]::Floor($remainingSeconds / 60), ($remainingSeconds % 60) }
+    return "$remainingSeconds`s"
 }
 
 function Format-CodeSlicerBootstrapRow {
@@ -43,7 +43,7 @@ function Write-CodeSlicerBootstrapProgress {
     $innerWidth = 74
     $border = '+' + ('-' * ($innerWidth + 2)) + '+'
     if ($Final) {
-        $headline = if ($Failed) { 'CODE SLICER NEEDS ATTENTION' } else { 'CODE SLICER IS READY' }
+        $headline = if ($Failed) { 'CODE SLICER NEEDS ATTENTION' } else { 'SLICER READY / LOCAL TOOLS LINKED' }
         $status = if ($Failed) { '[!] Package installation stopped. The installer log is below.' } else { '[OK] Local environment and CodeSlicer packages are ready.' }
         $next = if ($Failed) { 'Fix the reported issue and run this command again.' } else { 'Next: choose IDEs with arrows + Space, then press Enter.' }
         $lines = @(
@@ -62,23 +62,29 @@ function Write-CodeSlicerBootstrapProgress {
         $glyph = $Frames[$Frame % $Frames.Count]
         $remaining = $Total - $Completed
         $detail = "Step $Completed of $Total - $remaining stage(s) left - $(Format-CodeSlicerRemaining -Completed $Completed -Total $Total)"
+        $track = '[ source ]---o---o---o---[ graph ]---o---[ agent ]'
+        $blade = '<====|'
+        $bladeOffset = ($Frame * 2) % [Math]::Max(1, $innerWidth - $blade.Length)
+        $sweep = (' ' * $bladeOffset) + $blade
         $lines = @(
             $border,
-            (Format-CodeSlicerBootstrapRow -Text "CodeSlicer / local package setup                                  [$glyph]" -Width $innerWidth),
+            (Format-CodeSlicerBootstrapRow -Text "CodeSlicer / slicing local code into an impact graph              [$glyph]" -Width $innerWidth),
             (Format-CodeSlicerBootstrapRow -Text $Activity -Width $innerWidth),
-            (Format-CodeSlicerBootstrapRow -Text "[$bar]  $([Math]::Round(100 * $Completed / $Total))%" -Width $innerWidth),
-            (Format-CodeSlicerBootstrapRow -Text $detail -Width $innerWidth),
+            (Format-CodeSlicerBootstrapRow -Text $track -Width $innerWidth),
+            (Format-CodeSlicerBootstrapRow -Text $sweep -Width $innerWidth),
+            (Format-CodeSlicerBootstrapRow -Text "[$bar] $([Math]::Round(100 * $Completed / $Total))% | $Completed/$Total | $remaining left | ETA: $(Format-CodeSlicerRemaining -Completed $Completed -Total $Total)" -Width $innerWidth),
             $border
         )
     }
 
     if (-not $script:bootstrapAnimation) {
-        if ($Final -or $Frame -eq 0) { $lines | ForEach-Object { Write-Host $_ } }
+        $foreground = if ($Failed) { 'Red' } else { 'Green' }
+        if ($Final -or $Frame -eq 0) { $lines | ForEach-Object { Write-Host $_ -ForegroundColor $foreground } }
         return
     }
     if (-not $script:bootstrapProgressDrawn -and $script:bootstrapAnsi) { Write-Host -NoNewline "$($script:bootstrapEscape)[?25l" }
     elseif ($script:bootstrapProgressDrawn -and $script:bootstrapAnsi) { Write-Host -NoNewline "$($script:bootstrapEscape)[$($script:bootstrapRows)A" }
-    $colour = if ($Failed) { '31' } elseif ($Final) { '32' } else { '36' }
+    $colour = if ($Failed) { '91' } else { '92' }
     foreach ($line in $lines) {
         $rendered = if ($script:bootstrapAnsi) { "$($script:bootstrapEscape)[$colour`m$line$($script:bootstrapEscape)[0m" } else { $line }
         Write-Host -NoNewline "$($script:bootstrapEscape)[2K`r$rendered`n"
