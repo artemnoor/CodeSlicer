@@ -36,7 +36,7 @@ def _human_duration(seconds: float | None) -> str:
 
 
 class InstallationProgress:
-    """A compact live installer panel driven by actual completed operations.
+    """A polished live installer panel driven by actual completed operations.
 
     It intentionally writes to stderr: stdout remains valid JSON for scripts.
     The progress bar is based on the installer's real units of work; ETA is
@@ -65,6 +65,7 @@ class InstallationProgress:
         self._total = 1
         self._message = "Preparing local installation plan"
         self._frame = 0
+        self._summary = "Local-only setup is ready to use."
 
     def __enter__(self) -> "InstallationProgress":
         if self.enabled:
@@ -82,6 +83,18 @@ class InstallationProgress:
             self._completed = max(0, int(event.get("completed", self._completed) or 0))
             self._total = max(1, int(event.get("total", self._total) or 1))
             self._message = str(event.get("message") or self._message)
+
+    def set_result(self, result: dict[str, Any]) -> None:
+        """Give the final card a concrete, human-sized success summary."""
+        plan = result.get("result", {}).get("plan", {}) if isinstance(result.get("result"), dict) else {}
+        writes = plan.get("writes", []) if isinstance(plan, dict) else []
+        clients = {item.get("client") for item in writes if isinstance(item, dict) and item.get("client")}
+        skills = sum(1 for item in writes if isinstance(item, dict) and item.get("kind") == "skill")
+        mcp = sum(1 for item in writes if isinstance(item, dict) and item.get("kind") == "mcp")
+        notes = len(result.get("warnings", []))
+        self._summary = f"{len(clients)} IDEs processed · {skills} skills · {mcp} MCP connections"
+        if notes:
+            self._summary += f" · {notes} note{'s' if notes != 1 else ''} below"
 
     def close(self, status: str = "complete") -> None:
         if not self.enabled:
@@ -112,16 +125,22 @@ class InstallationProgress:
         self._drawn = True
 
     def _lines(self, *, final: bool) -> list[str]:
+        if final:
+            return self._final_lines()
         label, frames = _PHASES.get(self._phase, _PHASES["preparing"])
-        glyph = frames[0] if final else frames[self._frame % len(frames)]
+        glyph = frames[self._frame % len(frames)]
         completed = min(self._completed, self._total)
         width = max(12, min(28, shutil.get_terminal_size((88, 24)).columns - 48))
         filled = round(width * completed / self._total)
-        bar = "█" * filled + "░" * (width - filled)
+        bar_cells = list("█" * filled + "░" * (width - filled))
+        if completed < self._total and bar_cells:
+            active = min(width - 1, filled + (self._frame % max(1, width - filled)))
+            bar_cells[active] = "▓"
+        bar = "".join(bar_cells)
         elapsed = max(0.001, time.monotonic() - self._started)
         eta = None if not completed or completed >= self._total else elapsed / completed * (self._total - completed)
         remaining = self._total - completed
-        detail = "ready" if final and self._phase == "complete" else f"{remaining} action{'s' if remaining != 1 else ''} left · {_human_duration(eta)}"
+        detail = f"{remaining} action{'s' if remaining != 1 else ''} left · {_human_duration(eta)}"
         content_width = max(64, min(94, shutil.get_terminal_size((88, 24)).columns - 2))
         top = f" {self.title} · local-only "
         status = f" {glyph} {label}  [{bar}] {completed:>2}/{self._total:<2}"
@@ -136,6 +155,45 @@ class InstallationProgress:
             return lines
         color = "31" if self._phase == "failed" else ("36" if self._phase in {"preparing", "validating"} else "32")
         return [f"\x1b[{color}m{line}\x1b[0m" for line in lines]
+
+    def _final_lines(self) -> list[str]:
+        content_width = max(64, min(94, shutil.get_terminal_size((88, 24)).columns - 2))
+        failed = self._phase == "failed"
+        title = " CodeSlicer · setup needs attention " if failed else " CodeSlicer · setup complete "
+        headline = " ! Review the issues below before using this integration." if failed else " ✓ Your local CodeSlicer setup is ready."
+        detail = " No settings were silently discarded." if failed else f" {self._summary}"
+        next_step = " Fix the listed items, then run: codeslicer agent repair" if failed else " Next: reopen the selected IDE, then ask the agent about your project."
+        lines = [
+            f"╭{title}{'─' * max(1, content_width - len(title))}╮",
+            f"│{headline[:content_width]:<{content_width}}│",
+            f"│{detail[:content_width]:<{content_width}}│",
+            f"│{next_step[:content_width]:<{content_width}}│",
+            f"╰{'─' * content_width}╯",
+        ]
+        if not self._color:
+            return lines
+        color = "31" if failed else "32"
+        return [f"\x1b[{color}m{line}\x1b[0m" for line in lines]
+
+
+def render_agent_installation_result(result: dict[str, Any]) -> str:
+    """Return a concise human hand-off; --json remains the automation API."""
+    status = result.get("status", "error")
+    plan = result.get("result", {}).get("plan", {}) if isinstance(result.get("result"), dict) else {}
+    writes = plan.get("writes", []) if isinstance(plan, dict) else []
+    clients = sorted({str(item["client"]) for item in writes if isinstance(item, dict) and item.get("client")})
+    lines = ["", "CodeSlicer IDE setup", "─" * 24]
+    if status in {"ok", "already_installed"}:
+        action = "already up to date" if status == "already_installed" else "completed"
+        lines.append(f"Status: {action} · {len(clients)} IDE integration(s)")
+        lines.append("Next: reopen the selected IDE, then ask its agent to analyze the current project.")
+    else:
+        lines.append("Status: needs attention — no unrelated settings were changed.")
+    for warning in result.get("warnings", []):
+        lines.append(f"Note: {warning}")
+    for error in result.get("errors", []):
+        lines.append(f"Fix: {error}")
+    return "\n".join(lines)
 
 
 def choose_agent_clients(catalog: dict[str, dict[str, Any]], detected: list[dict[str, Any]]) -> list[str]:

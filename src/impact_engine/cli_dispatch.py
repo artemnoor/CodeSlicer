@@ -22,7 +22,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
 
     elif args.command == "agent":
         from impact_engine.agent_integration import client_catalog, detect_clients, doctor as agent_doctor_report, install, installation_status, repair, uninstall
-        from impact_engine.terminal_ui import InstallationProgress, choose_agent_clients
+        from impact_engine.terminal_ui import InstallationProgress, choose_agent_clients, render_agent_installation_result
         local_json = bool(getattr(args, "local_json", False) or getattr(args, "json", False))
         try:
             if args.agent_command == "detect":
@@ -74,6 +74,8 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                     )
                     if result.get("status") in {"error", "partial"}:
                         progress.update({"phase": "failed", "message": "Installation completed with warnings; review the result below"})
+                    else:
+                        progress.set_result(result)
             elif args.agent_command == "repair":
                 result = repair(scope=args.scope, project_path=args.project, force=args.force, dry_run=args.dry_run, backup=not args.no_backup)
             elif args.agent_command == "uninstall":
@@ -82,8 +84,10 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                 result = {"command": "agent", "status": "error", "changed": False, "result": {}, "warnings": [], "errors": ["agent subcommand is required"]}
         except (FileNotFoundError, OSError, ValueError) as exc:
             result = {"command": f"agent.{getattr(args, 'agent_command', 'unknown')}", "status": "error", "changed": False, "result": {}, "warnings": [], "errors": [str(exc)]}
-        if local_json:
+        if local_json or (args.agent_command == "install" and args.dry_run):
             _print_json(result)
+        elif args.agent_command == "install":
+            print(render_agent_installation_result(result))
         else:
             print(json.dumps(result, indent=2, ensure_ascii=False))
         if result.get("status") == "error":

@@ -378,13 +378,24 @@ def _patch_jsonc_server(path: Path, key: str, server_name: str, entry: dict[str,
     text = path.read_text(encoding="utf-8") if path.is_file() else f'{{\n  {json.dumps(key)}: {{}}\n}}\n'
     try: document = json.loads(_jsonc_without_comments(text))
     except json.JSONDecodeError as exc: raise ValueError(f"malformed JSONC config {path}: {exc.msg}") from exc
+    if not isinstance(document, dict): raise ValueError(f"JSONC config {path} root must be an object")
     servers = document.get(key, {})
     if not isinstance(servers, dict): raise ValueError(f"{path} field {key!r} is not an object")
     existing = servers.get(server_name)
     if existing == entry: return "already_installed", None
     if existing is not None and not force: return "conflict", "Existing unmanaged MCP server differs; rerun with --force."
     match = re.search(rf'"{re.escape(key)}"\s*:\s*\{{', text)
-    if not match: raise ValueError(f"JSONC config {path} has no writable {key!r} object")
+    if not match:
+        # Minimal Kilo/Gemini settings often have other preferences but omit
+        # mcpServers entirely.  Add only the missing direct root property and
+        # preserve the user's formatting/comments everywhere else.
+        opening = _skip_jsonc(text, 0)
+        if opening >= len(text) or text[opening] != "{": raise ValueError(f"JSONC config {path} root must be an object")
+        closing = _balanced_close(text, opening)
+        separator = "," if document else ""
+        addition = f'{separator}\n  {json.dumps(key)}: {{\n    {json.dumps(server_name)}: {json.dumps(entry, ensure_ascii=False)}\n  }}\n'
+        _atomic_write(path, text[:closing] + addition + text[closing:])
+        return "installed", None
     opening = text.find("{", match.start()); closing = _balanced_close(text, opening)
     body = text[opening + 1:closing]; separator = "" if not body.strip() else ","
     insertion = f'{separator}\n    {json.dumps(server_name)}: {json.dumps(entry, ensure_ascii=False)}\n  '

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 from impact_engine import cli
 from impact_engine.agent_integration import bundled_skills, client_catalog, install, installation_status, plan_install, repair, uninstall
-from impact_engine.terminal_ui import InstallationProgress, choose_agent_clients
+from impact_engine.terminal_ui import InstallationProgress, choose_agent_clients, render_agent_installation_result
 
 
 def test_bundled_install_assets_are_valid_and_limited_to_two_skills() -> None:
@@ -42,6 +42,21 @@ def test_kodik_install_preserves_jsonc_comment_and_other_server(tmp_path: Path) 
     assert json.loads((project / ".codeslicer" / "agent-install.json").read_text(encoding="utf-8"))["clients"]["kodik"]["mcp"]["server_name"] == "codeslicer"
 
 
+def test_jsonc_install_adds_missing_mcp_servers_object_without_overwriting_preferences(tmp_path: Path) -> None:
+    project = tmp_path / "project"; project.mkdir()
+    home = tmp_path / "home"
+    config = home / ".gemini" / "settings.json"
+    config.parent.mkdir(parents=True)
+    config.write_text('{\n  // preserve user preference\n  "theme": "dark"\n}\n', encoding="utf-8")
+
+    result = install(["gemini"], scope="user", project_path=project, home=home)
+
+    assert result["status"] == "ok"
+    rendered = config.read_text(encoding="utf-8")
+    assert "// preserve user preference" in rendered and '"theme": "dark"' in rendered
+    assert json.loads("\n".join(line.split("//", 1)[0] for line in rendered.splitlines()))["mcpServers"]["codeslicer"]["args"] == []
+
+
 def test_kodik_dry_run_does_not_create_project_files(tmp_path: Path) -> None:
     project = tmp_path / "project"; project.mkdir()
     result = install(["kodik"], project_path=project, home=tmp_path / "home", skills_only=True, dry_run=True)
@@ -72,6 +87,16 @@ def test_installation_progress_uses_real_remaining_actions_and_phase_style(monke
 
     panel.update({"phase": "mcp", "completed": 4, "total": 5, "message": "Codex: MCP registration"})
     assert "Configuring MCP connection" in panel._lines(final=False)[1]
+
+
+def test_agent_setup_success_card_and_human_summary_are_concise(monkeypatch) -> None:
+    monkeypatch.setenv("NO_COLOR", "1")
+    panel = InstallationProgress(stream=StringIO(), enabled=False)
+    panel.set_result({"result": {"plan": {"writes": [{"client": "codex", "kind": "skill"}, {"client": "codex", "kind": "mcp"}]}}, "warnings": []})
+    panel.update({"phase": "complete", "completed": 2, "total": 2, "message": "Local setup is ready"})
+
+    assert "setup complete" in panel._lines(final=True)[0]
+    assert "CodeSlicer IDE setup\n" in render_agent_installation_result({"status": "ok", "result": {"plan": {"writes": [{"client": "codex"}]}}, "warnings": [], "errors": []})
 
 
 def test_kodik_reinstall_is_idempotent_and_uninstall_removes_only_owned_entry(tmp_path: Path) -> None:
@@ -190,6 +215,15 @@ def test_json_agent_install_keeps_progress_ui_off_stderr(tmp_path: Path, capsys)
     captured = capsys.readouterr()
     assert json.loads(captured.out)["status"] == "ok"
     assert captured.err == ""
+
+
+def test_human_agent_install_prints_a_concise_handoff_not_the_full_plan(tmp_path: Path, capsys) -> None:
+    cli.main(["agent", "install", "--client", "codex", "--scope", "project", "--project", str(tmp_path), "--skills-only"])
+
+    output = capsys.readouterr().out
+    assert "CodeSlicer IDE setup" in output
+    assert "Status: completed" in output
+    assert '"command": "agent.install"' not in output
 
 
 def test_terminal_menu_uses_checkbox_selection_with_keyboard_instructions(monkeypatch) -> None:
