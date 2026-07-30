@@ -16,7 +16,7 @@ The view has five sections:
 - **Architecture** — an optional, separate Graphify view.
 - **Settings** — custom executable and other advanced options.
 
-Choose **Learning** on the Check screen for a separate interactive learning page. Pick one of four scenarios — reviewing your changes, comparing a branch, understanding architecture, or reviewing a GitHub PR — and follow its progress-aware route. **Show me where** only changes tabs and highlights the relevant control; a clearly labelled action button is the only way to start configuration, OAuth, review, or opening the local hub.
+On first open, CodeSlicer shows the separate **Learning** page automatically. Pick one of four scenarios — reviewing your changes, comparing a branch, understanding architecture, or reviewing a GitHub PR. The first and every next step automatically changes tabs and highlights the exact control while a compact guide card stays alongside the interface. A clearly labelled action button is the only way to start configuration, OAuth, review, or opening the local hub.
 
 For local review the extension verifies the `origin/HEAD` branch when possible. If it cannot establish one safe base, it lists verified `main`, `master`, `develop`, or `trunk` candidates for the developer to choose. It never assumes that `main` is correct.
 

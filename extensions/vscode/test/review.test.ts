@@ -29,7 +29,7 @@ test("webview offers plain-language Russian sections and a safe first run", () =
   assert.match(html, /Практикум/);
   assert.match(html, /role="tablist"/);
   assert.match(html, /data-action="configureGraphify"/);
-  assert.match(html, /Чему вы хотите научиться/);
+  assert.match(html, /С чего начнём/);
   assert.match(html, /Проверить свои изменения/);
   assert.match(html, /Разобраться в архитектуре/);
   assert.match(html, /data-action="learn"/);
@@ -47,7 +47,7 @@ test("webview renders English guidance and an honest empty impact state", () => 
   assert.match(html, /data-action="sourceCompare"/);
   assert.match(html, /data-action="sourceDiff"/);
   assert.match(html, /data-action="sourceGitHub"/);
-  assert.match(html, /What would you like to learn/);
+  assert.match(html, /Where should we start/);
   assert.match(html, /Review a GitHub PR/);
   assert.match(html, /data-course="architecture"/);
   assert.match(html, /Navigation and highlighting never start work/);
@@ -67,7 +67,7 @@ test("learning routes navigate safely and run an action only after an explicit c
   const listeners: Record<string, (event: any) => void> = {};
   const makeElement = (): any => ({
     hidden: false, textContent: "", dataset: {}, attributes: {}, children: [],
-    classList: { add(this: any, value: string) { this.lastAdded = value; }, remove() {} },
+    classList: { add(this: any, value: string) { this.lastAdded = value; }, remove() {}, toggle(this: any, value: string, active: boolean) { this.lastToggled = [value, active]; } },
     setAttribute(name: string, value: string) { this.attributes[name] = value; },
     append(...children: any[]) { this.children.push(...children); },
     focus() {}, scrollIntoView() {}
@@ -97,8 +97,11 @@ test("learning routes navigate safely and run an action only after an explicit c
   new Function("document", "acquireVsCodeApi", "matchMedia", clientRouter)(documentStub, () => ({ getState: () => undefined, setState() {}, postMessage: (message: unknown) => messages.push(message) }), () => ({ matches: true }));
   const click = (dataset: Record<string, string>) => listeners.click({ target: { dataset, closest() { return this; } } });
 
+  assert.equal(tabs.find(tab => tab.dataset.tab === "learn")?.attributes["aria-selected"], "true");
   click({ course: "review" });
   assert.equal(get("course-title").textContent, "Review my changes");
+  assert.deepEqual(get("panel-learn").classList.lastToggled, ["guide-active", true]);
+  assert.equal(tabs.find(tab => tab.dataset.tab === "check")?.attributes["aria-selected"], "true");
   click({ learning: "show" });
   assert.equal(actionTargets.get('[data-action="configureBase"]').classList.lastAdded, "guide-focus");
   assert.deepEqual(messages, []);
