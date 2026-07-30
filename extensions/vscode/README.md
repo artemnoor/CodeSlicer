@@ -16,7 +16,7 @@ The view has five sections:
 - **Architecture** — an optional, separate Graphify view.
 - **Settings** — custom executable and other advanced options.
 
-On first open, CodeSlicer shows the separate **Learning** page automatically. Pick one of four scenarios — reviewing your changes, comparing a branch, understanding architecture, or reviewing a GitHub PR. The first and every next step automatically changes tabs and highlights the exact control while a compact guide card stays alongside the interface. A clearly labelled action button is the only way to start configuration, OAuth, review, or opening the local hub.
+On first open, CodeSlicer shows the separate **Learning** page automatically. Start with **Install and set up** or **Connect IDE and skills**, then continue with review, comparison, architecture, or GitHub PR scenarios. The first and every next step automatically changes tabs and highlights the exact control while a compact guide card stays alongside the interface. A clearly labelled action button is the only way to start configuration, PowerShell, OAuth, review, or opening the local hub.
 
 For local review the extension verifies the `origin/HEAD` branch when possible. If it cannot establish one safe base, it lists verified `main`, `master`, `develop`, or `trunk` candidates for the developer to choose. It never assumes that `main` is correct.
 
@@ -26,7 +26,9 @@ Use **CodeSlicer: Compare with base branch** or **CodeSlicer: Review a diff file
 
 ## Runtime and privacy
 
-The normal runtime location is VS Code global storage. Automatic installation is intentionally unavailable until CodeSlicer publishes a signed runtime artifact and verification manifest. Until then, the existing local `.venv` flow still works, and **Settings → Choose an existing executable** remains available; the extension validates either choice locally before use.
+Automatic runtime installation is intentionally unavailable until CodeSlicer publishes a signed runtime artifact and verification manifest. Until then, **Settings → Setup assistant** opens the official download page and, after you choose an extracted CodeSlicer folder and confirm, its visible PowerShell installer. The installer creates a local `.venv`, then offers the IDE chooser with arrows, Space, and Enter. Existing installations can use **Choose an existing executable**; the extension validates it locally before use.
+
+After CodeSlicer is configured, **Settings → Choose IDE and skills** opens `codeslicer agent install` in the integrated PowerShell terminal after a second confirmation. It uses the existing interactive IDE chooser and changes only selected integrations; the installer creates a side-by-side backup before editing an existing MCP configuration.
 
 There is no GitHub PAT setting in this extension. **CodeSlicer: Review GitHub pull request (optional)** uses VS Code Authentication/OAuth only after the developer selects it. Any future check or comment will remain a separate explicit action. Local review never uploads code and never stores a token.
 

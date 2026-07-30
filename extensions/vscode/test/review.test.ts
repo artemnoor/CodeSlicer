@@ -30,6 +30,8 @@ test("webview offers plain-language Russian sections and a safe first run", () =
   assert.match(html, /role="tablist"/);
   assert.match(html, /data-action="configureGraphify"/);
   assert.match(html, /С чего начнём/);
+  assert.match(html, /Установить и настроить/);
+  assert.match(html, /Подключить IDE и skills/);
   assert.match(html, /Проверить свои изменения/);
   assert.match(html, /Разобраться в архитектуре/);
   assert.match(html, /data-action="learn"/);
@@ -48,6 +50,8 @@ test("webview renders English guidance and an honest empty impact state", () => 
   assert.match(html, /data-action="sourceDiff"/);
   assert.match(html, /data-action="sourceGitHub"/);
   assert.match(html, /Where should we start/);
+  assert.match(html, /Install and set up/);
+  assert.match(html, /Connect IDE and skills/);
   assert.match(html, /Review a GitHub PR/);
   assert.match(html, /data-course="architecture"/);
   assert.match(html, /Navigation and highlighting never start work/);
@@ -81,7 +85,10 @@ test("learning routes navigate safely and run an action only after an explicit c
     ['[data-action="configureBase"]', makeElement()],
     ['[data-action="review"]', makeElement()],
     ['[data-action="hub"]', makeElement()],
-    ['[data-action="configureGraphify"]', makeElement()]
+    ['[data-action="configureGraphify"]', makeElement()],
+    ['[data-action="downloadTools"]', makeElement()],
+    ['[data-action="setupSkills"]', makeElement()],
+    ['[data-action="doctor"]', makeElement()]
   ]);
   const documentStub: any = {
     documentElement: { lang: "en" },
@@ -107,6 +114,13 @@ test("learning routes navigate safely and run an action only after an explicit c
   assert.deepEqual(messages, []);
   click({ learning: "perform" });
   assert.deepEqual(messages, [{ type: "action", action: "configureBase" }]);
+
+  click({ course: "skills" });
+  assert.equal(get("course-title").textContent, "Connect IDE and skills");
+  assert.equal(tabs.find(tab => tab.dataset.tab === "settings")?.attributes["aria-selected"], "true");
+  assert.equal(actionTargets.get('[data-action="setupSkills"]').classList.lastAdded, "guide-focus");
+  click({ learning: "perform" });
+  assert.deepEqual(messages, [{ type: "action", action: "configureBase" }, { type: "action", action: "setupSkills" }]);
 });
 
 test("download guide keeps CodeSlicer and optional Graphify explicit and separate", () => {
@@ -116,6 +130,16 @@ test("download guide keeps CodeSlicer and optional Graphify explicit and separat
   assert.match(source, /data-action="downloadCodeSlicer"/);
   assert.match(source, /data-action="downloadGraphify"/);
   assert.match(source, /data-action="configureCodeSlicer"/);
-  assert.match(source, /не запускается без нажатия кнопки/);
+  assert.match(source, /data-action="startWindowsSetup"/);
+  assert.match(source, /data-action="setupSkills"/);
+  assert.match(source, /не происходят сами/);
   assert.match(source, /env\.openExternal/);
+});
+
+test("extension exposes the IDE skills picker as an activated command", () => {
+  const manifest = readFileSync(join(__dirname, "../../package.json"), "utf8");
+  const source = readFileSync(join(__dirname, "../../src/extension.ts"), "utf8");
+  assert.match(manifest, /codeslicer\.setupSkills/);
+  assert.match(source, /agent install/);
+  assert.match(source, /Open IDE picker/);
 });

@@ -154,8 +154,66 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     await vscode.window.showInformationMessage(this.runtime.installationAvailability());
   }
 
+  private powershellLiteral(value: string): string {
+    return `'${value.replace(/'/g, "''")}'`;
+  }
+
+  private async selectCodeSlicerFolder(): Promise<string | undefined> {
+    const picked = await vscode.window.showOpenDialog({
+      title: "Choose the extracted CodeSlicer folder",
+      canSelectMany: false,
+      canSelectFiles: false,
+      canSelectFolders: true,
+      openLabel: "Use this CodeSlicer folder"
+    });
+    if (!picked?.[0]) return undefined;
+    const script = join(picked[0].fsPath, "scripts", "install-windows.ps1");
+    if (!existsSync(script)) {
+      await vscode.window.showErrorMessage("That folder does not contain scripts/install-windows.ps1. Download and extract the official CodeSlicer archive first.");
+      return undefined;
+    }
+    return picked[0].fsPath;
+  }
+
+  async startWindowsSetup(): Promise<void> {
+    if (process.platform !== "win32") {
+      await vscode.window.showInformationMessage("The guided PowerShell setup is available on Windows. Use the macOS/Linux commands in the CodeSlicer README, then choose the installed executable here.");
+      return;
+    }
+    const folder = await this.selectCodeSlicerFolder();
+    if (!folder) return;
+    const choice = await vscode.window.showWarningMessage("Open PowerShell setup? It will create CodeSlicer's .venv and install CodeSlicer in the selected folder. The IDE picker appears afterwards; no IDE is selected automatically.", { modal: true }, "Open PowerShell setup");
+    if (choice !== "Open PowerShell setup") return;
+    const script = join(folder, "scripts", "install-windows.ps1");
+    const terminal = vscode.window.createTerminal({ name: "CodeSlicer setup", cwd: folder });
+    terminal.show(true);
+    terminal.sendText(`powershell.exe -NoExit -ExecutionPolicy Bypass -File ${this.powershellLiteral(script)}`, true);
+    await vscode.window.showInformationMessage("CodeSlicer setup opened in the integrated PowerShell terminal. Complete the visible IDE selection there, then choose codeslicer.exe in CodeSlicer settings.");
+  }
+
+  async setupSkills(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    const executable = await this.runtime.discover(this.config<string>("executable"), root);
+    if (!executable) {
+      await vscode.window.showWarningMessage("Install and configure CodeSlicer first. The setup assistant can guide you there.", "Open setup assistant").then(choice => {
+        if (choice === "Open setup assistant") this.openDownloads();
+      });
+      return;
+    }
+    const choice = await vscode.window.showWarningMessage("Open the IDE and skills picker in PowerShell? Choose IDEs with arrows, Space, and Enter. The installer changes only the integrations you select and creates backups before editing existing MCP files.", { modal: true }, "Open IDE picker");
+    if (choice !== "Open IDE picker") return;
+    const terminal = vscode.window.createTerminal({ name: "CodeSlicer IDE and skills", cwd: root });
+    terminal.show(true);
+    terminal.sendText(`& ${this.powershellLiteral(executable)} agent install`, true);
+  }
+
   openDownloads(): void {
-    showInstallGuide(this.language(), () => this.configure());
+    showInstallGuide(this.language(), {
+      configure: () => this.configure(),
+      startWindowsSetup: () => this.startWindowsSetup(),
+      setupSkills: () => this.setupSkills()
+    });
   }
 
   async configureBaseRef(): Promise<void> {
@@ -379,7 +437,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
         sourceCurrent: () => this.setReviewSource("current-changes"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
-        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), downloadTools: async () => this.openDownloads()
+        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), downloadTools: async () => this.openDownloads(), setupSkills: () => this.setupSkills()
       };
       await actions[message.action || ""]?.();
       return;
@@ -414,7 +472,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }));
   }
   for (const [id, handler] of [
-    ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.downloadTools", () => provider.openDownloads()], ["codeslicer.analyzeWorkspace", () => provider.analyze()], ["codeslicer.runtimeDoctor", () => provider.doctor()], ["codeslicer.runtimeUpdate", () => provider.runtimeAvailability()], ["codeslicer.runtimeRollback", () => provider.runtimeAvailability()],
+    ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.downloadTools", () => provider.openDownloads()], ["codeslicer.setupSkills", () => provider.setupSkills()], ["codeslicer.analyzeWorkspace", () => provider.analyze()], ["codeslicer.runtimeDoctor", () => provider.doctor()], ["codeslicer.runtimeUpdate", () => provider.runtimeAvailability()], ["codeslicer.runtimeRollback", () => provider.runtimeAvailability()],
     ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.reviewCompare", async () => { await provider.setReviewSource("compare"); await provider.review(); }], ["codeslicer.reviewDiffFile", async () => { await provider.setReviewSource("diff-file"); await provider.review(); }], ["codeslicer.githubSignIn", () => provider.setReviewSource("github-pr")], ["codeslicer.showReviewHistory", () => provider.showHistory()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],
     ["codeslicer.openLocalHub", () => provider.hub()], ["codeslicer.refresh", () => provider.refresh()],
     ["codeslicer.runRecommendedTest", () => provider.runTest()]
