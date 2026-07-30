@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import { buildAnalyzeArgs, buildReviewArgs, formatCommand, runProcess, safeTestCommand } from "./cli";
 import { parseReviewJson, withReview } from "./review";
 import { isSafeRef } from "./runtime";
@@ -240,10 +242,22 @@ class CockpitProvider implements vscode.WebviewViewProvider {
 
   async setReviewSource(mode: ReviewSourceMode): Promise<void> {
     if (mode === "github-pr") {
-      const auth = await this.github.authenticateAfterUserAction();
-      this.state = { ...this.state, integration: { ...this.state.integration, githubAuthenticated: auth.authenticated, githubStatus: auth.message } };
-      this.render();
-      await vscode.window.showInformationMessage(auth.message);
+      const url = await vscode.window.showInputBox({ title: "Review a GitHub pull request", prompt: "GitHub pull-request URL. This starts OAuth and two read-only GitHub API requests only after you continue.", placeHolder: "https://github.com/owner/repository/pull/42", ignoreFocusOut: true });
+      if (url === undefined) return;
+      try {
+        const prepared = await this.github.preparePullRequestReviewAfterUserAction(url);
+        const reviewDirectory = join(this.context.globalStorageUri.fsPath, "reviews");
+        await mkdir(reviewDirectory, { recursive: true });
+        const key = createHash("sha256").update(url).digest("hex").slice(0, 16);
+        const diffFile = join(reviewDirectory, `github-pr-${key}.diff`);
+        await writeFile(diffFile, prepared.review.diff, "utf8");
+        this.state = { ...this.state, reviewSource: { mode, diffFile, baseRef: prepared.review.baseRef, label: `${prepared.review.reference.owner}/${prepared.review.reference.repository}#${prepared.review.reference.number}` }, integration: { ...this.state.integration, githubAuthenticated: true, githubStatus: `Signed in as ${prepared.accountLabel}. GitHub diff downloaded locally; no code was uploaded.` } };
+        await this.context.workspaceState.update("codeslicer.reviewSource", this.state.reviewSource);
+        this.render();
+        await vscode.window.showInformationMessage("GitHub pull-request diff is ready for local CodeSlicer review.");
+      } catch (error) {
+        await vscode.window.showErrorMessage(`GitHub pull-request setup failed: ${String(error)}`);
+      }
       return;
     }
     let diffFile: string | undefined;
@@ -263,13 +277,9 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     const executable = await this.executable(root);
     if (!executable) return;
     const source = this.state.reviewSource;
-    if (source.mode === "github-pr") {
-      await vscode.window.showInformationMessage("GitHub sign-in is ready, but pull-request API review is not implemented yet. No API request was made.");
-      return;
-    }
-    const base = source.mode === "diff-file" ? undefined : await this.base(root);
-    if (!source.diffFile && source.mode === "diff-file") return;
-    if (source.mode !== "diff-file" && !base) return;
+    const base = source.mode === "github-pr" ? source.baseRef : source.mode === "diff-file" ? undefined : await this.base(root);
+    if (!source.diffFile && (source.mode === "diff-file" || source.mode === "github-pr")) return;
+    if (source.mode === "current-changes" || source.mode === "compare") if (!base) return;
     try {
       await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: reviewing local changes", cancellable: true }, async (_progress, token) => {
         const controller = new AbortController();

@@ -84,14 +84,17 @@ def build_review_report(
         warnings.append(
             f"{graph_integrity['dangling_endpoint_edges']} dangling edges excluded from concise review"
         )
-    if review_source_kind == "github-pr":
-        raise ValueError("GitHub pull-request review is not available in the local CLI yet; no network request was made")
+    if review_source_kind == "github-pr" and diff_text is None:
+        raise ValueError("--source github-pr requires a local diff file prepared by an explicit OAuth action; no network request was made")
     if review_source_kind == "diff-file" and diff_text is None:
         raise ValueError("--source diff-file requires --diff-file; no file or network source was inferred")
     source_contract = review_source(root, base=base, diff_file="provided" if diff_text is not None else None)
     if review_source_kind == "compare" and not diff_text:
         source_contract["kind"] = "compare"
         source_contract["label"] = "Compare refs"
+    elif review_source_kind == "github-pr":
+        source_contract["kind"] = "github_pull_request"
+        source_contract["label"] = "GitHub pull request (local diff)"
     selected_base = base or source_contract["base"].get("base_ref")
     diff, source = _resolve_diff(root, diff_text, diff_source, selected_base)
     if source == "project-not-a-git-repository":

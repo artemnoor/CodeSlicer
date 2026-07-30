@@ -4,7 +4,7 @@
   <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/artemnoor/CodeSlicer/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/release-v0.5.0-7c3aed?style=flat-square" alt="Release v0.5.0"></a>
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/regression-753%20passed-22c55e?style=flat-square" alt="753 regression tests passed">
+  <img src="https://img.shields.io/badge/regression-754%20passed-22c55e?style=flat-square" alt="754 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
   <img src="https://img.shields.io/badge/agent%20skills-2-f97316?style=flat-square" alt="2 bundled agent skills">
   <img src="https://img.shields.io/badge/MCP-stdio%20JSON--RPC-ec4899?style=flat-square" alt="MCP stdio JSON-RPC">
@@ -39,9 +39,9 @@ frontend-клиента и теста. Graphify отвечает за свой, 
 
 VS Code extension находится в [`extensions/vscode`](extensions/vscode/README.md) как отдельный package этого репозитория. Он использует установленный локальный CLI, а не второй engine. На первом экране нет MCP, entity ID, raw JSON или полного графа; каждый локальный процесс и каждый тест запускается только явным действием в trusted workspace.
 
-Помимо проверки текущих изменений extension поддерживает explicit local compare с base branch и выбор локального diff-file из Command Palette, а последние десять summary сохраняет только в workspace state. GitHub OAuth включается отдельной командой и пока лишь создаёт session: PR API-запросы не выполняются.
+Помимо проверки текущих изменений extension поддерживает explicit local compare с base branch и выбор локального diff-file из Command Palette, а последние десять summary сохраняет только в workspace state. GitHub PR review запускается только отдельной командой через VS Code OAuth: extension читает metadata и diff выбранного PR, сохраняет diff в global storage и анализирует его локально. Исходный код не отправляется, checks/comments не публикуются.
 
-GitHub PR review пока не выполняет сетевых вызовов, не требует и не хранит PAT. В будущей интеграции будет использована VS Code Authentication/OAuth, а публикация checks или comments потребует отдельного подтверждения. Graphify остаётся отдельным optional architecture engine и не смешивается с canonical CodeSlicer evidence/risk.
+GitHub PR review не требует и не хранит PAT: он использует VS Code Authentication/OAuth только после явного действия. Публикация checks или comments не реализована и в будущем потребует отдельного подтверждения. Graphify остаётся отдельным optional architecture engine и не смешивается с canonical CodeSlicer evidence/risk.
 
 > Сайт сломался, а причина потерялась между frontend, API, сервисами, базой и
 > десятками AI-правок? CodeSlicer строит единый граф проекта, чтобы точно
@@ -371,21 +371,13 @@ sequenceDiagram
 
 ### Что видит разработчик
 
-1. На вкладке **«Сейчас»** — три последовательных шага: проверить CodeSlicer,
-   выбрать локальную базовую ветку (обычно `main`), затем запустить review.
-2. На вкладке **«Влияние»** — уровень риска, затронутые сущности и компактная
-   карта подтверждённых связей. Нажатие на узел показывает файл, строку,
-   provenance и доказательство; полный граф остаётся в Local Hub.
-3. На вкладке **«Тесты и ограничения»** — рекомендации тестов, предупреждения
-   и честные ограничения покрытия. Каждый тест запрашивает отдельное
-   подтверждение перед запуском.
+1. **«Проверка»** — источник review, runtime и verified base branch.
+2. **«Результат»** — риск, затронутые сущности и кликабельные evidence.
+3. **«Тесты»** — рекомендации, ограничения покрытия и отдельное подтверждение каждого запуска.
+4. **«Архитектура»** — отдельный optional Graphify view.
+5. **«Настройки»** — custom executable и другие advanced options.
 
-Review всегда сравнивает **локальный Git diff** с настраиваемой локальной base
-branch. Он не читает GitHub PR metadata, comments или checks, не отправляет
-исходный код наружу и не запускает CLI при активации extension. Все запуски
-происходят только после явного нажатия пользователя; в недоверенном workspace
-CLI не запускается. Команда, рабочая папка, stdout, stderr и ошибки доступны в
-Output Channel `CodeSlicer`.
+Local review сравнивает **локальный Git diff** с verified base branch. Для выбранного GitHub PR extension после OAuth читает только metadata и diff, сохраняет diff локально и не публикует checks/comments. Он не отправляет исходный код наружу и не запускает CLI при activation. Все запуски происходят только после явного нажатия пользователя; в недоверенном workspace CLI не запускается. Команда, рабочая папка, stdout, stderr и ошибки доступны в Output Channel `CodeSlicer`.
 
 ### Начать без ручного поиска
 
@@ -407,15 +399,12 @@ Graphify остаётся независимым optional engine. Его archite
 не смешивается с canonical CodeSlicer graph, risk или evidence. Расширение не
 запускает и не скачивает Graphify в фоне.
 
-В cockpit доступны русский и английский языки. Кнопка «Как это работает?»
-запускает перетаскиваемый интерактивный тур по трём шагам, вкладкам влияния и
-тестов: он только подсвечивает интерфейс и ничего не запускает без отдельного
-нажатия пользователя.
+В cockpit доступны русский и английский языки. Интерфейс не запускает анализ,
+runtime, Graphify или тесты сам: для каждого процесса нужно отдельное действие.
 
-Карточка GitHub позволяет **необязательно** сохранить token в VS Code Secret
-Storage. В текущей версии он не используется: local review по-прежнему не
-вызывает GitHub API и не передаёт токен или код в сеть. Реальная GitHub
-интеграция остаётся отдельным future этапом.
+GitHub не использует PAT и не сохраняет token в настройках или workspace.
+Команда review PR получает ephemeral OAuth session из VS Code только после
+явного действия пользователя, затем выполняет два read-only API GET-запроса.
 
 ### Установка extension и разработка
 

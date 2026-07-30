@@ -18,7 +18,7 @@ The view has five sections:
 
 For local review the extension verifies the `origin/HEAD` branch when possible. If it cannot establish one safe base, it lists verified `main`, `master`, `develop`, or `trunk` candidates for the developer to choose. It never assumes that `main` is correct.
 
-Advanced source modes (compare refs or a diff file) are represented in the core contract. GitHub Pull Request review is visible as a future mode but makes no network call in this release.
+Advanced source modes (compare refs or a diff file) are represented in the core contract. GitHub Pull Request review is available as an explicit OAuth flow: after you supply a canonical PR URL and confirm sign-in, the extension sends two read-only GitHub REST requests (metadata and diff), saves the diff only in VS Code global storage, then runs the local CLI. It never uploads source code, creates checks, or posts comments.
 
 Use **CodeSlicer: Compare with base branch** or **CodeSlicer: Review a diff file** from the Command Palette for those advanced local sources. The extension retains the ten most recent report summaries in VS Code workspace state; reports stay local to the workspace.
 
@@ -26,7 +26,7 @@ Use **CodeSlicer: Compare with base branch** or **CodeSlicer: Review a diff file
 
 The normal runtime location is VS Code global storage. Automatic installation is intentionally unavailable until CodeSlicer publishes a signed runtime artifact and verification manifest. Until then, the existing local `.venv` flow still works, and **Settings → Choose an existing executable** remains available; the extension validates either choice locally before use.
 
-There is no GitHub PAT setting in this extension. **CodeSlicer: Sign in to GitHub (optional)** uses VS Code Authentication/OAuth only after the developer selects it; it currently only establishes a session and makes no GitHub API request. Any future PR review, check, or comment will remain an explicit action. Local review never uploads code and never uses a token.
+There is no GitHub PAT setting in this extension. **CodeSlicer: Review GitHub pull request (optional)** uses VS Code Authentication/OAuth only after the developer selects it. Any future check or comment will remain a separate explicit action. Local review never uploads code and never stores a token.
 
 Graphify is an optional architecture engine. Its graph, communities, and inferred links do not contribute to CodeSlicer risk, impact ranking, or canonical evidence.
 

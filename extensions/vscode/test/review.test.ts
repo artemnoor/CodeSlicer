@@ -34,10 +34,11 @@ test("webview renders English guidance and an honest empty impact state", () => 
   assert.match(html, /See what your changes affect/);
   assert.match(html, /Your code stays on your computer/);
   assert.match(html, /Nothing runs unless you choose an action/);
-  assert.match(html, /GitHub Pull Request — coming next/);
+  assert.match(html, /Review GitHub Pull Request \(OAuth\)/);
   assert.match(html, /Separate architecture map/);
   assert.match(html, /data-action="sourceCompare"/);
   assert.match(html, /data-action="sourceDiff"/);
+  assert.match(html, /data-action="sourceGitHub"/);
 });
 
 test("download guide keeps CodeSlicer and optional Graphify explicit and separate", () => {
