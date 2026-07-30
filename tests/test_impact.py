@@ -3,6 +3,7 @@ from pathlib import Path
 from impact_engine.extractors.python_ast import extract_project
 from impact_engine.resolution.precision import resolve_precision
 from impact_engine.impact import impact_query, explain_edge
+from impact_engine.models import Edge, GraphDocument, Node
 
 PROJECT_PATH = Path(__file__).parent.parent / "examples" / "golden_cases" / "python_di_basic"
 
@@ -37,6 +38,33 @@ def test_impact_query_upstream_for_repository_save():
     assert calls_edge is not None
     assert calls_edge["to"] == "repositories.OrderRepository.save"
     assert calls_edge["source"] == "INFERRED"
+
+
+def test_impact_query_deduplicates_edge_ids_and_preserves_bfs_result_order():
+    graph = GraphDocument()
+    for node_id in ("start", "left", "right", "end"):
+        graph.add_node(Node(node_id, "FUNCTION", node_id))
+    graph.add_edge(Edge("left-edge", "CALLS", "start", "left"))
+    graph.add_edge(Edge("right-edge", "CALLS", "start", "right"))
+    graph.add_edge(Edge("end-edge", "CALLS", "left", "end"))
+    graph.add_edge(Edge("end-edge-2", "CALLS", "right", "end"))
+
+    result = impact_query(graph, target="start", direction="downstream")
+
+    assert [edge["id"] for edge in result["affected_edges"]] == [
+        "left-edge", "right-edge", "end-edge", "end-edge-2"
+    ]
+
+
+def test_impact_query_uses_constant_time_bfs_queue_and_edge_membership():
+    source = Path(__file__).parents[1] / "src" / "impact_engine" / "impact.py"
+    contents = source.read_text(encoding="utf-8")
+
+    assert "from collections import deque" in contents
+    assert "queue = deque()" in contents
+    assert "queue.popleft()" in contents
+    assert "affected_edge_ids = set()" in contents
+    assert "if edge.id in affected_edge_ids:" in contents
 
 
 def test_explain_edge_returns_evidence_chain():

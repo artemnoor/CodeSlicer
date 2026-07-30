@@ -1,5 +1,6 @@
 """Impact query and explain edge v2 implementation. Stage 16."""
 import json
+from collections import deque
 from typing import Optional, Dict, Any, List
 from impact_engine.models import GraphDocument, Edge, Node
 from impact_engine.edge_quality import bucket_edge_dicts, classify_edge_quality, edge_is_active_for_impact
@@ -116,10 +117,11 @@ def impact_query(
                 matched_nodes.append(node)
 
     # 4. BFS Traversal setup
-    queue = []
+    queue = deque()
     visited_nodes = set()
     affected_nodes = []
     affected_edges = []
+    affected_edge_ids = set()
     explanation_chain = []
     impact_paths = []
     warnings = []
@@ -149,7 +151,7 @@ def impact_query(
 
     # BFS Traversal
     while queue:
-        curr_id, depth, path_str, path_edges = queue.pop(0)
+        curr_id, depth, path_str, path_edges = queue.popleft()
 
         if max_depth is not None and depth >= max_depth:
             continue
@@ -161,7 +163,7 @@ def impact_query(
             next_edges.extend((e.from_node, e, "upstream") for e in in_adj.get(curr_id, []))
 
         for next_id, edge, dir_type in next_edges:
-            if edge in affected_edges:
+            if edge.id in affected_edge_ids:
                 continue
 
             if max_edges is not None and len(affected_edges) >= max_edges:
@@ -171,6 +173,7 @@ def impact_query(
                 continue
 
             affected_edges.append(edge)
+            affected_edge_ids.add(edge.id)
 
             arrow = "->" if dir_type == "downstream" else "<-"
             new_path_str = f"{path_str} {arrow} ({edge.kind}, c={edge.confidence}) {arrow} {next_id}"
