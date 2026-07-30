@@ -27,6 +27,10 @@ test("webview offers five plain-language Russian sections and a safe first run",
   assert.match(html, /Настройки/);
   assert.match(html, /role="tablist"/);
   assert.match(html, /data-action="configureGraphify"/);
+  assert.match(html, /Как это работает/);
+  assert.match(html, /data-action="tour"/);
+  assert.match(html, /data-tour="skip"/);
+  assert.match(html, /prefers-reduced-motion:reduce/);
 });
 
 test("webview renders English guidance and an honest empty impact state", () => {
@@ -39,6 +43,9 @@ test("webview renders English guidance and an honest empty impact state", () => 
   assert.match(html, /data-action="sourceCompare"/);
   assert.match(html, /data-action="sourceDiff"/);
   assert.match(html, /data-action="sourceGitHub"/);
+  assert.match(html, /How it works/);
+  assert.match(html, /tourSteps/);
+  assert.match(html, /Тур ничего не запускает/);
 });
 
 test("download guide keeps CodeSlicer and optional Graphify explicit and separate", () => {

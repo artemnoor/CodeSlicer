@@ -16,6 +16,8 @@ The view has five sections:
 - **Architecture** — an optional, separate Graphify view.
 - **Settings** — custom executable and other advanced options.
 
+Choose **How it works** on the Check screen for a five-step guided tour. It moves through the same tabs, highlights the relevant control, and explains what will happen next. You can go back, skip it, or press `Esc`; it never starts a review, test, download, or configuration action.
+
 For local review the extension verifies the `origin/HEAD` branch when possible. If it cannot establish one safe base, it lists verified `main`, `master`, `develop`, or `trunk` candidates for the developer to choose. It never assumes that `main` is correct.
 
 Advanced source modes (compare refs or a diff file) are represented in the core contract. GitHub Pull Request review is available as an explicit OAuth flow: after you supply a canonical PR URL and confirm sign-in, the extension sends two read-only GitHub REST requests (metadata and diff), saves the diff only in VS Code global storage, then runs the local CLI. It never uploads source code, creates checks, or posts comments.
