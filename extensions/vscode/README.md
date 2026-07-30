@@ -28,6 +28,13 @@ Select **How it works** in the cockpit header at any time. The short guided tour
 
 The cockpit has Russian and English interfaces. Choose the language in the upper-right selector, or set `codeslicer.uiLanguage` to `auto`, `ru`, or `en` in VS Code settings.
 
+## Connections
+
+The compact **Connections** cards at the top make optional setup visible without hiding the local review flow.
+
+- **GitHub token** — select **Add or replace token** to enter an optional token in VS Code's native password prompt. The token is stored only in VS Code Secret Storage, never in `settings.json`, the workspace, logs, or the VSIX. Current local review does not use the token or call GitHub; a future explicit PR-integration feature may use it.
+- **Graphify** — select **Choose graph.json** and point to an already-created local Graphify `graph.json`. CodeSlicer will not download, clone, or run Graphify. The selected architecture graph stays separate from canonical CodeSlicer evidence and risk.
+
 The default base branch is local `main`. Set `codeslicer.baseRef` when your team uses another branch. The extension checks that the base exists locally before it starts a review.
 
 ### Do I need a GitHub token?

@@ -34,6 +34,11 @@ test("webview offers a guided Russian flow, tabs, and an explicit no-token messa
   assert.match(html, /tour-focus/);
   assert.match(html, /\.tour\{z-index:100\}/);
   assert.match(html, /\.tour-card\{z-index:101/);
+  assert.match(html, /tour-grab/);
+  assert.match(html, /setPointerCapture/);
+  assert.match(html, /Подключения/);
+  assert.match(html, /data-action="configureGitHub"/);
+  assert.match(html, /data-action="configureGraphify"/);
 });
 
 test("webview renders English guidance and an honest empty impact state", () => {
@@ -45,4 +50,6 @@ test("webview renders English guidance and an honest empty impact state", () => 
   assert.match(html, /How it works/);
   assert.match(html, /This tour never runs anything for you/);
   assert.match(html, /Every test always asks for separate confirmation/);
+  assert.match(html, /Connections/);
+  assert.match(html, /VS Code Secret Storage/);
 });

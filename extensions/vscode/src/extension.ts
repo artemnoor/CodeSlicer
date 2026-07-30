@@ -9,7 +9,8 @@ import { renderCockpit } from "./webview";
 
 const OUTPUT = vscode.window.createOutputChannel("CodeSlicer");
 const graphPath = (root: string) => join(root, ".impact_engine", "graph.json");
-const graphifyPath = (root: string) => join(root, ".codeslicer", "artifacts", "graphify", "graphify-out", "graph.json");
+const graphifyPath = (root: string, configured: string) => configured.trim() || join(root, ".codeslicer", "artifacts", "graphify", "graphify-out", "graph.json");
+const GITHUB_TOKEN_KEY = "codeslicer.githubToken";
 
 class CockpitProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
@@ -69,13 +70,16 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     const branchResult = await runProcess("git", ["branch", "--show-current"], root, 15_000);
     this.log(branchResult);
     const branch = branchResult.exitCode === 0 ? branchResult.stdout.trim() || "detached HEAD" : "Git branch unavailable";
+    const configuredGraphify = this.config<string>("graphifyGraphPath");
+    const architectureGraph = graphifyPath(root, configuredGraphify);
     return {
       workspace: root,
       branch,
       baseRef: this.config<string>("baseRef").trim() || "main",
       graphStatus: existsSync(graphPath(root)) ? "present" : "missing",
       freshness: existsSync(graphPath(root)) ? "Graph file found; freshness is verified by Review." : "No .impact_engine/graph.json",
-      graphifyAvailable: existsSync(graphifyPath(root))
+      graphifyAvailable: existsSync(architectureGraph),
+      graphifyPath: architectureGraph
     };
   }
 
@@ -85,7 +89,8 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     this.state = {
       ...this.state,
       runtime: await validateRuntime(root, this.config<string>("executable")),
-      project: await this.projectState(root)
+      project: await this.projectState(root),
+      integration: { githubTokenConfigured: Boolean(await this.context.secrets.get(GITHUB_TOKEN_KEY)) }
     };
     this.render();
     OUTPUT.show(true);
@@ -126,6 +131,39 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       this.state = { ...this.state, project: { ...this.state.project, baseRef: base } };
       this.render();
     }
+  }
+
+  async configureGraphify(): Promise<void> {
+    const picked = await vscode.window.showOpenDialog({
+      title: "Choose an existing Graphify graph.json",
+      canSelectMany: false,
+      canSelectFiles: true,
+      canSelectFolders: false,
+      filters: { "Graphify graph": ["json"] },
+      openLabel: "Use this Graphify graph"
+    });
+    if (!picked?.[0]) return;
+    await vscode.workspace.getConfiguration("codeslicer").update("graphifyGraphPath", picked[0].fsPath, vscode.ConfigurationTarget.Workspace);
+    const root = this.workspace();
+    if (root && vscode.workspace.isTrusted) await this.refresh();
+  }
+
+  async configureGitHubToken(): Promise<void> {
+    const token = await vscode.window.showInputBox({
+      title: "Optional GitHub token",
+      prompt: "Stored only in VS Code Secret Storage. It is not used by the local review yet.",
+      password: true,
+      ignoreFocusOut: true
+    });
+    if (token === undefined) return;
+    if (!token.trim()) {
+      await this.context.secrets.delete(GITHUB_TOKEN_KEY);
+      this.state = { ...this.state, integration: { githubTokenConfigured: false } };
+    } else {
+      await this.context.secrets.store(GITHUB_TOKEN_KEY, token.trim());
+      this.state = { ...this.state, integration: { githubTokenConfigured: true } };
+    }
+    this.render();
   }
 
   private async executable(root: string): Promise<string | undefined> {
@@ -250,7 +288,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       const actions: Record<string, () => Promise<void>> = {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
-        hub: () => this.hub(), graphify: () => this.hub(true)
+        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), configureGitHub: () => this.configureGitHubToken()
       };
       await actions[message.action || ""]?.();
       return;

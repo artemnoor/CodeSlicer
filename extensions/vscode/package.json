@@ -2,7 +2,7 @@
   "name": "codeslicer-impact-cockpit",
   "displayName": "CodeSlicer",
   "description": "See the risk, evidence, and tests behind your local Git changes before review.",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "publisher": "CodeSlicer",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/artemnoor/CodeSlicer.git" },
@@ -37,6 +37,7 @@
         "codeslicer.executable": { "type": "string", "default": "", "description": "Absolute path to the installed codeslicer executable. Leave blank to use a workspace .venv candidate." },
         "codeslicer.baseRef": { "type": "string", "default": "", "description": "Local Git base branch for reviews. Defaults to local main when it exists." },
         "codeslicer.localHubUrl": { "type": "string", "default": "http://127.0.0.1:8001/", "description": "Loopback URL of an already-running CodeSlicer Local Hub." },
+        "codeslicer.graphifyGraphPath": { "type": "string", "default": "", "description": "Optional absolute path to an existing Graphify graph.json. It remains separate from CodeSlicer evidence." },
         "codeslicer.uiLanguage": { "type": "string", "default": "auto", "enum": ["auto", "ru", "en"], "enumDescriptions": ["Follow VS Code language", "Русский", "English"], "description": "Language of the CodeSlicer cockpit." }
       }
     }
