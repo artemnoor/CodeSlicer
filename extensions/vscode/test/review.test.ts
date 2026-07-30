@@ -8,7 +8,7 @@ import { renderCockpit } from "../src/webview";
 
 const payload = JSON.stringify({ status: "ok", risk: { level: "HIGH", confidence: "high", reasons: ["route crosses service boundary"] }, top_impacts: [{ entity_id: "app/service.py:create_order", label: "create_order", kind: "FUNCTION", confidence: "high", file: "app/service.py", line: 3, why: { evidence_locations: [{ file: "app/service.py", line: 3, text: "service calls repository", provenance: "python_ast" }] } }], chains: [{ node_ids: ["app/service.py:create_order", "app/repo.py:save"], edge_ids: ["e1"], evidence_locations: [{ file: "app/service.py", line: 3, text: "service calls repository" }] }], test_recommendations: [], review_projection: { tests: [{ file: "tests/test_orders.py", symbol: "tests/test_orders.py:test_create_order", category: "symbol_call", confidence: "high", reason: "test covers service", command: ["py", "-3", "-m", "pytest", "tests/test_orders.py"] }] }, warnings: ["bounded review"], coverage: [{ language: "python", status: "supported" }, { language: "csharp", status: "limited" }] });
 
-test("parses real ReviewReport/v1 fields and uses projection tests without executing them", () => {
+test("parses compatible ReviewReport fields and uses projection tests without executing them", () => {
   const review = parseReviewJson(payload);
   assert.equal(review.riskLevel, "HIGH");
   assert.equal(review.impacts[0].evidence[0].provenance, "python_ast");
@@ -16,44 +16,26 @@ test("parses real ReviewReport/v1 fields and uses projection tests without execu
   assert.deepEqual(review.limitations, ["csharp: limited"]);
 });
 
-test("webview offers a guided Russian flow, tabs, and an explicit no-token message", () => {
+test("webview offers five plain-language Russian sections and a safe first run", () => {
   const html = renderCockpit({ ...INITIAL_STATE, project: { ...INITIAL_STATE.project, branch: "feature/review", baseRef: "main" } }, "ru");
-  assert.match(html, /Проверьте изменения за три простых шага/);
-  assert.match(html, /GitHub‑токен не нужен/);
-  assert.match(html, /Текущая ветка/);
-  assert.match(html, /feature\/review/);
-  assert.match(html, /data-action="configureBase"/);
+  assert.match(html, /Узнайте, что затронут ваши изменения/);
+  assert.match(html, /Код остаётся на вашем компьютере/);
+  assert.match(html, /Начать проверку/);
+  assert.match(html, /Проверка/);
+  assert.match(html, /Результат/);
+  assert.match(html, /Архитектура/);
+  assert.match(html, /Настройки/);
   assert.match(html, /role="tablist"/);
-  assert.match(html, /id="language"/);
-  assert.match(html, /class="lang-icon"/);
-  assert.match(html, /M12 21a9 9/);
-  assert.match(html, /type:'setLanguage'/);
-  assert.match(html, /prefers-reduced-motion/);
-  assert.match(html, /Как это работает\?/);
-  assert.match(html, /Небольшая экскурсия/);
-  assert.match(html, /tourSteps/);
-  assert.match(html, /tour-skip/);
-  assert.match(html, /tour-focus/);
-  assert.match(html, /\.tour\{z-index:100\}/);
-  assert.match(html, /\.tour-card\{z-index:101/);
-  assert.match(html, /tour-grab/);
-  assert.match(html, /setPointerCapture/);
-  assert.match(html, /Подключения/);
-  assert.match(html, /data-action="configureGitHub"/);
   assert.match(html, /data-action="configureGraphify"/);
 });
 
 test("webview renders English guidance and an honest empty impact state", () => {
-  const html = renderCockpit(INITIAL_STATE, "en");
-  assert.match(html, /Review your changes in three simple steps/);
-  assert.match(html, /No GitHub token needed/);
-  assert.match(html, /No report yet/);
-  assert.match(html, /Graphify is not connected/);
-  assert.match(html, /How it works/);
-  assert.match(html, /This tour never runs anything for you/);
-  assert.match(html, /Every test always asks for separate confirmation/);
-  assert.match(html, /Connections/);
-  assert.match(html, /VS Code Secret Storage/);
+  const html = renderCockpit({ ...INITIAL_STATE, runtime: { ...INITIAL_STATE.runtime, status: "install-unavailable" } }, "en");
+  assert.match(html, /See what your changes affect/);
+  assert.match(html, /Your code stays on your computer/);
+  assert.match(html, /Nothing runs unless you choose an action/);
+  assert.match(html, /GitHub Pull Request — coming next/);
+  assert.match(html, /Separate architecture map/);
 });
 
 test("download guide keeps CodeSlicer and optional Graphify explicit and separate", () => {

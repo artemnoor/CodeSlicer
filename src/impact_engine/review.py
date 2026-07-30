@@ -12,6 +12,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 import heapq
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -31,9 +32,10 @@ from impact_engine.ranking_policy import DEFAULT_RANKING_POLICY, REVIEW_PROJECTI
 from impact_engine.review_projection import build_review_projection
 from impact_engine.contracts import MODE_CONTRACT_VERSION, action, attach_mode_contract
 from impact_engine.project_storage import is_codeslicer_artifact_path
+from impact_engine.review_source import review_source
 
 
-SCHEMA_VERSION = "ReviewReport/v1"
+SCHEMA_VERSION = "ReviewReport/v2"
 SUPPRESSED_KINDS = {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "SUPPORT_PACK"}
 SUPPORTED_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".cs"}
 
@@ -62,6 +64,7 @@ def build_review_report(
     deep: bool = False,
     entity: str | None = None,
     scope: str | None = None,
+    review_source_kind: str = "current-changes",
 ) -> dict[str, Any]:
     """Build a deterministic, bounded daily review report.
 
@@ -81,13 +84,22 @@ def build_review_report(
         warnings.append(
             f"{graph_integrity['dangling_endpoint_edges']} dangling edges excluded from concise review"
         )
-    diff, source = _resolve_diff(root, diff_text, diff_source, base)
+    if review_source_kind == "github-pr":
+        raise ValueError("GitHub pull-request review is not available in the local CLI yet; no network request was made")
+    source_contract = review_source(root, base=base, diff_file="provided" if diff_text is not None else None)
+    if review_source_kind == "compare" and not diff_text:
+        source_contract["kind"] = "compare"
+        source_contract["label"] = "Compare refs"
+    selected_base = base or source_contract["base"].get("base_ref")
+    diff, source = _resolve_diff(root, diff_text, diff_source, selected_base)
     if source == "project-not-a-git-repository":
         # A nested project must never inherit the parent repository's diff.
         # Keep the review honest and let the UI explain why no changed files
         # were inferred until the caller supplies an explicit diff.
         warnings.append("project is nested in another Git repository; parent diff was not used")
     changed_files = parse_git_diff(diff)
+    if not changed_files:
+        warnings.append("no local changes were found; make a change or choose an explicit comparison source")
     generated_changes = [item.path for item in changed_files if is_codeslicer_artifact_path(item.path)]
     changed_files = [item for item in changed_files if not is_codeslicer_artifact_path(item.path)]
     if generated_changes:
@@ -116,13 +128,16 @@ def build_review_report(
         "deep_or_concise": "deep" if deep else "concise",
         "plugin_packs_fingerprint": plugin_fingerprint,
         "review_schema_version": REVIEW_SCHEMA_VERSION,
+        "report_schema_version": SCHEMA_VERSION,
+        "review_source_kind": review_source_kind,
+        "selected_base": selected_base,
         "run_tests": run_tests,
     }, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
     review_cache_path = root / ".impact_engine" / "review.json"
     if refresh != "force" and not deep and not entity and review_cache_path.is_file():
         try:
             cached_review = json.loads(review_cache_path.read_text(encoding="utf-8"))
-            if cached_review.get("cache_key") == review_cache_key:
+            if cached_review.get("cache_key") == review_cache_key and cached_review.get("payload", {}).get("schema_version") == SCHEMA_VERSION:
                 cached_payload = dict(cached_review.get("payload") or {})
                 # The projection is reusable across equivalent graph payloads,
                 # but its provenance envelope is request-local. In particular,
@@ -247,6 +262,7 @@ def build_review_report(
         risk["confidence"] = "low"
         risk.setdefault("reasons", []).append("external graph is not verified against the current branch")
     test_recommendations = [] if run_tests == "none" or incomplete_coverage else [item.to_dict() for item in projection.tests]
+    test_plan = _test_plan(test_recommendations, root, changed_symbols, visible)
     if incomplete_coverage and projection.tests:
         warnings.append("targeted tests withheld; backend language coverage is incomplete")
     if suppressed:
@@ -258,6 +274,7 @@ def build_review_report(
         "status": "ok",
         "project": str(root),
         "diff_source": source,
+        "source": {**source_contract, "resolved_diff": source, "selected_base": selected_base},
         "graph_freshness": freshness,
         "graph_integrity": graph_integrity,
         "changed": {"files": changed_dicts, "hunks": _hunks(changed_files), "symbols": changed_symbols, "symbol_confidence": "ast_or_graph_span" if changed_symbols and changed_symbols[0].get("line") is not None else "file_fallback"},
@@ -265,6 +282,7 @@ def build_review_report(
         "coverage": coverage,
         "top_impacts": visible,
         "test_recommendations": test_recommendations,
+        "test_plan": test_plan,
         "review_projection": projection.to_dict(),
         "ranking_policy": DEFAULT_RANKING_POLICY.to_dict(),
         "test_selection_policy_version": TEST_SELECTION_POLICY_VERSION,
@@ -274,11 +292,16 @@ def build_review_report(
             "count": len(chains),
         },
         "warnings": sorted(set(warnings)),
+        "limitations": _limitations(freshness, coverage, warnings),
+        "summary": _summary(risk, changed_dicts, visible, test_plan),
+        "impact_groups": _impact_groups(visible),
+        "areas": _areas(changed_dicts, visible),
         "actions": {"deep": deep, "suppressed_count": suppressed, "local_only": True},
         "scope": scope or ".",
         "cache": graph.metadata.get("cache", {"status": "unknown", "reason": "graph_metadata_missing"}),
         "progress": graph.metadata.get("analysis_progress", {"phase": "unknown", "completed": 0, "total": 0, "elapsed_seconds": 0.0, "eta_seconds": None, "cancellable": True}),
         "incomplete": bool(incomplete_coverage or graph.metadata.get("incomplete")),
+        "contract_compatibility": {"previous_schema_version": "ReviewReport/v1", "legacy_fields_preserved": True},
     }
     profiler.timings["review_projection"] = time.perf_counter() - profile_started
     profiler.add_work(
@@ -298,6 +321,76 @@ def build_review_report(
     except OSError:
         payload.setdefault("warnings", []).append("review projection cache write failed")
     return payload
+
+
+def _safe_argv(command: Any) -> list[str] | None:
+    """Expose executable test argv without ever interpreting a shell string."""
+    if isinstance(command, list) and all(isinstance(item, str) and item for item in command):
+        argv = list(command)
+    elif isinstance(command, str) and command.strip():
+        if any(token in command for token in ("\n", "\r", "|", "&&", ";", "`", "$(`")):
+            return None
+        try:
+            argv = shlex.split(command, posix=False)
+        except ValueError:
+            return None
+    else:
+        return None
+    if not argv or any("\x00" in item or "\n" in item or "\r" in item for item in argv):
+        return None
+    return argv
+
+
+def _test_plan(recommendations: list[dict[str, Any]], root: Path, changed_symbols: list[dict[str, Any]], impacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    covered = sorted({str(item.get("symbol")) for item in recommendations if item.get("symbol")})
+    affected = {str(item.get("entity_id")) for item in impacts if item.get("entity_id")}
+    changed = {str(item.get("id")) for item in changed_symbols if item.get("id")}
+    uncovered = sorted((changed | affected) - set(covered))
+    plan = []
+    for recommendation in recommendations:
+        argv = _safe_argv(recommendation.get("command"))
+        plan.append({
+            "argv": argv,
+            "cwd": str(root),
+            "runner": Path(argv[0]).name if argv else None,
+            "reason": recommendation.get("reason") or "Suggested from local evidence",
+            "confidence": recommendation.get("confidence", "unknown"),
+            "safety": "confirmation_required" if argv else "not_runnable_without_manual_command",
+            "covered_entities": [recommendation.get("symbol")] if recommendation.get("symbol") else [],
+            "uncovered_entities": uncovered,
+            "file": recommendation.get("file"),
+            "category": recommendation.get("category"),
+        })
+    return plan
+
+
+def _limitations(freshness: dict[str, Any], coverage: list[dict[str, Any]], warnings: list[str]) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    if freshness.get("stale"):
+        items.append({"kind": "stale_graph", "message": "The analysis graph may not match the current project.", "action": "Refresh the graph, then run the review again."})
+    for item in coverage:
+        if item.get("status") in {"limited", "unsupported"}:
+            items.append({"kind": str(item["status"]), "message": f"{item.get('path')} has {item.get('status')} coverage.", "action": "Review the changed area manually and run its focused tests."})
+    if not items and warnings:
+        items.append({"kind": "review_warning", "message": "Some evidence could not be shown in the concise review.", "action": "Open Architecture or inspect the affected item for detail."})
+    return items
+
+
+def _impact_groups(impacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for impact in impacts:
+        grouped.setdefault(str(impact.get("class") or "affected"), []).append(impact)
+    return [{"kind": kind, "label": kind.replace("_", " "), "count": len(items), "entities": [item.get("entity_id") for item in items]} for kind, items in sorted(grouped.items())]
+
+
+def _areas(changed: list[dict[str, Any]], impacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    paths = {str(item.get("path")) for item in changed if item.get("path")}
+    paths.update(str(item.get("file")) for item in impacts if item.get("file"))
+    return [{"path": path, "kind": "changed" if any(item.get("path") == path for item in changed) else "affected"} for path in sorted(paths)]
+
+
+def _summary(risk: dict[str, Any], changed: list[dict[str, Any]], impacts: list[dict[str, Any]], test_plan: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"headline": f"{risk.get('level', 'UNKNOWN')} risk across {len(changed)} changed file(s)", "risk_level": risk.get("level", "UNKNOWN"), "changed_file_count": len(changed), "affected_count": len(impacts), "runnable_test_count": sum(1 for item in test_plan if item.get("argv"))}
 
 
 def _attach_review_contract(payload: dict[str, Any]) -> dict[str, Any]:
@@ -467,6 +560,9 @@ def _resolve_diff(root: Path, diff_text: str | None, source: str | None, base: s
     if base:
         value = _git(root, ["diff", "--unified=0", f"{base}...HEAD"])
         if value is not None:
+            working = _working_tree_diff(root)
+            if working:
+                return "\n".join(part for part in (value, working) if part), f"base:{base}...HEAD+working-tree"
             return value, f"base:{base}...HEAD"
     git_root = _git(root, ["rev-parse", "--show-toplevel"])
     if git_root:

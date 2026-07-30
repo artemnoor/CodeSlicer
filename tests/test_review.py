@@ -37,7 +37,8 @@ def test_review_is_bounded_and_suppresses_low_value_nodes(tmp_path: Path):
     graph = GraphDocument.from_json(graph_path.read_text())
     report = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never")
 
-    assert report["schema_version"] == "ReviewReport/v1"
+    assert report["schema_version"] == "ReviewReport/v2"
+    assert report["contract_compatibility"]["legacy_fields_preserved"] is True
     assert len(report["top_impacts"]) <= 10
     assert all(item["kind"] != "ASSIGNMENT" for item in report["top_impacts"])
     assert report["chains"][0]["edge_ids"]
@@ -189,7 +190,7 @@ def test_review_cli_json_contract(tmp_path: Path):
     )
     assert proc.returncode == 0, proc.stderr + proc.stdout
     payload = json.loads(proc.stdout)
-    assert payload["schema_version"] == "ReviewReport/v1"
+    assert payload["schema_version"] == "ReviewReport/v2"
     assert payload["actions"]["selected_entity"] == "app/service.py:create_order"
 
 
@@ -200,7 +201,7 @@ def test_review_mcp_contract(tmp_path: Path):
     assert any(tool["name"] == "review" for tool in TOOLS)
     result = review(str(tmp_path), graph_path=str(graph_path), diff_text=_diff(), refresh="never")
     assert result["status"] == "ok"
-    assert result["result"]["schema_version"] == "ReviewReport/v1"
+    assert result["result"]["schema_version"] == "ReviewReport/v2"
     assert result["result"]["graph_freshness"]["graph_path"] == str(graph_path.resolve())
 
 
@@ -250,6 +251,24 @@ def test_diff_base_failure_falls_back_to_working_tree(monkeypatch, tmp_path: Pat
     diff, source = review_module._resolve_diff(tmp_path, None, None, "missing-base")
     assert diff == "working-tree"
     assert source == "working-tree:staged+unstaged-fallback"
+
+
+def test_diff_base_includes_current_working_tree_changes(monkeypatch, tmp_path: Path):
+    from impact_engine import review as review_module
+
+    def fake_git(_root, args):
+        if args == ["diff", "--unified=0", "main...HEAD"]:
+            return "committed"
+        if args == ["diff", "--unified=0"]:
+            return "unstaged"
+        if args == ["diff", "--cached", "--unified=0"]:
+            return "staged"
+        return None
+
+    monkeypatch.setattr(review_module, "_git", fake_git)
+    diff, source = review_module._resolve_diff(tmp_path, None, None, "main")
+    assert diff == "committed\nunstaged\nstaged"
+    assert source == "base:main...HEAD+working-tree"
 
 
 def test_real_capability_metadata_marks_polyglot_as_limited(tmp_path: Path):

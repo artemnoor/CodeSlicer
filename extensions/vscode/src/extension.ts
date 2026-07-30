@@ -3,23 +3,37 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { buildAnalyzeArgs, buildReviewArgs, formatCommand, runProcess, safeTestCommand } from "./cli";
 import { parseReviewJson, withReview } from "./review";
-import { discoverExecutable, isSafeRef, validateRuntime } from "./runtime";
-import { CockpitState, INITIAL_STATE, ProjectState, TestRecommendation, UiLanguage } from "./types";
+import { isSafeRef } from "./runtime";
+import { CodeSlicerRuntimeManager } from "./runtime-manager";
+import { detectBaseSelection } from "./base";
+import { parseJsonLineProgress } from "./progress";
+import { CockpitState, INITIAL_STATE, ProjectState, ReviewState, TestRecommendation, UiLanguage } from "./types";
 import { renderCockpit } from "./webview";
 import { showInstallGuide } from "./install-guide";
 
 const OUTPUT = vscode.window.createOutputChannel("CodeSlicer");
 const graphPath = (root: string) => join(root, ".impact_engine", "graph.json");
 const graphifyPath = (root: string, configured: string) => configured.trim() || join(root, ".codeslicer", "artifacts", "graphify", "graphify-out", "graph.json");
-const GITHUB_TOKEN_KEY = "codeslicer.githubToken";
 
 class CockpitProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private state: CockpitState = structuredClone(INITIAL_STATE);
   private tests: TestRecommendation[] = [];
   private selectedLanguage?: "ru" | "en";
+  private readonly runtime: CodeSlicerRuntimeManager;
+  private readonly status: vscode.StatusBarItem;
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(private readonly context: vscode.ExtensionContext) {
+    this.runtime = new CodeSlicerRuntimeManager(context.globalStorageUri);
+    this.status = vscode.window.createStatusBarItem("codeslicer.review", vscode.StatusBarAlignment.Left, 20);
+    this.status.command = "codeslicer.reviewCurrentChanges";
+    this.status.text = "$(shield) CodeSlicer: Review changes";
+    this.status.tooltip = "Review current local Git changes with CodeSlicer";
+    this.status.show();
+    context.subscriptions.push(this.status);
+    const saved = context.workspaceState.get<ReviewState>("codeslicer.lastReview");
+    if (saved) this.state = { ...this.state, review: saved };
+  }
 
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
@@ -30,6 +44,13 @@ class CockpitProvider implements vscode.WebviewViewProvider {
 
   private workspace(): string | undefined {
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  }
+
+  private async selectWorkspace(): Promise<string | undefined> {
+    const folders = vscode.workspace.workspaceFolders || [];
+    if (folders.length < 2) return folders[0]?.uri.fsPath;
+    const picked = await vscode.window.showQuickPick(folders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })), { title: "Choose a workspace folder for this review", ignoreFocusOut: true });
+    return picked?.folder.uri.fsPath;
   }
 
   private config<T>(name: string): T {
@@ -56,7 +77,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   }
 
   private async needWorkspace(): Promise<string | undefined> {
-    const root = this.workspace();
+    const root = await this.selectWorkspace();
     if (!root) await vscode.window.showErrorMessage("CodeSlicer needs an opened workspace folder.");
     return root;
   }
@@ -72,11 +93,14 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     this.log(branchResult);
     const branch = branchResult.exitCode === 0 ? branchResult.stdout.trim() || "detached HEAD" : "Git branch unavailable";
     const configuredGraphify = this.config<string>("graphifyGraphPath");
+    const base = await detectBaseSelection(root, this.config<string>("baseRef"));
     const architectureGraph = graphifyPath(root, configuredGraphify);
     return {
       workspace: root,
       branch,
-      baseRef: this.config<string>("baseRef").trim() || "main",
+      baseRef: base.base,
+      baseCandidates: base.candidates,
+      baseStatus: base.status,
       graphStatus: existsSync(graphPath(root)) ? "present" : "missing",
       freshness: existsSync(graphPath(root)) ? "Graph file found; freshness is verified by Review." : "No .impact_engine/graph.json",
       graphifyAvailable: existsSync(architectureGraph),
@@ -89,9 +113,9 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     if (!root || !await this.trusted()) return;
     this.state = {
       ...this.state,
-      runtime: await validateRuntime(root, this.config<string>("executable")),
+      runtime: await this.runtime.validate(root, this.config<string>("executable")),
       project: await this.projectState(root),
-      integration: { githubTokenConfigured: Boolean(await this.context.secrets.get(GITHUB_TOKEN_KEY)) }
+      integration: { githubTokenConfigured: false }
     };
     this.render();
     OUTPUT.show(true);
@@ -100,7 +124,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   async configure(): Promise<void> {
     const root = await this.needWorkspace();
     if (!root) return;
-    const found = await discoverExecutable(root, this.config<string>("executable"));
+    const found = await this.runtime.discover(this.config<string>("executable"), root);
     const value = await vscode.window.showInputBox({
       title: "CodeSlicer executable",
       prompt: "Absolute path to the installed codeslicer executable",
@@ -108,7 +132,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       ignoreFocusOut: true
     });
     if (value === undefined) return;
-    await vscode.workspace.getConfiguration("codeslicer").update("executable", value.trim(), vscode.ConfigurationTarget.Workspace);
+    await vscode.workspace.getConfiguration("codeslicer").update("executable", value.trim(), vscode.ConfigurationTarget.Global);
     await this.refresh();
   }
 
@@ -153,26 +177,8 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     if (root && vscode.workspace.isTrusted) await this.refresh();
   }
 
-  async configureGitHubToken(): Promise<void> {
-    const token = await vscode.window.showInputBox({
-      title: "Optional GitHub token",
-      prompt: "Stored only in VS Code Secret Storage. It is not used by the local review yet.",
-      password: true,
-      ignoreFocusOut: true
-    });
-    if (token === undefined) return;
-    if (!token.trim()) {
-      await this.context.secrets.delete(GITHUB_TOKEN_KEY);
-      this.state = { ...this.state, integration: { githubTokenConfigured: false } };
-    } else {
-      await this.context.secrets.store(GITHUB_TOKEN_KEY, token.trim());
-      this.state = { ...this.state, integration: { githubTokenConfigured: true } };
-    }
-    this.render();
-  }
-
   private async executable(root: string): Promise<string | undefined> {
-    const runtime = await validateRuntime(root, this.config<string>("executable"));
+    const runtime = await this.runtime.validate(root, this.config<string>("executable"));
     this.state = { ...this.state, runtime };
     this.render();
     if (runtime.status === "found" && runtime.executable) return runtime.executable;
@@ -181,12 +187,18 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   }
 
   private async base(root: string): Promise<string | undefined> {
-    const value = this.config<string>("baseRef").trim() || "main";
+    const configured = this.config<string>("baseRef").trim();
+    const selection = await detectBaseSelection(root, configured);
+    const value = configured || selection.base || (selection.candidates.length ? await vscode.window.showQuickPick(selection.candidates, { title: "Choose the base branch for this review", placeHolder: "CodeSlicer could not determine one base branch" }) : undefined);
+    if (!value) {
+      await vscode.window.showErrorMessage("No verified base branch was found. Choose a branch before reviewing changes.");
+      return undefined;
+    }
     if (!isSafeRef(value)) {
       await vscode.window.showErrorMessage("codeslicer.baseRef is not a safe local Git ref. Configure a branch name such as main.");
       return undefined;
     }
-    const result = await runProcess("git", ["show-ref", "--verify", "--quiet", `refs/heads/${value}`], root, 15_000);
+    const result = await runProcess("git", ["rev-parse", "--verify", "--quiet", value], root, 15_000);
     this.log(result);
     if (result.exitCode === 0) return value;
     await vscode.window.showErrorMessage(`Local base branch '${value}' was not found. Use “Configure base branch” to choose an existing local branch.`);
@@ -198,9 +210,13 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     if (!root || !await this.trusted()) return;
     const executable = await this.executable(root);
     if (!executable) return;
-    await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: analyzing workspace", cancellable: false }, async () => {
-      const result = await runProcess(executable, buildAnalyzeArgs(root), root, 900_000);
+    await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: analyzing workspace", cancellable: true }, async (progress, token) => {
+      const controller = new AbortController();
+      token.onCancellationRequested(() => controller.abort());
+      let previous = 0;
+      const result = await runProcess(executable, buildAnalyzeArgs(root), root, { timeoutMs: 900_000, signal: controller.signal, onStderrLine: line => parseJsonLineProgress(line).forEach(event => { const next = event.overall_percent || previous; progress.report({ message: event.message, increment: Math.max(0, next - previous) }); previous = next; }) });
       this.log(result);
+      if (result.cancelled) throw new Error("Analysis cancelled. Existing cache and graph were left unchanged.");
       if (result.exitCode !== 0) throw new Error(result.stderr || "CodeSlicer analysis failed.");
     });
     await this.refresh();
@@ -213,13 +229,17 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     const base = await this.base(root);
     if (!executable || !base) return;
     try {
-      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: reviewing local changes", cancellable: false }, async () => {
-        const result = await runProcess(executable, buildReviewArgs(root, base), root, 900_000);
+      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: reviewing local changes", cancellable: true }, async (_progress, token) => {
+        const controller = new AbortController();
+        token.onCancellationRequested(() => controller.abort());
+        const result = await runProcess(executable, buildReviewArgs(root, base), root, { timeoutMs: 900_000, signal: controller.signal });
         this.log(result);
+        if (result.cancelled) throw new Error("Review cancelled. Existing cache and graph were left unchanged.");
         if (result.exitCode !== 0) throw new Error(result.stderr || "CodeSlicer review failed.");
         const review = parseReviewJson(result.stdout);
         this.tests = review.tests;
         this.state = withReview(this.state, review);
+        await this.context.workspaceState.update("codeslicer.lastReview", review);
       });
       this.render();
     } catch (error) {
@@ -232,9 +252,10 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   async explain(): Promise<void> {
     const root = await this.needWorkspace();
     if (!root || !await this.trusted()) return;
-    const selected = vscode.window.activeTextEditor?.document.getText(vscode.window.activeTextEditor.selection).trim();
+    const editor = vscode.window.activeTextEditor;
+    const selected = editor?.document.getText(editor.selection).trim() || (editor ? editor.document.getText(editor.document.getWordRangeAtPosition(editor.selection.active) || new vscode.Range(editor.selection.active, editor.selection.active)).trim() : "");
     if (!selected) {
-      await vscode.window.showInformationMessage("Select a CodeSlicer entity id, then run Explain selected symbol.");
+      await vscode.window.showInformationMessage("Place the cursor on a symbol, then run Explain selected symbol.");
       return;
     }
     const executable = await this.executable(root);
@@ -260,7 +281,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     const root = await this.needWorkspace();
     if (!root || !await this.trusted()) return;
     const recommendation = index === undefined ? this.tests[0] : this.tests[index];
-    const command = safeTestCommand(recommendation?.command);
+    const command = safeTestCommand(recommendation?.argv || recommendation?.command);
     if (!recommendation || !command) {
       await vscode.window.showWarningMessage("CodeSlicer did not provide a safe argv test command for this recommendation. No test was run.");
       return;
@@ -293,7 +314,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       const actions: Record<string, () => Promise<void>> = {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
-        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), configureGitHub: () => this.configureGitHubToken(), downloadTools: async () => this.openDownloads()
+        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), downloadTools: async () => this.openDownloads()
       };
       await actions[message.action || ""]?.();
       return;
@@ -319,6 +340,14 @@ class CockpitProvider implements vscode.WebviewViewProvider {
 export function activate(context: vscode.ExtensionContext): void {
   const provider = new CockpitProvider(context);
   context.subscriptions.push(vscode.window.registerWebviewViewProvider("codeslicer.cockpit", provider));
+  if (vscode.workspace.getConfiguration("codeslicer").get<boolean>("codeLens")) {
+    context.subscriptions.push(vscode.languages.registerCodeLensProvider({ scheme: "file" }, {
+      provideCodeLenses(document): vscode.CodeLens[] {
+        const first = document.lineAt(0).range;
+        return [new vscode.CodeLens(first, { title: "CodeSlicer: Review current changes", command: "codeslicer.reviewCurrentChanges" })];
+      }
+    }));
+  }
   for (const [id, handler] of [
     ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.downloadTools", () => provider.openDownloads()], ["codeslicer.analyzeWorkspace", () => provider.analyze()],
     ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],

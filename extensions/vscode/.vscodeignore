@@ -14,5 +14,6 @@ node_modules/**
 **/*.log
 coverage/**
 out/test/**
+.playwright-cli/**
 out/**/*.map
 tsconfig.json

@@ -595,13 +595,16 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
             from impact_engine.scope import build_scan_plan, write_scan_plan
             write_scan_plan(args.path, build_scan_plan(args.path))
         def report_progress(event):
-            stream = sys.stderr if args.json else sys.stdout
-            print(
-                f"[{event['overall_percent']:>5.1f}%] {event['message']} "
-                f"({event['processed']}/{event['total']})",
-                file=stream,
-                flush=True,
-            )
+            stream = sys.stderr if args.json or args.progress == "jsonl" else sys.stdout
+            if args.progress == "jsonl":
+                print(json.dumps({"type": "progress", **event}, ensure_ascii=False), file=stream, flush=True)
+            else:
+                print(
+                    f"[{event['overall_percent']:>5.1f}%] {event['message']} "
+                    f"({event['processed']}/{event['total']})",
+                    file=stream,
+                    flush=True,
+                )
         cancellation = CancellationToken()
         if not args.no_daemon and daemon_status(args.path).get("status") == "running":
             summary = daemon_request(args.path, "analyze", {
@@ -744,7 +747,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                     "diff_text": diff_text, "base": args.base, "graph_path": args.graph,
                     "refresh": args.refresh, "max_results": args.max_results,
                     "run_tests": args.run_tests, "deep": args.deep, "entity": args.entity,
-                    "scope": args.scope,
+                    "scope": args.scope, "review_source_kind": args.source,
                 })
             else:
                 graph = GraphDocument.from_json(Path(args.graph).read_text(encoding="utf-8")) if args.graph else None
@@ -753,6 +756,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                         args.project_path, graph=graph, diff_text=diff_text, base=args.base,
                         graph_path=args.graph, refresh=args.refresh, max_results=args.max_results,
                         run_tests=args.run_tests, deep=args.deep, entity=args.entity, scope=args.scope,
+                        review_source_kind=args.source,
                     )
             from impact_engine.review_history import record_review
             result["review_id"] = record_review(args.project_path, result)
@@ -762,7 +766,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                 warnings=result.get("warnings", []), adapters=result.get("adapters", []), result=result,
             )
         except Exception as exc:
-            result = {"status": "error", "error": str(exc), "schema_version": "ReviewReport/v1"}
+            result = {"status": "error", "error": str(exc), "schema_version": "ReviewReport/v2"}
         if args.json or getattr(args, "local_json", False):
             _print_json(result)
         else:

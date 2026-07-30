@@ -15,6 +15,7 @@ def build_parser(prog: str = "impact-engine") -> argparse.ArgumentParser:
     analyze.add_argument("--graphify", default=None, help="Optional Graphify graph.json to normalize and merge")
     analyze.add_argument("--use-scan-plan", action="store_true", help="Create/reuse .impact_engine/scan_plan.json before analysis")
     analyze.add_argument("--scope", default=None, help="Workspace/package scope to analyze")
+    analyze.add_argument("--progress", choices=["human", "jsonl"], default="human", help="Progress stream format; JSON Lines is written to stderr")
     analyze.add_argument("--no-daemon", action="store_true", help="Do not use the local daemon owner")
 
     onboard = sub.add_parser("onboard", help="Connect a local project or explicit Git URL and build separate CodeSlicer/Graphify graphs")
@@ -297,7 +298,8 @@ def build_parser(prog: str = "impact-engine") -> argparse.ArgumentParser:
 
     review = sub.add_parser("review", help="Build a compact local-first daily review brief")
     review.add_argument("project_path")
-    review.add_argument("--base", default=None)
+    review.add_argument("--base", default=None, help="Verified local or remote base ref; omit to detect safely")
+    review.add_argument("--source", choices=["current-changes", "compare", "diff-file", "github-pr"], default="current-changes", help="Review source; github-pr is a reserved no-network contract")
     review.add_argument("--deep", action="store_true")
     review.add_argument("--entity", default=None, help="Entity to inspect in explicit deep mode")
     review.add_argument("--graph", default=None)
