@@ -36,6 +36,8 @@ test("webview renders English guidance and an honest empty impact state", () => 
   assert.match(html, /Nothing runs unless you choose an action/);
   assert.match(html, /GitHub Pull Request — coming next/);
   assert.match(html, /Separate architecture map/);
+  assert.match(html, /data-action="sourceCompare"/);
+  assert.match(html, /data-action="sourceDiff"/);
 });
 
 test("download guide keeps CodeSlicer and optional Graphify explicit and separate", () => {

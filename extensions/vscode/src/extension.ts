@@ -7,7 +7,8 @@ import { isSafeRef } from "./runtime";
 import { CodeSlicerRuntimeManager } from "./runtime-manager";
 import { detectBaseSelection } from "./base";
 import { parseJsonLineProgress } from "./progress";
-import { CockpitState, INITIAL_STATE, ProjectState, ReviewState, TestRecommendation, UiLanguage } from "./types";
+import { GitHubReviewService } from "./github";
+import { CockpitState, INITIAL_STATE, ProjectState, ReviewHistoryEntry, ReviewState, ReviewSourceMode, TestRecommendation, UiLanguage } from "./types";
 import { renderCockpit } from "./webview";
 import { showInstallGuide } from "./install-guide";
 
@@ -21,6 +22,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   private tests: TestRecommendation[] = [];
   private selectedLanguage?: "ru" | "en";
   private readonly runtime: CodeSlicerRuntimeManager;
+  private readonly github = new GitHubReviewService();
   private readonly status: vscode.StatusBarItem;
 
   constructor(private readonly context: vscode.ExtensionContext) {
@@ -32,7 +34,9 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     this.status.show();
     context.subscriptions.push(this.status);
     const saved = context.workspaceState.get<ReviewState>("codeslicer.lastReview");
-    if (saved) this.state = { ...this.state, review: saved };
+    const history = context.workspaceState.get<ReviewHistoryEntry[]>("codeslicer.reviewHistory") || [];
+    const reviewSource = context.workspaceState.get<CockpitState["reviewSource"]>("codeslicer.reviewSource") || INITIAL_STATE.reviewSource;
+    this.state = { ...this.state, review: saved || this.state.review, history, reviewSource };
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -115,7 +119,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       ...this.state,
       runtime: await this.runtime.validate(root, this.config<string>("executable")),
       project: await this.projectState(root),
-      integration: { githubTokenConfigured: false }
+      integration: { ...this.state.integration, githubTokenConfigured: false }
     };
     this.render();
     OUTPUT.show(true);
@@ -134,6 +138,18 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     if (value === undefined) return;
     await vscode.workspace.getConfiguration("codeslicer").update("executable", value.trim(), vscode.ConfigurationTarget.Global);
     await this.refresh();
+  }
+
+  async doctor(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    const result = await this.runtime.doctor(root, this.config<string>("executable"));
+    if (result.ok) await vscode.window.showInformationMessage("CodeSlicer runtime check completed. See the Output channel for details.");
+    else await vscode.window.showWarningMessage(`CodeSlicer runtime check: ${result.diagnostic}`);
+  }
+
+  async runtimeAvailability(): Promise<void> {
+    await vscode.window.showInformationMessage(this.runtime.installationAvailability());
   }
 
   openDownloads(): void {
@@ -222,17 +238,43 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     await this.refresh();
   }
 
+  async setReviewSource(mode: ReviewSourceMode): Promise<void> {
+    if (mode === "github-pr") {
+      const auth = await this.github.authenticateAfterUserAction();
+      this.state = { ...this.state, integration: { ...this.state.integration, githubAuthenticated: auth.authenticated, githubStatus: auth.message } };
+      this.render();
+      await vscode.window.showInformationMessage(auth.message);
+      return;
+    }
+    let diffFile: string | undefined;
+    if (mode === "diff-file") {
+      const picked = await vscode.window.showOpenDialog({ title: "Choose a local diff file", canSelectMany: false, canSelectFiles: true, canSelectFolders: false, filters: { "Diff files": ["diff", "patch"] }, openLabel: "Use this diff" });
+      if (!picked?.[0]) return;
+      diffFile = picked[0].fsPath;
+    }
+    this.state = { ...this.state, reviewSource: { mode, diffFile } };
+    await this.context.workspaceState.update("codeslicer.reviewSource", this.state.reviewSource);
+    this.render();
+  }
+
   async review(): Promise<void> {
     const root = await this.needWorkspace();
     if (!root || !await this.trusted()) return;
     const executable = await this.executable(root);
-    const base = await this.base(root);
-    if (!executable || !base) return;
+    if (!executable) return;
+    const source = this.state.reviewSource;
+    if (source.mode === "github-pr") {
+      await vscode.window.showInformationMessage("GitHub sign-in is ready, but pull-request API review is not implemented yet. No API request was made.");
+      return;
+    }
+    const base = source.mode === "diff-file" ? undefined : await this.base(root);
+    if (!source.diffFile && source.mode === "diff-file") return;
+    if (source.mode !== "diff-file" && !base) return;
     try {
       await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: reviewing local changes", cancellable: true }, async (_progress, token) => {
         const controller = new AbortController();
         token.onCancellationRequested(() => controller.abort());
-        const result = await runProcess(executable, buildReviewArgs(root, base), root, { timeoutMs: 900_000, signal: controller.signal });
+        const result = await runProcess(executable, buildReviewArgs(root, source, base), root, { timeoutMs: 900_000, signal: controller.signal });
         this.log(result);
         if (result.cancelled) throw new Error("Review cancelled. Existing cache and graph were left unchanged.");
         if (result.exitCode !== 0) throw new Error(result.stderr || "CodeSlicer review failed.");
@@ -240,6 +282,10 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         this.tests = review.tests;
         this.state = withReview(this.state, review);
         await this.context.workspaceState.update("codeslicer.lastReview", review);
+        const entry: ReviewHistoryEntry = { createdAt: new Date().toISOString(), source: source.mode, risk: review.riskLevel, affected: review.impacts.length };
+        const history = [entry, ...this.state.history].slice(0, 10);
+        this.state = { ...this.state, history };
+        await this.context.workspaceState.update("codeslicer.reviewHistory", history);
       });
       this.render();
     } catch (error) {
@@ -247,6 +293,14 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       this.render();
       await vscode.window.showErrorMessage(`CodeSlicer review failed: ${String(error)}`);
     }
+  }
+
+  async showHistory(): Promise<void> {
+    if (!this.state.history.length) {
+      await vscode.window.showInformationMessage("CodeSlicer has no local review history in this workspace yet.");
+      return;
+    }
+    await vscode.window.showQuickPick(this.state.history.map(item => ({ label: `${item.risk} risk · ${item.affected} affected`, description: `${item.source} · ${new Date(item.createdAt).toLocaleString()}` })), { title: "Local CodeSlicer review history" });
   }
 
   async explain(): Promise<void> {
@@ -312,8 +366,9 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     if (message.type === "setLanguage") return this.setLanguage(message.language);
     if (message.type === "action") {
       const actions: Record<string, () => Promise<void>> = {
-        configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(),
+        configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
+        sourceCurrent: () => this.setReviewSource("current-changes"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
         hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), downloadTools: async () => this.openDownloads()
       };
       await actions[message.action || ""]?.();
@@ -349,8 +404,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }));
   }
   for (const [id, handler] of [
-    ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.downloadTools", () => provider.openDownloads()], ["codeslicer.analyzeWorkspace", () => provider.analyze()],
-    ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],
+    ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.downloadTools", () => provider.openDownloads()], ["codeslicer.analyzeWorkspace", () => provider.analyze()], ["codeslicer.runtimeDoctor", () => provider.doctor()], ["codeslicer.runtimeUpdate", () => provider.runtimeAvailability()], ["codeslicer.runtimeRollback", () => provider.runtimeAvailability()],
+    ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.reviewCompare", async () => { await provider.setReviewSource("compare"); await provider.review(); }], ["codeslicer.reviewDiffFile", async () => { await provider.setReviewSource("diff-file"); await provider.review(); }], ["codeslicer.githubSignIn", () => provider.setReviewSource("github-pr")], ["codeslicer.showReviewHistory", () => provider.showHistory()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],
     ["codeslicer.openLocalHub", () => provider.hub()], ["codeslicer.refresh", () => provider.refresh()],
     ["codeslicer.runRecommendedTest", () => provider.runTest()]
   ] as [string, () => Promise<void>][]) context.subscriptions.push(vscode.commands.registerCommand(id, handler));

@@ -4,7 +4,7 @@
   <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/artemnoor/CodeSlicer/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/release-v0.5.0-7c3aed?style=flat-square" alt="Release v0.5.0"></a>
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/regression-751%20passed-22c55e?style=flat-square" alt="751 regression tests passed">
+  <img src="https://img.shields.io/badge/regression-753%20passed-22c55e?style=flat-square" alt="753 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
   <img src="https://img.shields.io/badge/agent%20skills-2-f97316?style=flat-square" alt="2 bundled agent skills">
   <img src="https://img.shields.io/badge/MCP-stdio%20JSON--RPC-ec4899?style=flat-square" alt="MCP stdio JSON-RPC">
@@ -38,6 +38,8 @@ frontend-клиента и теста. Graphify отвечает за свой, 
 `codeslicer review <project> --json` выдаёт `ReviewReport/v2`: понятную сводку, источник проверки, freshness, ограниченный список затронутых областей, evidence, human-readable ограничения и безопасный test plan с `argv`, `cwd`, runner и confidence. Поля v1 сохранены для существующих клиентов.
 
 VS Code extension находится в [`extensions/vscode`](extensions/vscode/README.md) как отдельный package этого репозитория. Он использует установленный локальный CLI, а не второй engine. На первом экране нет MCP, entity ID, raw JSON или полного графа; каждый локальный процесс и каждый тест запускается только явным действием в trusted workspace.
+
+Помимо проверки текущих изменений extension поддерживает explicit local compare с base branch и выбор локального diff-file из Command Palette, а последние десять summary сохраняет только в workspace state. GitHub OAuth включается отдельной командой и пока лишь создаёт session: PR API-запросы не выполняются.
 
 GitHub PR review пока не выполняет сетевых вызовов, не требует и не хранит PAT. В будущей интеграции будет использована VS Code Authentication/OAuth, а публикация checks или comments потребует отдельного подтверждения. Graphify остаётся отдельным optional architecture engine и не смешивается с canonical CodeSlicer evidence/risk.
 

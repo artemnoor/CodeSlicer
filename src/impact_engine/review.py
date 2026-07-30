@@ -86,6 +86,8 @@ def build_review_report(
         )
     if review_source_kind == "github-pr":
         raise ValueError("GitHub pull-request review is not available in the local CLI yet; no network request was made")
+    if review_source_kind == "diff-file" and diff_text is None:
+        raise ValueError("--source diff-file requires --diff-file; no file or network source was inferred")
     source_contract = review_source(root, base=base, diff_file="provided" if diff_text is not None else None)
     if review_source_kind == "compare" and not diff_text:
         source_contract["kind"] = "compare"

@@ -44,4 +44,15 @@ export class CodeSlicerRuntimeManager {
     await mkdir(directory, { recursive: true });
     return directory;
   }
+
+  async doctor(cwd: string, customExecutable?: string): Promise<{ ok: boolean; diagnostic: string }> {
+    const runtime = await this.validate(cwd, customExecutable);
+    if (!runtime.executable) return { ok: false, diagnostic: runtime.diagnostic };
+    const result = await runProcess(runtime.executable, ["doctor", "--full"], cwd, 60_000);
+    return { ok: result.exitCode === 0, diagnostic: result.stdout.trim() || result.stderr.trim() || "CodeSlicer doctor completed." };
+  }
+
+  installationAvailability(): string {
+    return "Update and rollback are unavailable until a signed runtime artifact and verification manifest are published.";
+  }
 }
