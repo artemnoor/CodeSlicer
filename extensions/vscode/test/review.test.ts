@@ -25,6 +25,11 @@ test("webview offers a guided Russian flow, tabs, and an explicit no-token messa
   assert.match(html, /id="language"/);
   assert.match(html, /type:'setLanguage'/);
   assert.match(html, /prefers-reduced-motion/);
+  assert.match(html, /Как это работает\?/);
+  assert.match(html, /Небольшая экскурсия/);
+  assert.match(html, /tourSteps/);
+  assert.match(html, /tour-skip/);
+  assert.match(html, /tour-focus/);
 });
 
 test("webview renders English guidance and an honest empty impact state", () => {
@@ -33,4 +38,7 @@ test("webview renders English guidance and an honest empty impact state", () => 
   assert.match(html, /No GitHub token needed/);
   assert.match(html, /No report yet/);
   assert.match(html, /Graphify is not connected/);
+  assert.match(html, /How it works/);
+  assert.match(html, /This tour never runs anything for you/);
+  assert.match(html, /Every test always asks for separate confirmation/);
 });

@@ -363,6 +363,10 @@ token и не запускает CLI при activation. Graphify остаётс�
 engine: при наличии его уже созданного local graph панель даёт ссылку в Local
 Hub, но не смешивает его с canonical CodeSlicer graph, risk или evidence.
 
+В cockpit доступны русский и английский языки. Кнопка «Как это работает?»
+запускает интерактивный тур по трём шагам, вкладкам влияния и тестов: он только
+подсвечивает интерфейс и ничего не запускает без отдельного нажатия пользователя.
+
 Чтобы запустить Extension Development Host или собрать локальный VSIX, смотрите
 [инструкцию пакета](extensions/vscode/README.md). Расширение опубликовано в
 [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=codeslicer.codeslicer-impact-cockpit).

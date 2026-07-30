@@ -22,6 +22,10 @@ The review always works from a local Git diff. It does not read GitHub comments,
 2. Follow the three cards: check the CodeSlicer executable, choose the local base branch, then select **Review current changes**.
 3. Use the **Impact** tab for the bounded evidence map and affected entities. Use **Tests & limits** for recommended tests and explicit coverage limits.
 
+### Take the interactive tour
+
+Select **How it works** in the cockpit header at any time. The short guided tour highlights each of the three review steps, then switches to **Impact** and **Tests & limits** to explain what appears after a review. It never configures CodeSlicer, starts an analysis, or runs a test: those actions always require your own click. Use **Skip tour**, **Back**, or `Esc` to leave it.
+
 The cockpit has Russian and English interfaces. Choose the language in the upper-right selector, or set `codeslicer.uiLanguage` to `auto`, `ru`, or `en` in VS Code settings.
 
 The default base branch is local `main`. Set `codeslicer.baseRef` when your team uses another branch. The extension checks that the base exists locally before it starts a review.
