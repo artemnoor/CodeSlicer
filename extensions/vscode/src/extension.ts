@@ -158,88 +158,51 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     return `'${value.replace(/'/g, "''")}'`;
   }
 
-  private async selectCodeSlicerFolder(): Promise<string | undefined> {
-    const picked = await vscode.window.showOpenDialog({
-      title: "Choose the extracted CodeSlicer folder",
-      canSelectMany: false,
-      canSelectFiles: false,
-      canSelectFolders: true,
-      openLabel: "Use this CodeSlicer folder"
-    });
-    if (!picked?.[0]) return undefined;
-    const script = join(picked[0].fsPath, "scripts", "install-windows.ps1");
-    if (!existsSync(script)) {
-      await vscode.window.showErrorMessage("That folder does not contain scripts/install-windows.ps1. Download and extract the official CodeSlicer archive first.");
-      return undefined;
-    }
-    return picked[0].fsPath;
-  }
-
-  private async selectDownloadFolder(): Promise<string | undefined> {
-    const picked = await vscode.window.showOpenDialog({
-      title: "Choose the folder where CodeSlicer will be downloaded",
-      canSelectMany: false,
-      canSelectFiles: false,
-      canSelectFolders: true,
-      openLabel: "Download CodeSlicer here"
-    });
-    return picked?.[0]?.fsPath;
-  }
-
   async downloadCodeSlicer(): Promise<void> {
     if (process.platform !== "win32") {
       await vscode.window.showInformationMessage("Direct download and extraction is currently available on Windows. Use the official CodeSlicer archive on macOS/Linux, then choose the installed executable here.");
       return;
     }
-    const destination = await this.selectDownloadFolder();
-    if (!destination) return;
-    const archive = join(destination, "codeslicer-main.zip");
-    const extracted = join(destination, "CodeSlicer-main");
-    if (existsSync(archive) || existsSync(extracted)) {
-      await vscode.window.showWarningMessage("The selected folder already contains codeslicer-main.zip or CodeSlicer-main. Choose another empty destination so CodeSlicer never overwrites an existing download.");
-      return;
-    }
-    const choice = await vscode.window.showWarningMessage("Download and extract CodeSlicer here? The extension will save the official GitHub archive in the selected folder, then extract it there. Nothing else is installed yet.", { modal: true }, "Download CodeSlicer");
-    if (choice !== "Download CodeSlicer") return;
     try {
-      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: downloading and extracting", cancellable: false }, async progress => {
-        progress.report({ message: "Downloading the official archive" });
-        const response = await fetch(CODESLICER_ARCHIVE);
-        if (!response.ok) throw new Error(`Official download failed with HTTP ${response.status}.`);
-        await writeFile(archive, Buffer.from(await response.arrayBuffer()));
-        progress.report({ message: "Extracting into the selected folder" });
-        const command = `Expand-Archive -LiteralPath ${this.powershellLiteral(archive)} -DestinationPath ${this.powershellLiteral(destination)} -ErrorAction Stop`;
-        const result = await runProcess("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command], destination, 300_000);
-        this.log(result);
-        if (result.exitCode !== 0 || !existsSync(join(extracted, "scripts", "install-windows.ps1"))) throw new Error(result.stderr.trim() || "The downloaded archive could not be extracted into CodeSlicer-main.");
+      const installerRoot = join(this.context.globalStorageUri.fsPath, "installer");
+      const downloadedRoot = join(installerRoot, "CodeSlicer-main");
+      let folder = this.context.globalState.get<string>("codeslicer.managedInstallFolder") || downloadedRoot;
+      let script = join(folder, "scripts", "install-windows.ps1");
+      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: automatic setup", cancellable: false }, async progress => {
+        await mkdir(installerRoot, { recursive: true });
+        if (!existsSync(script)) {
+          const destination = join(installerRoot, `download-${Date.now()}`);
+          const archive = join(destination, "codeslicer-main.zip");
+          await mkdir(destination, { recursive: true });
+          progress.report({ message: "Downloading CodeSlicer" });
+          const response = await fetch(CODESLICER_ARCHIVE);
+          if (!response.ok) throw new Error(`Official download failed with HTTP ${response.status}.`);
+          await writeFile(archive, Buffer.from(await response.arrayBuffer()));
+          progress.report({ message: "Preparing the local runtime" });
+          const command = `Expand-Archive -LiteralPath ${this.powershellLiteral(archive)} -DestinationPath ${this.powershellLiteral(destination)} -ErrorAction Stop`;
+          const extracted = join(destination, "CodeSlicer-main");
+          const extract = await runProcess("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command], destination, 300_000);
+          this.log(extract);
+          if (extract.exitCode !== 0 || !existsSync(join(extracted, "scripts", "install-windows.ps1"))) throw new Error(extract.stderr.trim() || "The official archive could not be extracted.");
+          folder = extracted;
+          script = join(folder, "scripts", "install-windows.ps1");
+        }
+        progress.report({ message: "Installing and connecting CodeSlicer" });
+        const install = await runProcess("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, "-NoLaunch"], folder, 900_000);
+        this.log(install);
+        if (install.exitCode !== 0) throw new Error(install.stderr.trim() || install.stdout.trim() || "The local installer did not complete.");
       });
-      await this.context.globalState.update("codeslicer.lastDownloadedFolder", extracted);
-      const next = await vscode.window.showInformationMessage("CodeSlicer was downloaded and extracted into the selected folder. Start the PowerShell setup now?", "Open PowerShell setup");
-      if (next === "Open PowerShell setup") await this.startWindowsSetup(extracted);
+      const executable = join(folder, ".venv", "Scripts", "codeslicer.exe");
+      if (!existsSync(executable)) throw new Error("Installation completed but codeslicer.exe was not found.");
+      await this.context.globalState.update("codeslicer.managedInstallFolder", folder);
+      await vscode.workspace.getConfiguration("codeslicer").update("executable", executable, vscode.ConfigurationTarget.Global);
+      this.render();
+      const next = await vscode.window.showInformationMessage("CodeSlicer is installed and connected. Choose an IDE and skills now?", "Choose IDE and skills");
+      if (next === "Choose IDE and skills") await this.setupSkills();
     } catch (error) {
-      OUTPUT.appendLine(`CodeSlicer direct download failed: ${String(error)}`);
-      await vscode.window.showErrorMessage(`CodeSlicer could not download into the selected folder: ${String(error)}`);
+      OUTPUT.appendLine(`CodeSlicer automatic setup failed: ${String(error)}`);
+      await vscode.window.showErrorMessage(`CodeSlicer automatic setup could not finish: ${String(error)}`);
     }
-  }
-
-  async startWindowsSetup(preselectedFolder?: string): Promise<void> {
-    if (process.platform !== "win32") {
-      await vscode.window.showInformationMessage("The guided PowerShell setup is available on Windows. Use the macOS/Linux commands in the CodeSlicer README, then choose the installed executable here.");
-      return;
-    }
-    const folder = preselectedFolder || await this.selectCodeSlicerFolder();
-    if (!folder) return;
-    const script = join(folder, "scripts", "install-windows.ps1");
-    if (!existsSync(script)) {
-      await vscode.window.showErrorMessage("That folder does not contain scripts/install-windows.ps1. Download CodeSlicer first or choose its extracted folder.");
-      return;
-    }
-    const choice = await vscode.window.showWarningMessage("Open PowerShell setup? It will create CodeSlicer's .venv and install CodeSlicer in the selected folder. The IDE picker appears afterwards; no IDE is selected automatically.", { modal: true }, "Open PowerShell setup");
-    if (choice !== "Open PowerShell setup") return;
-    const terminal = vscode.window.createTerminal({ name: "CodeSlicer setup", cwd: folder });
-    terminal.show(true);
-    terminal.sendText(`powershell.exe -NoExit -ExecutionPolicy Bypass -File ${this.powershellLiteral(script)}`, true);
-    await vscode.window.showInformationMessage("CodeSlicer setup opened in the integrated PowerShell terminal. Complete the visible IDE selection there, then choose codeslicer.exe in CodeSlicer settings.");
   }
 
   async setupSkills(): Promise<void> {
@@ -261,9 +224,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
 
   openDownloads(): void {
     showInstallGuide(this.language(), {
-      configure: () => this.configure(),
       downloadCodeSlicer: () => this.downloadCodeSlicer(),
-      startWindowsSetup: () => this.startWindowsSetup(),
       setupSkills: () => this.setupSkills()
     });
   }
@@ -489,7 +450,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
         sourceCurrent: () => this.setReviewSource("current-changes"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
-        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), downloadTools: async () => this.openDownloads(), setupSkills: () => this.setupSkills()
+        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), downloadTools: async () => this.openDownloads(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills()
       };
       await actions[message.action || ""]?.();
       return;
@@ -524,7 +485,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }));
   }
   for (const [id, handler] of [
-    ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.downloadTools", () => provider.openDownloads()], ["codeslicer.setupSkills", () => provider.setupSkills()], ["codeslicer.analyzeWorkspace", () => provider.analyze()], ["codeslicer.runtimeDoctor", () => provider.doctor()], ["codeslicer.runtimeUpdate", () => provider.runtimeAvailability()], ["codeslicer.runtimeRollback", () => provider.runtimeAvailability()],
+    ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.downloadTools", () => provider.openDownloads()], ["codeslicer.installRuntime", () => provider.downloadCodeSlicer()], ["codeslicer.setupSkills", () => provider.setupSkills()], ["codeslicer.analyzeWorkspace", () => provider.analyze()], ["codeslicer.runtimeDoctor", () => provider.doctor()], ["codeslicer.runtimeUpdate", () => provider.runtimeAvailability()], ["codeslicer.runtimeRollback", () => provider.runtimeAvailability()],
     ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.reviewCompare", async () => { await provider.setReviewSource("compare"); await provider.review(); }], ["codeslicer.reviewDiffFile", async () => { await provider.setReviewSource("diff-file"); await provider.review(); }], ["codeslicer.githubSignIn", () => provider.setReviewSource("github-pr")], ["codeslicer.showReviewHistory", () => provider.showHistory()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],
     ["codeslicer.openLocalHub", () => provider.hub()], ["codeslicer.refresh", () => provider.refresh()],
     ["codeslicer.runRecommendedTest", () => provider.runTest()]

@@ -26,7 +26,7 @@ Use **CodeSlicer: Compare with base branch** or **CodeSlicer: Review a diff file
 
 ## Runtime and privacy
 
-Automatic runtime installation is intentionally unavailable until CodeSlicer publishes a signed runtime artifact and verification manifest. Until then, **Settings → Setup assistant** asks for a destination folder, downloads the official CodeSlicer ZIP directly into it, and extracts `CodeSlicer-main` without using the browser download folder. After a separate confirmation it opens the visible PowerShell installer. The installer creates a local `.venv`, then offers the IDE chooser with arrows, Space, and Enter. Existing installations can use **Choose an existing executable**; the extension validates it locally before use.
+**Settings → Install automatically** is the standard Windows path. One explicit click downloads the official CodeSlicer ZIP into VS Code private storage, extracts it, creates a local `.venv`, and configures the resulting `codeslicer.exe` automatically. No browser download folder, destination picker, or manual executable path is required. **Choose an existing executable** remains available only as an advanced option.
 
 After CodeSlicer is configured, **Settings → Choose IDE and skills** opens `codeslicer agent install` in the integrated PowerShell terminal after a second confirmation. It uses the existing interactive IDE chooser and changes only selected integrations; the installer creates a side-by-side backup before editing an existing MCP configuration.
 

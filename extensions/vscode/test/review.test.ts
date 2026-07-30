@@ -30,7 +30,7 @@ test("webview offers plain-language Russian sections and a safe first run", () =
   assert.match(html, /role="tablist"/);
   assert.match(html, /data-action="configureGraphify"/);
   assert.match(html, /С чего начнём/);
-  assert.match(html, /Установить и настроить/);
+  assert.match(html, /Установить за пару кликов/);
   assert.match(html, /Подключить IDE и skills/);
   assert.match(html, /Проверить свои изменения/);
   assert.match(html, /Разобраться в архитектуре/);
@@ -50,7 +50,7 @@ test("webview renders English guidance and an honest empty impact state", () => 
   assert.match(html, /data-action="sourceDiff"/);
   assert.match(html, /data-action="sourceGitHub"/);
   assert.match(html, /Where should we start/);
-  assert.match(html, /Install and set up/);
+  assert.match(html, /Install in a couple of clicks/);
   assert.match(html, /Connect IDE and skills/);
   assert.match(html, /Review a GitHub PR/);
   assert.match(html, /data-course="architecture"/);
@@ -86,7 +86,7 @@ test("learning routes navigate safely and run an action only after an explicit c
     ['[data-action="review"]', makeElement()],
     ['[data-action="hub"]', makeElement()],
     ['[data-action="configureGraphify"]', makeElement()],
-    ['[data-action="downloadTools"]', makeElement()],
+    ['[data-action="installRuntime"]', makeElement()],
     ['[data-action="setupSkills"]', makeElement()],
     ['[data-action="doctor"]', makeElement()]
   ]);
@@ -121,28 +121,35 @@ test("learning routes navigate safely and run an action only after an explicit c
   assert.equal(actionTargets.get('[data-action="setupSkills"]').classList.lastAdded, "guide-focus");
   click({ learning: "perform" });
   assert.deepEqual(messages, [{ type: "action", action: "configureBase" }, { type: "action", action: "setupSkills" }]);
+
+  click({ course: "install" });
+  assert.equal(get("course-title").textContent, "Install in a couple of clicks");
+  assert.equal(actionTargets.get('[data-action="installRuntime"]').classList.lastAdded, "guide-focus");
+  click({ learning: "perform" });
+  assert.deepEqual(messages, [{ type: "action", action: "configureBase" }, { type: "action", action: "setupSkills" }, { type: "action", action: "installRuntime" }]);
 });
 
 test("download guide keeps CodeSlicer and optional Graphify explicit and separate", () => {
   const source = readFileSync(join(__dirname, "../../src/install-guide.ts"), "utf8");
-  assert.match(source, /Скачать CodeSlicer/);
+  assert.match(source, /Установить автоматически/);
   assert.match(source, /Скачать Graphify/);
   assert.match(source, /data-action="downloadCodeSlicer"/);
   assert.match(source, /data-action="downloadGraphify"/);
-  assert.match(source, /data-action="configureCodeSlicer"/);
-  assert.match(source, /data-action="startWindowsSetup"/);
   assert.match(source, /data-action="setupSkills"/);
-  assert.match(source, /не происходят сами/);
+  assert.match(source, /служебную папку VS Code/);
   assert.match(source, /env\.openExternal/);
-  assert.match(source, /downloads the official ZIP directly/i);
+  assert.match(source, /VS Code private storage/i);
 });
 
 test("extension exposes the IDE skills picker as an activated command", () => {
   const manifest = readFileSync(join(__dirname, "../../package.json"), "utf8");
   const source = readFileSync(join(__dirname, "../../src/extension.ts"), "utf8");
   assert.match(manifest, /codeslicer\.setupSkills/);
+  assert.match(manifest, /codeslicer\.installRuntime/);
   assert.match(source, /agent install/);
   assert.match(source, /Open IDE picker/);
   assert.match(source, /Expand-Archive/);
   assert.match(source, /codeslicer-main\.zip/);
+  assert.match(source, /managedInstallFolder/);
+  assert.match(source, /-NoLaunch/);
 });
