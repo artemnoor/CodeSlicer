@@ -46,7 +46,8 @@ export function renderCockpit(state: CockpitState): string {
   const { review, project, runtime } = state;
   const evidenceCount = review.impacts.reduce((total, impact) => total + impact.evidence.length, 0) + review.chains.reduce((total, chain) => total + chain.evidence.length, 0);
   const evidenceTargets = review.impacts.length + review.chains.length;
-  const proofCoverage = percent(evidenceTargets === 0 ? 0 : evidenceCount, evidenceTargets);
+  const provenTargets = review.impacts.filter(impact => impact.evidence.length > 0).length + review.chains.filter(chain => chain.evidence.length > 0).length;
+  const proofCoverage = percent(provenTargets, evidenceTargets);
   const reviewed = review.status === "ready";
   const impacts = review.impacts.slice(0, 5).map(impactRow).join("") || `<p class="empty">Run a review to surface the nearest affected entities.</p>`;
   const chains = review.chains.slice(0, 3).map(chainRow).join("") || `<p class="empty">No cross-file chain has been proven yet.</p>`;
