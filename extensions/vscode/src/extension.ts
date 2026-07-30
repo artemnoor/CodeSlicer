@@ -15,6 +15,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private state: CockpitState = structuredClone(INITIAL_STATE);
   private tests: TestRecommendation[] = [];
+  private selectedLanguage?: "ru" | "en";
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -34,6 +35,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   }
 
   private language(): "ru" | "en" {
+    if (this.selectedLanguage) return this.selectedLanguage;
     const preference = this.config<UiLanguage>("uiLanguage");
     if (preference === "ru" || preference === "en") return preference;
     return vscode.env.language.toLowerCase().startsWith("ru") ? "ru" : "en";
@@ -230,8 +232,16 @@ class CockpitProvider implements vscode.WebviewViewProvider {
 
   private async setLanguage(language: unknown): Promise<void> {
     if (language !== "ru" && language !== "en") return;
-    await vscode.workspace.getConfiguration("codeslicer").update("uiLanguage", language, vscode.ConfigurationTarget.Global);
+    // Render immediately from the user's selection. This avoids waiting for the
+    // configuration service to propagate before the webview is rebuilt.
+    this.selectedLanguage = language;
     this.render();
+    try {
+      await vscode.workspace.getConfiguration("codeslicer").update("uiLanguage", language, vscode.ConfigurationTarget.Global);
+    } catch (error) {
+      OUTPUT.appendLine(`Could not save the CodeSlicer interface language: ${String(error)}`);
+      await vscode.window.showWarningMessage("CodeSlicer changed language for this session, but VS Code could not save that preference.");
+    }
   }
 
   private async onMessage(message: { type: string; action?: string; entity?: string; file?: string; line?: number; index?: number; language?: unknown }): Promise<void> {

@@ -23,6 +23,8 @@ test("webview offers a guided Russian flow, tabs, and an explicit no-token messa
   assert.match(html, /data-action="configureBase"/);
   assert.match(html, /role="tablist"/);
   assert.match(html, /id="language"/);
+  assert.match(html, /class="lang-icon"/);
+  assert.match(html, /M12 21a9 9/);
   assert.match(html, /type:'setLanguage'/);
   assert.match(html, /prefers-reduced-motion/);
   assert.match(html, /Как это работает\?/);
@@ -30,6 +32,8 @@ test("webview offers a guided Russian flow, tabs, and an explicit no-token messa
   assert.match(html, /tourSteps/);
   assert.match(html, /tour-skip/);
   assert.match(html, /tour-focus/);
+  assert.match(html, /\.tour\{z-index:100\}/);
+  assert.match(html, /\.tour-card\{z-index:101/);
 });
 
 test("webview renders English guidance and an honest empty impact state", () => {
