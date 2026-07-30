@@ -1,4 +1,4 @@
-# CodeSlicer
+# CodeSlicer Impact Cockpit
 
 Know the blast radius before you ask for review.
 
