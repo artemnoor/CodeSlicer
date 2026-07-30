@@ -2,7 +2,7 @@
   "name": "codeslicer-impact-cockpit",
   "displayName": "CodeSlicer",
   "description": "See the risk, evidence, and tests behind your local Git changes before review.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "CodeSlicer",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/artemnoor/CodeSlicer.git" },
@@ -15,7 +15,7 @@
   "categories": ["Testing", "Other"],
   "main": "./out/src/extension.js",
   "activationEvents": [
-    "onView:codeslicer.cockpit", "onCommand:codeslicer.configureExecutable", "onCommand:codeslicer.analyzeWorkspace",
+    "onView:codeslicer.cockpit", "onCommand:codeslicer.configureExecutable", "onCommand:codeslicer.downloadTools", "onCommand:codeslicer.analyzeWorkspace",
     "onCommand:codeslicer.reviewCurrentChanges", "onCommand:codeslicer.explainSelectedSymbol", "onCommand:codeslicer.openLocalHub",
     "onCommand:codeslicer.refresh", "onCommand:codeslicer.runRecommendedTest"
   ],
@@ -24,6 +24,7 @@
     "views": { "codeslicer": [{ "type": "webview", "id": "codeslicer.cockpit", "name": "Impact cockpit" }] },
     "commands": [
       { "command": "codeslicer.configureExecutable", "title": "CodeSlicer: Configure executable" },
+      { "command": "codeslicer.downloadTools", "title": "CodeSlicer: Download CodeSlicer and Graphify" },
       { "command": "codeslicer.analyzeWorkspace", "title": "CodeSlicer: Analyze workspace" },
       { "command": "codeslicer.reviewCurrentChanges", "title": "CodeSlicer: Review current changes" },
       { "command": "codeslicer.explainSelectedSymbol", "title": "CodeSlicer: Explain selected symbol" },

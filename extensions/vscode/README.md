@@ -28,6 +28,15 @@ Select **How it works** in the cockpit header at any time. The short guided tour
 
 The cockpit has Russian and English interfaces. Choose the language in the upper-right selector, or set `codeslicer.uiLanguage` to `auto`, `ru`, or `en` in VS Code settings.
 
+### Download CodeSlicer and Graphify
+
+In Step 1, choose **Download CodeSlicer** (or run **CodeSlicer: Download CodeSlicer and Graphify**). A separate VS Code tab opens with two clearly separated download buttons:
+
+1. **Download CodeSlicer** opens the official CodeSlicer source ZIP archive. Extract it, follow the repository README to create a virtual environment and install CodeSlicer, then return to the tab and select **Already downloaded? Choose CodeSlicer**.
+2. **Download Graphify** is optional and opens Graphify's official source ZIP archive. Graphify stays a separate architecture tool; after generating its `graph.json`, use **Choose graph.json** in the sidebar to connect it.
+
+The download page does not run commands, install packages, request tokens, or modify the workspace. Each download is an explicit button click.
+
 ## Connections
 
 The compact **Connections** cards at the top make optional setup visible without hiding the local review flow.

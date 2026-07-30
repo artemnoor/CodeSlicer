@@ -6,6 +6,7 @@ import { parseReviewJson, withReview } from "./review";
 import { discoverExecutable, isSafeRef, validateRuntime } from "./runtime";
 import { CockpitState, INITIAL_STATE, ProjectState, TestRecommendation, UiLanguage } from "./types";
 import { renderCockpit } from "./webview";
+import { showInstallGuide } from "./install-guide";
 
 const OUTPUT = vscode.window.createOutputChannel("CodeSlicer");
 const graphPath = (root: string) => join(root, ".impact_engine", "graph.json");
@@ -109,6 +110,10 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     if (value === undefined) return;
     await vscode.workspace.getConfiguration("codeslicer").update("executable", value.trim(), vscode.ConfigurationTarget.Workspace);
     await this.refresh();
+  }
+
+  openDownloads(): void {
+    showInstallGuide(this.language(), () => this.configure());
   }
 
   async configureBaseRef(): Promise<void> {
@@ -288,7 +293,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       const actions: Record<string, () => Promise<void>> = {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
-        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), configureGitHub: () => this.configureGitHubToken()
+        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), configureGitHub: () => this.configureGitHubToken(), downloadTools: async () => this.openDownloads()
       };
       await actions[message.action || ""]?.();
       return;
@@ -315,7 +320,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const provider = new CockpitProvider(context);
   context.subscriptions.push(vscode.window.registerWebviewViewProvider("codeslicer.cockpit", provider));
   for (const [id, handler] of [
-    ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.analyzeWorkspace", () => provider.analyze()],
+    ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.downloadTools", () => provider.openDownloads()], ["codeslicer.analyzeWorkspace", () => provider.analyze()],
     ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],
     ["codeslicer.openLocalHub", () => provider.hub()], ["codeslicer.refresh", () => provider.refresh()],
     ["codeslicer.runRecommendedTest", () => provider.runTest()]

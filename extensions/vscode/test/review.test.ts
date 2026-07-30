@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import { parseReviewJson } from "../src/review";
 import { INITIAL_STATE } from "../src/types";
@@ -52,4 +54,15 @@ test("webview renders English guidance and an honest empty impact state", () => 
   assert.match(html, /Every test always asks for separate confirmation/);
   assert.match(html, /Connections/);
   assert.match(html, /VS Code Secret Storage/);
+});
+
+test("download guide keeps CodeSlicer and optional Graphify explicit and separate", () => {
+  const source = readFileSync(join(__dirname, "../../src/install-guide.ts"), "utf8");
+  assert.match(source, /Скачать CodeSlicer/);
+  assert.match(source, /Скачать Graphify/);
+  assert.match(source, /data-action="downloadCodeSlicer"/);
+  assert.match(source, /data-action="downloadGraphify"/);
+  assert.match(source, /data-action="configureCodeSlicer"/);
+  assert.match(source, /не запускается без нажатия кнопки/);
+  assert.match(source, /env\.openExternal/);
 });
