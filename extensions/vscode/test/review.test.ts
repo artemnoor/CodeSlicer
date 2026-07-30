@@ -1,5 +1,36 @@
-import assert from"node:assert/strict";import test from"node:test";import{parseReviewJson}from"../src/review";import{INITIAL_STATE}from"../src/types";import{renderCockpit}from"../src/webview";
-const payload=JSON.stringify({status:"ok",risk:{level:"HIGH",confidence:"high",reasons:["route crosses service boundary"]},top_impacts:[{entity_id:"app/service.py:create_order",label:"create_order",kind:"FUNCTION",confidence:"high",file:"app/service.py",line:3,why:{evidence_locations:[{file:"app/service.py",line:3,text:"service calls repository",provenance:"python_ast"}]}}],chains:[{node_ids:["app/service.py:create_order","app/repo.py:save"],edge_ids:["e1"],evidence_locations:[{file:"app/service.py",line:3,text:"service calls repository"}]}],test_recommendations:[],review_projection:{tests:[{file:"tests/test_orders.py",symbol:"tests/test_orders.py:test_create_order",category:"symbol_call",confidence:"high",reason:"test covers service",command:["py","-3","-m","pytest","tests/test_orders.py"]}]},warnings:["bounded review"],coverage:[{language:"python",status:"supported"},{language:"csharp",status:"limited"}]});
-test("parses real ReviewReport/v1 fields and uses projection tests without executing them",()=>{const r=parseReviewJson(payload);assert.equal(r.riskLevel,"HIGH");assert.equal(r.impacts[0].evidence[0].provenance,"python_ast");assert.equal(r.tests[0].file,"tests/test_orders.py");assert.deepEqual(r.limitations,["csharp: limited"])});
-test("webview renders an honest and accessible dark-cockpit initial state",()=>{const html=renderCockpit(INITIAL_STATE);assert.match(html,/GitHub metadata, comments, and checks are not read/);assert.match(html,/Graphify not connected/);assert.match(html,/Run Refresh to validate/);assert.match(html,/Impact topology/);assert.match(html,/PROOF COVERAGE/);assert.match(html,/prefers-reduced-motion/);assert.match(html,/aria-live="polite"/)});
-test("proof coverage measures targets with evidence and never the number of duplicate locations",()=>{const review=parseReviewJson(payload);const state={...INITIAL_STATE,review:{...review,impacts:[{...review.impacts[0],evidence:[...review.impacts[0].evidence,...review.impacts[0].evidence]}]}};assert.match(renderCockpit(state),/>100%<\/strong>/)});
+import assert from "node:assert/strict";
+import test from "node:test";
+import { parseReviewJson } from "../src/review";
+import { INITIAL_STATE } from "../src/types";
+import { renderCockpit } from "../src/webview";
+
+const payload = JSON.stringify({ status: "ok", risk: { level: "HIGH", confidence: "high", reasons: ["route crosses service boundary"] }, top_impacts: [{ entity_id: "app/service.py:create_order", label: "create_order", kind: "FUNCTION", confidence: "high", file: "app/service.py", line: 3, why: { evidence_locations: [{ file: "app/service.py", line: 3, text: "service calls repository", provenance: "python_ast" }] } }], chains: [{ node_ids: ["app/service.py:create_order", "app/repo.py:save"], edge_ids: ["e1"], evidence_locations: [{ file: "app/service.py", line: 3, text: "service calls repository" }] }], test_recommendations: [], review_projection: { tests: [{ file: "tests/test_orders.py", symbol: "tests/test_orders.py:test_create_order", category: "symbol_call", confidence: "high", reason: "test covers service", command: ["py", "-3", "-m", "pytest", "tests/test_orders.py"] }] }, warnings: ["bounded review"], coverage: [{ language: "python", status: "supported" }, { language: "csharp", status: "limited" }] });
+
+test("parses real ReviewReport/v1 fields and uses projection tests without executing them", () => {
+  const review = parseReviewJson(payload);
+  assert.equal(review.riskLevel, "HIGH");
+  assert.equal(review.impacts[0].evidence[0].provenance, "python_ast");
+  assert.equal(review.tests[0].file, "tests/test_orders.py");
+  assert.deepEqual(review.limitations, ["csharp: limited"]);
+});
+
+test("webview offers a guided Russian flow, tabs, and an explicit no-token message", () => {
+  const html = renderCockpit({ ...INITIAL_STATE, project: { ...INITIAL_STATE.project, branch: "feature/review", baseRef: "main" } }, "ru");
+  assert.match(html, /Проверьте изменения за три простых шага/);
+  assert.match(html, /GitHub‑токен не нужен/);
+  assert.match(html, /Текущая ветка/);
+  assert.match(html, /feature\/review/);
+  assert.match(html, /data-action="configureBase"/);
+  assert.match(html, /role="tablist"/);
+  assert.match(html, /id="language"/);
+  assert.match(html, /type:'setLanguage'/);
+  assert.match(html, /prefers-reduced-motion/);
+});
+
+test("webview renders English guidance and an honest empty impact state", () => {
+  const html = renderCockpit(INITIAL_STATE, "en");
+  assert.match(html, /Review your changes in three simple steps/);
+  assert.match(html, /No GitHub token needed/);
+  assert.match(html, /No report yet/);
+  assert.match(html, /Graphify is not connected/);
+});

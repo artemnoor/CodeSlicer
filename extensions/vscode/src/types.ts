@@ -1,6 +1,7 @@
 export type RuntimeStatus="unchecked"|"found"|"not-configured"|"incompatible"|"error";
 export interface RuntimeState{status:RuntimeStatus;executable?:string;version:string;diagnostic:string}
-export interface ProjectState{workspace?:string;graphStatus:"unknown"|"present"|"missing";freshness:string;graphifyAvailable:boolean}
+export type UiLanguage="auto"|"ru"|"en";
+export interface ProjectState{workspace?:string;branch?:string;baseRef?:string;graphStatus:"unknown"|"present"|"missing";freshness:string;graphifyAvailable:boolean}
 export interface EvidenceLocation{file?:string;line?:number;text?:string;provenance?:string}
 export interface ImpactItem{entityId:string;label:string;kind:string;confidence:string;file?:string;line?:number;reason:string;evidence:EvidenceLocation[]}
 export interface EvidenceChain{nodeIds:string[];edgeIds:string[];evidence:EvidenceLocation[];confidence?:string}

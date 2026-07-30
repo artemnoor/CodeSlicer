@@ -1,17 +1,45 @@
 {
-  "name": "codeslicer-impact-cockpit", "displayName": "CodeSlicer", "description": "See the risk, evidence, and tests behind your local Git changes before review.", "version": "0.1.3", "publisher": "CodeSlicer", "license": "MIT", "repository": { "type": "git", "url": "https://github.com/artemnoor/CodeSlicer.git" }, "homepage": "https://github.com/artemnoor/CodeSlicer#readme", "bugs": { "url": "https://github.com/artemnoor/CodeSlicer/issues" }, "icon": "media/marketplace-icon.png", "galleryBanner": { "color": "#0f172a", "theme": "dark" }, "keywords": ["codeslicer", "code review", "impact analysis", "git diff", "developer tools", "testing", "local first"], "engines": { "vscode": "^1.85.0" }, "categories": ["Testing", "Other"], "main": "./out/src/extension.js",
-  "activationEvents": ["onView:codeslicer.cockpit", "onCommand:codeslicer.configureExecutable", "onCommand:codeslicer.analyzeWorkspace", "onCommand:codeslicer.reviewCurrentChanges", "onCommand:codeslicer.explainSelectedSymbol", "onCommand:codeslicer.openLocalHub", "onCommand:codeslicer.refresh", "onCommand:codeslicer.runRecommendedTest"],
+  "name": "codeslicer-impact-cockpit",
+  "displayName": "CodeSlicer",
+  "description": "See the risk, evidence, and tests behind your local Git changes before review.",
+  "version": "0.1.4",
+  "publisher": "CodeSlicer",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/artemnoor/CodeSlicer.git" },
+  "homepage": "https://github.com/artemnoor/CodeSlicer#readme",
+  "bugs": { "url": "https://github.com/artemnoor/CodeSlicer/issues" },
+  "icon": "media/marketplace-icon.png",
+  "galleryBanner": { "color": "#0f172a", "theme": "dark" },
+  "keywords": ["codeslicer", "code review", "impact analysis", "git diff", "developer tools", "testing", "local first"],
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Testing", "Other"],
+  "main": "./out/src/extension.js",
+  "activationEvents": [
+    "onView:codeslicer.cockpit", "onCommand:codeslicer.configureExecutable", "onCommand:codeslicer.analyzeWorkspace",
+    "onCommand:codeslicer.reviewCurrentChanges", "onCommand:codeslicer.explainSelectedSymbol", "onCommand:codeslicer.openLocalHub",
+    "onCommand:codeslicer.refresh", "onCommand:codeslicer.runRecommendedTest"
+  ],
   "contributes": {
     "viewsContainers": { "activitybar": [{ "id": "codeslicer", "title": "CodeSlicer", "icon": "media/codeslicer.svg" }] },
     "views": { "codeslicer": [{ "type": "webview", "id": "codeslicer.cockpit", "name": "Impact cockpit" }] },
     "commands": [
-      { "command": "codeslicer.configureExecutable", "title": "CodeSlicer: Configure executable" }, { "command": "codeslicer.analyzeWorkspace", "title": "CodeSlicer: Analyze workspace" }, { "command": "codeslicer.reviewCurrentChanges", "title": "CodeSlicer: Review current changes" }, { "command": "codeslicer.explainSelectedSymbol", "title": "CodeSlicer: Explain selected symbol" }, { "command": "codeslicer.openLocalHub", "title": "CodeSlicer: Open Local Hub" }, { "command": "codeslicer.refresh", "title": "CodeSlicer: Refresh" }, { "command": "codeslicer.runRecommendedTest", "title": "CodeSlicer: Run recommended test" }
+      { "command": "codeslicer.configureExecutable", "title": "CodeSlicer: Configure executable" },
+      { "command": "codeslicer.analyzeWorkspace", "title": "CodeSlicer: Analyze workspace" },
+      { "command": "codeslicer.reviewCurrentChanges", "title": "CodeSlicer: Review current changes" },
+      { "command": "codeslicer.explainSelectedSymbol", "title": "CodeSlicer: Explain selected symbol" },
+      { "command": "codeslicer.openLocalHub", "title": "CodeSlicer: Open Local Hub" },
+      { "command": "codeslicer.refresh", "title": "CodeSlicer: Refresh" },
+      { "command": "codeslicer.runRecommendedTest", "title": "CodeSlicer: Run recommended test" }
     ],
-    "configuration": { "title": "CodeSlicer", "properties": {
-      "codeslicer.executable": { "type": "string", "default": "", "description": "Absolute path to the installed codeslicer executable. Leave blank to use a workspace .venv candidate." },
-      "codeslicer.baseRef": { "type": "string", "default": "", "description": "Local Git base branch for reviews. Defaults to local main when it exists." },
-      "codeslicer.localHubUrl": { "type": "string", "default": "http://127.0.0.1:8001/", "description": "Loopback URL of an already-running CodeSlicer Local Hub." }
-    }}
+    "configuration": {
+      "title": "CodeSlicer",
+      "properties": {
+        "codeslicer.executable": { "type": "string", "default": "", "description": "Absolute path to the installed codeslicer executable. Leave blank to use a workspace .venv candidate." },
+        "codeslicer.baseRef": { "type": "string", "default": "", "description": "Local Git base branch for reviews. Defaults to local main when it exists." },
+        "codeslicer.localHubUrl": { "type": "string", "default": "http://127.0.0.1:8001/", "description": "Loopback URL of an already-running CodeSlicer Local Hub." },
+        "codeslicer.uiLanguage": { "type": "string", "default": "auto", "enum": ["auto", "ru", "en"], "enumDescriptions": ["Follow VS Code language", "Русский", "English"], "description": "Language of the CodeSlicer cockpit." }
+      }
+    }
   },
   "scripts": { "compile": "tsc -p .", "watch": "tsc -watch -p .", "test": "npm run compile && node --test out/test/*.test.js", "package": "npm run compile && npx @vscode/vsce package --no-dependencies" },
   "devDependencies": { "@types/node": "^20.11.30", "@types/vscode": "^1.85.0", "@vscode/vsce": "^3.2.1", "typescript": "^5.4.5" }
