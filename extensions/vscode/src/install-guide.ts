@@ -1,12 +1,13 @@
 import { Uri, WebviewPanel, ViewColumn, window, env } from "vscode";
 
-const CODESLICER_ARCHIVE = "https://github.com/artemnoor/CodeSlicer/archive/refs/heads/main.zip";
+export const CODESLICER_ARCHIVE = "https://github.com/artemnoor/CodeSlicer/archive/refs/heads/main.zip";
 const GRAPHIFY_ARCHIVE = "https://github.com/Graphify-Labs/graphify/archive/refs/heads/v8.zip";
 
 type Language = "ru" | "en";
 
 export interface InstallGuideActions {
   configure: () => Promise<void>;
+  downloadCodeSlicer: () => Promise<void>;
   startWindowsSetup: () => Promise<void>;
   setupSkills: () => Promise<void>;
 }
@@ -15,7 +16,7 @@ const copy = {
   ru: {
     title: "Установка CodeSlicer", eyebrow: "ПЕРВЫЙ ЗАПУСК", heading: "Установите CodeSlicer за три понятных шага",
     intro: "Сначала скачайте CodeSlicer, затем подтвердите запуск локального PowerShell-установщика и выберите IDE для skills. Никакая команда, скачивание или запись настроек не происходят сами.",
-    downloadTitle: "1. Скачать CodeSlicer", downloadText: "Откроется официальный ZIP-архив GitHub. Распакуйте его в удобную папку.", downloadCode: "Скачать CodeSlicer",
+    downloadTitle: "1. Скачать CodeSlicer", downloadText: "Выберите папку — расширение скачает официальный ZIP прямо в неё и безопасно распакует CodeSlicer-main.", downloadCode: "Выбрать папку и скачать",
     installTitle: "2. Установить и настроить", installText: "Выберите распакованную папку CodeSlicer. После вашего подтверждения откроется PowerShell: он создаст .venv, установит пакет и покажет выбор IDE.", startSetup: "Открыть PowerShell-установку", configure: "Уже установили? Указать codeslicer.exe",
     skillsTitle: "3. Выбрать IDE и skills", skillsText: "Откроется интерактивное меню PowerShell: ↑/↓ — IDE, Space — выбор, Enter — установка. Skills ставятся только для отмеченных IDE.", setupSkills: "Открыть выбор IDE и skills",
     graphTitle: "Graphify — по желанию", graphText: "Отдельный инструмент для обзорной карты архитектуры. Он не меняет risk и evidence CodeSlicer.", downloadGraph: "Скачать Graphify",
@@ -24,7 +25,7 @@ const copy = {
   en: {
     title: "Install CodeSlicer", eyebrow: "FIRST RUN", heading: "Install CodeSlicer in three clear steps",
     intro: "Download CodeSlicer, confirm the local PowerShell installer, then choose IDEs for skills. No command, download, or settings write happens on its own.",
-    downloadTitle: "1. Download CodeSlicer", downloadText: "This opens the official GitHub ZIP archive. Extract it to a folder you choose.", downloadCode: "Download CodeSlicer",
+    downloadTitle: "1. Download CodeSlicer", downloadText: "Choose a folder and the extension downloads the official ZIP directly into it, then safely extracts CodeSlicer-main.", downloadCode: "Choose folder and download",
     installTitle: "2. Install and set up", installText: "Choose the extracted CodeSlicer folder. After your confirmation, PowerShell creates a .venv, installs the package, and shows the IDE chooser.", startSetup: "Open PowerShell setup", configure: "Already installed? Choose codeslicer.exe",
     skillsTitle: "3. Choose IDE and skills", skillsText: "This opens an interactive PowerShell menu: ↑/↓ moves, Space selects, and Enter installs. Skills are installed only for the IDEs you select.", setupSkills: "Open IDE and skills picker",
     graphTitle: "Graphify — optional", graphText: "A separate tool for an architecture overview. It never changes CodeSlicer risk or evidence.", downloadGraph: "Download Graphify",
@@ -44,7 +45,7 @@ export function showInstallGuide(language: Language, actions: InstallGuideAction
   panel.webview.html = renderInstallGuide(language);
   panel.webview.onDidReceiveMessage(async (message: { type?: string; action?: string }) => {
     if (message.type !== "action") return;
-    if (message.action === "downloadCodeSlicer") await env.openExternal(Uri.parse(CODESLICER_ARCHIVE));
+    if (message.action === "downloadCodeSlicer") await actions.downloadCodeSlicer();
     if (message.action === "downloadGraphify") await env.openExternal(Uri.parse(GRAPHIFY_ARCHIVE));
     if (message.action === "configureCodeSlicer") await actions.configure();
     if (message.action === "startWindowsSetup") await actions.startWindowsSetup();

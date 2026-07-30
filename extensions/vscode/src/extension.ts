@@ -12,7 +12,7 @@ import { parseJsonLineProgress } from "./progress";
 import { GitHubReviewService } from "./github";
 import { CockpitState, INITIAL_STATE, ProjectState, ReviewHistoryEntry, ReviewState, ReviewSourceMode, TestRecommendation, UiLanguage } from "./types";
 import { renderCockpit } from "./webview";
-import { showInstallGuide } from "./install-guide";
+import { CODESLICER_ARCHIVE, showInstallGuide } from "./install-guide";
 
 const OUTPUT = vscode.window.createOutputChannel("CodeSlicer");
 const graphPath = (root: string) => join(root, ".impact_engine", "graph.json");
@@ -175,16 +175,67 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     return picked[0].fsPath;
   }
 
-  async startWindowsSetup(): Promise<void> {
+  private async selectDownloadFolder(): Promise<string | undefined> {
+    const picked = await vscode.window.showOpenDialog({
+      title: "Choose the folder where CodeSlicer will be downloaded",
+      canSelectMany: false,
+      canSelectFiles: false,
+      canSelectFolders: true,
+      openLabel: "Download CodeSlicer here"
+    });
+    return picked?.[0]?.fsPath;
+  }
+
+  async downloadCodeSlicer(): Promise<void> {
+    if (process.platform !== "win32") {
+      await vscode.window.showInformationMessage("Direct download and extraction is currently available on Windows. Use the official CodeSlicer archive on macOS/Linux, then choose the installed executable here.");
+      return;
+    }
+    const destination = await this.selectDownloadFolder();
+    if (!destination) return;
+    const archive = join(destination, "codeslicer-main.zip");
+    const extracted = join(destination, "CodeSlicer-main");
+    if (existsSync(archive) || existsSync(extracted)) {
+      await vscode.window.showWarningMessage("The selected folder already contains codeslicer-main.zip or CodeSlicer-main. Choose another empty destination so CodeSlicer never overwrites an existing download.");
+      return;
+    }
+    const choice = await vscode.window.showWarningMessage("Download and extract CodeSlicer here? The extension will save the official GitHub archive in the selected folder, then extract it there. Nothing else is installed yet.", { modal: true }, "Download CodeSlicer");
+    if (choice !== "Download CodeSlicer") return;
+    try {
+      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: downloading and extracting", cancellable: false }, async progress => {
+        progress.report({ message: "Downloading the official archive" });
+        const response = await fetch(CODESLICER_ARCHIVE);
+        if (!response.ok) throw new Error(`Official download failed with HTTP ${response.status}.`);
+        await writeFile(archive, Buffer.from(await response.arrayBuffer()));
+        progress.report({ message: "Extracting into the selected folder" });
+        const command = `Expand-Archive -LiteralPath ${this.powershellLiteral(archive)} -DestinationPath ${this.powershellLiteral(destination)} -ErrorAction Stop`;
+        const result = await runProcess("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command], destination, 300_000);
+        this.log(result);
+        if (result.exitCode !== 0 || !existsSync(join(extracted, "scripts", "install-windows.ps1"))) throw new Error(result.stderr.trim() || "The downloaded archive could not be extracted into CodeSlicer-main.");
+      });
+      await this.context.globalState.update("codeslicer.lastDownloadedFolder", extracted);
+      const next = await vscode.window.showInformationMessage("CodeSlicer was downloaded and extracted into the selected folder. Start the PowerShell setup now?", "Open PowerShell setup");
+      if (next === "Open PowerShell setup") await this.startWindowsSetup(extracted);
+    } catch (error) {
+      OUTPUT.appendLine(`CodeSlicer direct download failed: ${String(error)}`);
+      await vscode.window.showErrorMessage(`CodeSlicer could not download into the selected folder: ${String(error)}`);
+    }
+  }
+
+  async startWindowsSetup(preselectedFolder?: string): Promise<void> {
     if (process.platform !== "win32") {
       await vscode.window.showInformationMessage("The guided PowerShell setup is available on Windows. Use the macOS/Linux commands in the CodeSlicer README, then choose the installed executable here.");
       return;
     }
-    const folder = await this.selectCodeSlicerFolder();
+    const folder = preselectedFolder || await this.selectCodeSlicerFolder();
     if (!folder) return;
+    const script = join(folder, "scripts", "install-windows.ps1");
+    if (!existsSync(script)) {
+      await vscode.window.showErrorMessage("That folder does not contain scripts/install-windows.ps1. Download CodeSlicer first or choose its extracted folder.");
+      return;
+    }
     const choice = await vscode.window.showWarningMessage("Open PowerShell setup? It will create CodeSlicer's .venv and install CodeSlicer in the selected folder. The IDE picker appears afterwards; no IDE is selected automatically.", { modal: true }, "Open PowerShell setup");
     if (choice !== "Open PowerShell setup") return;
-    const script = join(folder, "scripts", "install-windows.ps1");
     const terminal = vscode.window.createTerminal({ name: "CodeSlicer setup", cwd: folder });
     terminal.show(true);
     terminal.sendText(`powershell.exe -NoExit -ExecutionPolicy Bypass -File ${this.powershellLiteral(script)}`, true);
@@ -211,6 +262,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   openDownloads(): void {
     showInstallGuide(this.language(), {
       configure: () => this.configure(),
+      downloadCodeSlicer: () => this.downloadCodeSlicer(),
       startWindowsSetup: () => this.startWindowsSetup(),
       setupSkills: () => this.setupSkills()
     });

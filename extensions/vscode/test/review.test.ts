@@ -134,6 +134,7 @@ test("download guide keeps CodeSlicer and optional Graphify explicit and separat
   assert.match(source, /data-action="setupSkills"/);
   assert.match(source, /не происходят сами/);
   assert.match(source, /env\.openExternal/);
+  assert.match(source, /downloads the official ZIP directly/i);
 });
 
 test("extension exposes the IDE skills picker as an activated command", () => {
@@ -142,4 +143,6 @@ test("extension exposes the IDE skills picker as an activated command", () => {
   assert.match(manifest, /codeslicer\.setupSkills/);
   assert.match(source, /agent install/);
   assert.match(source, /Open IDE picker/);
+  assert.match(source, /Expand-Archive/);
+  assert.match(source, /codeslicer-main\.zip/);
 });
