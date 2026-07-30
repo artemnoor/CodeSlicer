@@ -350,7 +350,7 @@ sequenceDiagram
 - локальный SQLite registry и JSON cache;
 - CLI, MCP-сервер, интерактивная локальная карта и оригинальный Graphify viewer.
 
-## VS Code Impact Cockpit (MVP)
+## VS Code Impact Cockpit
 
 В репозитории есть отдельный TypeScript package `extensions/vscode/`: local-first
 панель для VS Code, которая использует уже установленный `codeslicer` CLI и не
@@ -364,8 +364,9 @@ engine: при наличии его уже созданного local graph п�
 Hub, но не смешивает его с canonical CodeSlicer graph, risk или evidence.
 
 Чтобы запустить Extension Development Host или собрать локальный VSIX, смотрите
-[инструкцию пакета](extensions/vscode/README.md). GitHub integration и
-Marketplace publishing — будущие optional этапы.
+[инструкцию пакета](extensions/vscode/README.md). Расширение опубликовано в
+[Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=codeslicer.codeslicer-impact-cockpit).
+GitHub integration остаётся отдельным optional этапом.
 
 ## Быстрый старт
 
