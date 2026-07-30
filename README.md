@@ -352,25 +352,77 @@ sequenceDiagram
 
 ## VS Code Impact Cockpit
 
-В репозитории есть отдельный TypeScript package `extensions/vscode/`: local-first
-панель для VS Code, которая использует уже установленный `codeslicer` CLI и не
-содержит второго анализатора. Она сравнивает текущие локальные изменения с
-настраиваемой локальной base branch (по умолчанию `main`) и показывает canonical
-CodeSlicer risk, evidence chains, затронутые сущности и recommended tests.
+В репозитории есть самостоятельный TypeScript package
+[`extensions/vscode/`](extensions/vscode/): local-first панель для VS Code.
+Она **не содержит второй анализатор** — extension вызывает уже установленный
+локальный `codeslicer` CLI и показывает результат понятным языком до merge.
 
-Панель не читает GitHub PR metadata, comments или checks, не использует GitHub
-token и не запускает CLI при activation. Graphify остаётся отдельным optional
-engine: при наличии его уже созданного local graph панель даёт ссылку в Local
-Hub, но не смешивает его с canonical CodeSlicer graph, risk или evidence.
+### Что видит разработчик
+
+1. На вкладке **«Сейчас»** — три последовательных шага: проверить CodeSlicer,
+   выбрать локальную базовую ветку (обычно `main`), затем запустить review.
+2. На вкладке **«Влияние»** — уровень риска, затронутые сущности и компактная
+   карта подтверждённых связей. Нажатие на узел показывает файл, строку,
+   provenance и доказательство; полный граф остаётся в Local Hub.
+3. На вкладке **«Тесты и ограничения»** — рекомендации тестов, предупреждения
+   и честные ограничения покрытия. Каждый тест запрашивает отдельное
+   подтверждение перед запуском.
+
+Review всегда сравнивает **локальный Git diff** с настраиваемой локальной base
+branch. Он не читает GitHub PR metadata, comments или checks, не отправляет
+исходный код наружу и не запускает CLI при активации extension. Все запуски
+происходят только после явного нажатия пользователя; в недоверенном workspace
+CLI не запускается. Команда, рабочая папка, stdout, stderr и ошибки доступны в
+Output Channel `CodeSlicer`.
+
+### Начать без ручного поиска
+
+В первом шаге есть кнопка **«Скачать CodeSlicer»**. Она открывает отдельную
+вкладку с двумя понятными карточками:
+
+- **CodeSlicer** — скачивает официальный ZIP с исходным кодом. После
+  распаковки следуйте README, создайте `.venv`, установите пакет и вернитесь к
+  кнопке «Указать CodeSlicer», чтобы выбрать executable.
+- **Graphify — по желанию** — скачивает официальный ZIP отдельного Graphify.
+  Он нужен только для обзорной архитектурной карты. После создания `graph.json`
+  его можно выбрать в карточке Graphify extension.
+
+Загрузочная вкладка сама не запускает команды, не устанавливает пакеты, не
+просит токены и не меняет workspace: каждая загрузка начинается только по
+отдельной кнопке.
+
+Graphify остаётся независимым optional engine. Его architecture graph никогда
+не смешивается с canonical CodeSlicer graph, risk или evidence. Расширение не
+запускает и не скачивает Graphify в фоне.
 
 В cockpit доступны русский и английский языки. Кнопка «Как это работает?»
-запускает интерактивный тур по трём шагам, вкладкам влияния и тестов: он только
-подсвечивает интерфейс и ничего не запускает без отдельного нажатия пользователя.
+запускает перетаскиваемый интерактивный тур по трём шагам, вкладкам влияния и
+тестов: он только подсвечивает интерфейс и ничего не запускает без отдельного
+нажатия пользователя.
 
-Чтобы запустить Extension Development Host или собрать локальный VSIX, смотрите
-[инструкцию пакета](extensions/vscode/README.md). Расширение опубликовано в
-[Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=codeslicer.codeslicer-impact-cockpit).
-GitHub integration остаётся отдельным optional этапом.
+Карточка GitHub позволяет **необязательно** сохранить token в VS Code Secret
+Storage. В текущей версии он не используется: local review по-прежнему не
+вызывает GitHub API и не передаёт токен или код в сеть. Реальная GitHub
+интеграция остаётся отдельным future этапом.
+
+### Установка extension и разработка
+
+Расширение доступно в [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=codeslicer.codeslicer-impact-cockpit).
+В VS Code откройте Extensions, найдите **CodeSlicer**, установите его и затем
+откройте иконку CodeSlicer в Activity Bar.
+
+Для локальной разработки или сборки VSIX:
+
+```powershell
+cd extensions/vscode
+npm ci
+npm test
+npm run package
+```
+
+Откройте `extensions/vscode` в VS Code и нажмите `F5`, чтобы запустить
+Extension Development Host. Подробности, конфигурация и troubleshooting — в
+[инструкции пакета](extensions/vscode/README.md).
 
 ## Быстрый старт
 
