@@ -2,7 +2,7 @@
   "name": "codeslicer-impact-cockpit",
   "displayName": "CodeSlicer",
   "description": "See the risk, evidence, and tests behind your local Git changes before review.",
-  "version": "0.3.9",
+  "version": "0.4.0",
   "publisher": "CodeSlicer",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/artemnoor/CodeSlicer.git" },
@@ -15,7 +15,7 @@
   "categories": ["Testing", "Other"],
   "main": "./out/src/extension.js",
   "activationEvents": [
-    "onView:codeslicer.cockpit", "onCommand:codeslicer.configureExecutable", "onCommand:codeslicer.downloadTools", "onCommand:codeslicer.installRuntime", "onCommand:codeslicer.setupSkills", "onCommand:codeslicer.analyzeWorkspace",
+    "onView:codeslicer.cockpit", "onCommand:codeslicer.configureExecutable", "onCommand:codeslicer.installRuntime", "onCommand:codeslicer.setupSkills", "onCommand:codeslicer.analyzeWorkspace",
     "onCommand:codeslicer.reviewCurrentChanges", "onCommand:codeslicer.explainSelectedSymbol", "onCommand:codeslicer.openLocalHub",
     "onCommand:codeslicer.refresh", "onCommand:codeslicer.runRecommendedTest"
   ],
@@ -27,7 +27,6 @@
       { "command": "codeslicer.runtimeDoctor", "title": "CodeSlicer: Check runtime" },
       { "command": "codeslicer.runtimeUpdate", "title": "CodeSlicer: Update runtime" },
       { "command": "codeslicer.runtimeRollback", "title": "CodeSlicer: Roll back runtime" },
-      { "command": "codeslicer.downloadTools", "title": "CodeSlicer: Download CodeSlicer and Graphify" },
       { "command": "codeslicer.installRuntime", "title": "CodeSlicer: Install automatically" },
       { "command": "codeslicer.setupSkills", "title": "CodeSlicer: Choose IDE and install skills" },
       { "command": "codeslicer.analyzeWorkspace", "title": "CodeSlicer: Analyze workspace" },

@@ -12,7 +12,7 @@ import { parseJsonLineProgress } from "./progress";
 import { GitHubReviewService } from "./github";
 import { CockpitState, INITIAL_STATE, ProjectState, ReviewHistoryEntry, ReviewState, ReviewSourceMode, TestRecommendation, UiLanguage } from "./types";
 import { renderCockpit } from "./webview";
-import { CODESLICER_ARCHIVE, showInstallGuide } from "./install-guide";
+const CODESLICER_ARCHIVE = "https://github.com/artemnoor/CodeSlicer/archive/refs/heads/main.zip";
 
 const OUTPUT = vscode.window.createOutputChannel("CodeSlicer");
 const graphPath = (root: string) => join(root, ".impact_engine", "graph.json");
@@ -210,8 +210,8 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     if (!root || !await this.trusted()) return;
     const executable = await this.runtime.discover(this.config<string>("executable"), root);
     if (!executable) {
-      await vscode.window.showWarningMessage("Install and configure CodeSlicer first. The setup assistant can guide you there.", "Open setup assistant").then(choice => {
-        if (choice === "Open setup assistant") this.openDownloads();
+      await vscode.window.showWarningMessage("Install CodeSlicer first, then you can optionally connect IDEs and skills.", "Install CodeSlicer").then(choice => {
+        if (choice === "Install CodeSlicer") this.downloadCodeSlicer();
       });
       return;
     }
@@ -220,13 +220,6 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     const terminal = vscode.window.createTerminal({ name: "CodeSlicer IDE and skills", cwd: root });
     terminal.show(true);
     terminal.sendText(`& ${this.powershellLiteral(executable)} agent install`, true);
-  }
-
-  openDownloads(): void {
-    showInstallGuide(this.language(), {
-      downloadCodeSlicer: () => this.downloadCodeSlicer(),
-      setupSkills: () => this.setupSkills()
-    });
   }
 
   async configureBaseRef(): Promise<void> {
@@ -450,7 +443,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
         sourceCurrent: () => this.setReviewSource("current-changes"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
-        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), downloadTools: async () => this.openDownloads(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills()
+        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills()
       };
       await actions[message.action || ""]?.();
       return;
@@ -485,7 +478,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }));
   }
   for (const [id, handler] of [
-    ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.downloadTools", () => provider.openDownloads()], ["codeslicer.installRuntime", () => provider.downloadCodeSlicer()], ["codeslicer.setupSkills", () => provider.setupSkills()], ["codeslicer.analyzeWorkspace", () => provider.analyze()], ["codeslicer.runtimeDoctor", () => provider.doctor()], ["codeslicer.runtimeUpdate", () => provider.runtimeAvailability()], ["codeslicer.runtimeRollback", () => provider.runtimeAvailability()],
+    ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.installRuntime", () => provider.downloadCodeSlicer()], ["codeslicer.setupSkills", () => provider.setupSkills()], ["codeslicer.analyzeWorkspace", () => provider.analyze()], ["codeslicer.runtimeDoctor", () => provider.doctor()], ["codeslicer.runtimeUpdate", () => provider.runtimeAvailability()], ["codeslicer.runtimeRollback", () => provider.runtimeAvailability()],
     ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.reviewCompare", async () => { await provider.setReviewSource("compare"); await provider.review(); }], ["codeslicer.reviewDiffFile", async () => { await provider.setReviewSource("diff-file"); await provider.review(); }], ["codeslicer.githubSignIn", () => provider.setReviewSource("github-pr")], ["codeslicer.showReviewHistory", () => provider.showHistory()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],
     ["codeslicer.openLocalHub", () => provider.hub()], ["codeslicer.refresh", () => provider.refresh()],
     ["codeslicer.runRecommendedTest", () => provider.runTest()]

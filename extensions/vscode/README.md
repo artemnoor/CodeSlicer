@@ -8,15 +8,16 @@ This extension is a separate TypeScript package in the CodeSlicer repository. It
 
 Open a trusted workspace, open the CodeSlicer activity-bar view, then choose **Review current changes**. The first screen explains that source code stays on the computer, analysis needs no AI or API key, and no process runs before an explicit action.
 
-The view has five sections:
+The view has six sections:
 
+- **Start** — the single first screen. For an empty folder it explains that you should create/open a project, run `git init`, and make an initial commit before there are changes to review. For an existing Git project it offers only **Install CodeSlicer** and **Review changes**.
 - **Check** — review source, runtime status, and verified comparison branch.
 - **Result** — bounded affected areas and clickable evidence locations.
 - **Tests** — safe argv test suggestions; every test asks for a separate confirmation.
 - **Architecture** — an optional, separate Graphify view.
 - **Settings** — custom executable and other advanced options.
 
-On first open, CodeSlicer shows the separate **Learning** page automatically. Start with **Install and set up** or **Connect IDE and skills**, then continue with review, comparison, architecture, or GitHub PR scenarios. The first and every next step automatically changes tabs and highlights the exact control while a compact guide card stays alongside the interface. A clearly labelled action button is the only way to start configuration, PowerShell, OAuth, review, or opening the local hub.
+IDE skills, Graphify, comparison, and GitHub PR review are optional advanced actions; they are not part of the first-run path.
 
 For local review the extension verifies the `origin/HEAD` branch when possible. If it cannot establish one safe base, it lists verified `main`, `master`, `develop`, or `trunk` candidates for the developer to choose. It never assumes that `main` is correct.
 
@@ -26,7 +27,7 @@ Use **CodeSlicer: Compare with base branch** or **CodeSlicer: Review a diff file
 
 ## Runtime and privacy
 
-**Settings → Install automatically** is the standard Windows path. One explicit click downloads the official CodeSlicer ZIP into VS Code private storage, extracts it, creates a local `.venv`, and configures the resulting `codeslicer.exe` automatically. No browser download folder, destination picker, or manual executable path is required. **Choose an existing executable** remains available only as an advanced option.
+**Start → Install CodeSlicer** is the standard Windows path. One explicit click downloads the official CodeSlicer ZIP into VS Code private storage, extracts it, creates a local `.venv`, and configures the resulting `codeslicer.exe` automatically. No browser download folder, destination picker, or manual executable path is required. **Choose an existing executable** remains available only as an advanced option.
 
 After CodeSlicer is configured, **Settings → Choose IDE and skills** opens `codeslicer agent install` in the integrated PowerShell terminal after a second confirmation. It uses the existing interactive IDE chooser and changes only selected integrations; the installer creates a side-by-side backup before editing an existing MCP configuration.
 
