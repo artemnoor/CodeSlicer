@@ -67,6 +67,12 @@ benchmarks/sprint5_fixtures/**/.impact_engine/
 *.swp
 .DS_Store
 Thumbs.db
+
+# VS Code extension build and package outputs (the source package is tracked)
+extensions/vscode/node_modules/
+extensions/vscode/out/
+extensions/vscode/*.vsix
+extensions/vscode/coverage/
 # .NET build output from local SCIP golden fixtures and other local builds
 obj/
 bin/
