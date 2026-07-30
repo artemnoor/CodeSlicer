@@ -1,4 +1,5 @@
-# CodeSlicer
+<img width="1909" height="988" alt="image" src="https://github.com/user-attachments/assets/9a8a8f3c-d44c-4963-9cf8-8e2fbec10676" /># CodeSlicer
+![Uploading image.png…]()
 
 <p align="center">
   <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
@@ -574,6 +575,7 @@ impact-engine explain-edge /path/to/project/.impact_engine/graph.json \
 support-pack rule, если они участвовали в создании связи.
 
 ## Визуальный интерфейс
+<img width="1909" height="988" alt="image" src="https://github.com/user-attachments/assets/873ef2f1-7782-4bbb-ba6c-d54f8ac052bd" />
 
 Запустите локальный API:
 
