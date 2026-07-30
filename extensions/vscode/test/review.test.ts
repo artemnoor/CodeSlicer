@@ -17,7 +17,7 @@ test("parses compatible ReviewReport fields and uses projection tests without ex
   assert.deepEqual(review.limitations, ["csharp: limited"]);
 });
 
-test("webview offers five plain-language Russian sections and a safe first run", () => {
+test("webview offers plain-language Russian sections and a safe first run", () => {
   const html = renderCockpit({ ...INITIAL_STATE, project: { ...INITIAL_STATE.project, branch: "feature/review", baseRef: "main" } }, "ru");
   assert.match(html, /Узнайте, что затронут ваши изменения/);
   assert.match(html, /Код остаётся на вашем компьютере/);
@@ -26,11 +26,14 @@ test("webview offers five plain-language Russian sections and a safe first run",
   assert.match(html, /Результат/);
   assert.match(html, /Архитектура/);
   assert.match(html, /Настройки/);
+  assert.match(html, /Практикум/);
   assert.match(html, /role="tablist"/);
   assert.match(html, /data-action="configureGraphify"/);
-  assert.match(html, /Как это работает/);
-  assert.match(html, /data-action="tour"/);
-  assert.match(html, /data-tour="skip"/);
+  assert.match(html, /Чему вы хотите научиться/);
+  assert.match(html, /Проверить свои изменения/);
+  assert.match(html, /Разобраться в архитектуре/);
+  assert.match(html, /data-action="learn"/);
+  assert.match(html, /data-course="pr"/);
   assert.match(html, /prefers-reduced-motion:reduce/);
 });
 
@@ -44,9 +47,10 @@ test("webview renders English guidance and an honest empty impact state", () => 
   assert.match(html, /data-action="sourceCompare"/);
   assert.match(html, /data-action="sourceDiff"/);
   assert.match(html, /data-action="sourceGitHub"/);
-  assert.match(html, /How it works/);
-  assert.match(html, /tourSteps/);
-  assert.match(html, /Тур ничего не запускает/);
+  assert.match(html, /What would you like to learn/);
+  assert.match(html, /Review a GitHub PR/);
+  assert.match(html, /data-course="architecture"/);
+  assert.match(html, /Navigation and highlighting never start work/);
 });
 
 test("rendered webview router is valid JavaScript", () => {
@@ -55,6 +59,51 @@ test("rendered webview router is valid JavaScript", () => {
   const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(script, "webview should include its client router");
   assert.doesNotThrow(() => new Function(script));
+});
+
+test("learning routes navigate safely and run an action only after an explicit click", () => {
+  const elements = new Map<string, any>();
+  const messages: unknown[] = [];
+  const listeners: Record<string, (event: any) => void> = {};
+  const makeElement = (): any => ({
+    hidden: false, textContent: "", dataset: {}, attributes: {}, children: [],
+    classList: { add(this: any, value: string) { this.lastAdded = value; }, remove() {} },
+    setAttribute(name: string, value: string) { this.attributes[name] = value; },
+    append(...children: any[]) { this.children.push(...children); },
+    focus() {}, scrollIntoView() {}
+  });
+  const get = (id: string) => {
+    if (!elements.has(id)) elements.set(id, makeElement());
+    return elements.get(id);
+  };
+  const tabs = ["check", "result", "tests", "architecture", "settings", "learn"].map(tab => ({ ...makeElement(), dataset: { tab } }));
+  const actionTargets = new Map<string, any>([
+    ['[data-action="configureBase"]', makeElement()],
+    ['[data-action="review"]', makeElement()],
+    ['[data-action="hub"]', makeElement()],
+    ['[data-action="configureGraphify"]', makeElement()]
+  ]);
+  const documentStub: any = {
+    documentElement: { lang: "en" },
+    getElementById: get,
+    createElement: makeElement,
+    querySelectorAll(selector: string) { return selector === "[role=tab]" ? tabs : []; },
+    querySelector(selector: string) {
+      if (selector.startsWith('[data-tab=')) return tabs.find(tab => selector.includes(tab.dataset.tab));
+      return actionTargets.get(selector) || get(selector.replace(/^#/, ""));
+    },
+    addEventListener(type: string, listener: (event: any) => void) { listeners[type] = listener; }
+  };
+  new Function("document", "acquireVsCodeApi", "matchMedia", clientRouter)(documentStub, () => ({ getState: () => undefined, setState() {}, postMessage: (message: unknown) => messages.push(message) }), () => ({ matches: true }));
+  const click = (dataset: Record<string, string>) => listeners.click({ target: { dataset, closest() { return this; } } });
+
+  click({ course: "review" });
+  assert.equal(get("course-title").textContent, "Review my changes");
+  click({ learning: "show" });
+  assert.equal(actionTargets.get('[data-action="configureBase"]').classList.lastAdded, "guide-focus");
+  assert.deepEqual(messages, []);
+  click({ learning: "perform" });
+  assert.deepEqual(messages, [{ type: "action", action: "configureBase" }]);
 });
 
 test("download guide keeps CodeSlicer and optional Graphify explicit and separate", () => {
