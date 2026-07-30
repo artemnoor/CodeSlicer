@@ -5,6 +5,7 @@ import test from "node:test";
 import { parseReviewJson } from "../src/review";
 import { INITIAL_STATE } from "../src/types";
 import { renderCockpit } from "../src/webview";
+import { clientRouter } from "../src/webview/router";
 
 const payload = JSON.stringify({ status: "ok", risk: { level: "HIGH", confidence: "high", reasons: ["route crosses service boundary"] }, top_impacts: [{ entity_id: "app/service.py:create_order", label: "create_order", kind: "FUNCTION", confidence: "high", file: "app/service.py", line: 3, why: { evidence_locations: [{ file: "app/service.py", line: 3, text: "service calls repository", provenance: "python_ast" }] } }], chains: [{ node_ids: ["app/service.py:create_order", "app/repo.py:save"], edge_ids: ["e1"], evidence_locations: [{ file: "app/service.py", line: 3, text: "service calls repository" }] }], test_recommendations: [], review_projection: { tests: [{ file: "tests/test_orders.py", symbol: "tests/test_orders.py:test_create_order", category: "symbol_call", confidence: "high", reason: "test covers service", command: ["py", "-3", "-m", "pytest", "tests/test_orders.py"] }] }, warnings: ["bounded review"], coverage: [{ language: "python", status: "supported" }, { language: "csharp", status: "limited" }] });
 
@@ -46,6 +47,14 @@ test("webview renders English guidance and an honest empty impact state", () => 
   assert.match(html, /How it works/);
   assert.match(html, /tourSteps/);
   assert.match(html, /Тур ничего не запускает/);
+});
+
+test("rendered webview router is valid JavaScript", () => {
+  assert.doesNotThrow(() => new Function(clientRouter));
+  const html = renderCockpit(INITIAL_STATE, "en");
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script, "webview should include its client router");
+  assert.doesNotThrow(() => new Function(script));
 });
 
 test("download guide keeps CodeSlicer and optional Graphify explicit and separate", () => {
