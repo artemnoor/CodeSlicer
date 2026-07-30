@@ -73,6 +73,7 @@ extensions/vscode/node_modules/
 extensions/vscode/out/
 extensions/vscode/*.vsix
 extensions/vscode/coverage/
+artifacts/
 # .NET build output from local SCIP golden fixtures and other local builds
 obj/
 bin/
