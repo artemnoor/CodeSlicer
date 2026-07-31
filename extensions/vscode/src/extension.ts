@@ -494,7 +494,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       return;
     }
     this.setServer("ready", "Running locally on this computer. No source code is sent to the network.", url.toString());
-    await vscode.window.showInformationMessage("CodeSlicer local server is ready. Choose Open Local Hub when you want to view it in your browser.");
+    await vscode.env.openExternal(vscode.Uri.parse(url.toString()));
   }
 
   async stopLocalServer(): Promise<void> {
@@ -733,7 +733,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     }
     const executable = await this.executable(root);
     if (!executable) return;
-    const result = await runProcess(executable, ["inspect", root, "--entity", selected, "--refresh", "never", "--json"], root);
+    const result = await runProcess(executable, ["--json", "inspect", root, "--entity", selected, "--refresh", "never"], root);
     this.log(result);
     if (result.exitCode !== 0) await vscode.window.showErrorMessage(result.stderr || "CodeSlicer could not inspect the selected entity.");
     else await vscode.window.showInformationMessage("Inspect result written to the CodeSlicer Output channel.");

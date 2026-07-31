@@ -8,16 +8,12 @@ This extension is a separate TypeScript package in the CodeSlicer repository. It
 
 Open a trusted workspace, open the CodeSlicer activity-bar view, then choose **Review current changes**. The first screen explains that source code stays on the computer, analysis needs no AI or API key, and no process runs before an explicit action.
 
-The view keeps the normal first-run path short and exposes the detail only when it is needed:
+The view keeps the normal path to four screens and exposes advanced options only when they are needed:
 
-- **Start** — install CodeSlicer once, then use **Start local server**, **Show code graph**, or **Show Git branches**. The server binds only to the configured loopback URL. It does not open a browser until **Open Local Hub** is explicitly selected.
-- **Check** — review source, runtime status, and verified comparison branch.
-- **Result** — bounded affected areas and clickable evidence locations.
-- **Tests** — safe argv test suggestions; every test asks for a separate confirmation.
-- **Code graph** — a compact visual preview of the canonical local CodeSlicer graph. If no graph exists yet, the explicit action analyzes the workspace first.
-- **Git branches** — a local timeline of recent commits across all local branches.
-- **Architecture** — an optional, separate Graphify view. **Download and set up Graphify** asks for confirmation before installing the official `graphifyy` Python package; **Build Graphify map** runs its local `graphify extract <project> --code-only` command.
-- **Settings** — custom executable and other advanced options.
+- **Start** — three actions: start and open Local Hub, build a local project graph, or open the review screen. The server binds only to the configured loopback URL.
+- **Review project** — comparison branch, results, evidence, and safe test suggestions on one screen.
+- **Graphs** — the compact canonical CodeSlicer graph and a local Git branch timeline on one screen. If no CodeSlicer graph exists, the explicit action analyzes the workspace first.
+- **More** — optional Graphify and advanced settings. **Install Graphify** asks for confirmation before installing the official `graphifyy` Python package; **Build Graphify map** runs its local `graphify extract <project> --code-only` command.
 
 IDE skills, Graphify, comparison, and GitHub PR review are optional advanced actions; they are not part of the first-run path.
 
