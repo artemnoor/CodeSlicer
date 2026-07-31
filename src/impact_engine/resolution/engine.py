@@ -24,6 +24,57 @@ class ResolutionContext:
     ambiguous_variables: Dict[Tuple[str, str], List[str]] = field(default_factory=dict)
 
 
+def _remember_variable_type(
+    context: ResolutionContext,
+    key: Tuple[str, str],
+    resolved_type: str,
+    evidence: list[Evidence],
+) -> bool:
+    """Record a local binding only while its concrete type remains unique.
+
+    Python permits a name to be rebound freely.  Carrying the first type past a
+    conflicting assignment creates an attractive but false call target, so a
+    conflict deliberately turns the variable into an unresolved region instead.
+    """
+    existing = context.variable_types.get(key)
+    if existing is None:
+        context.variable_types[key] = resolved_type
+        context.evidences[key] = evidence
+        return True
+    if existing == resolved_type:
+        return False
+    candidates = context.ambiguous_variables.setdefault(key, [existing])
+    if resolved_type not in candidates:
+        candidates.append(resolved_type)
+    return False
+
+
+def _resolve_assignment_annotation(annotation: str, index) -> Optional[str]:
+    """Resolve only annotations that unambiguously denote one runtime class.
+
+    This intentionally accepts nullable/``Union`` wrappers but rejects
+    containers such as ``list[Repository]``: a list is not a Repository and
+    treating it as one would manufacture a method-call edge.
+    """
+    text = str(annotation or "").strip()
+    if not text:
+        return None
+    candidates = [text]
+    optional_prefixes = ("Optional[", "typing.Optional[", "Union[", "typing.Union[")
+    if " | " in text:
+        candidates = [part.strip() for part in text.split("|")]
+    elif text.startswith(optional_prefixes) and text.endswith("]"):
+        candidates = [part.strip() for part in text[text.find("[") + 1:-1].split(",")]
+    resolved = {
+        candidate_type
+        for candidate in candidates
+        if candidate.strip(" '\"") not in {"None", "NoneType"}
+        for candidate_type in [index.canonicalize_class_name(candidate.strip(" '\""))]
+        if candidate_type
+    }
+    return next(iter(resolved)) if len(resolved) == 1 else None
+
+
 def _edge_exists(graph: GraphDocument, edge_id: str) -> bool:
     """Use the graph's O(1) id index during high-volume resolution passes."""
     graph._ensure_indexes()
@@ -109,6 +160,8 @@ def resolve_receiver_type(
     # 3. If receiver is a simple variable/name in the current scope
     t = context.variable_types.get((scope, receiver))
     if t:
+        if (scope, receiver) in context.ambiguous_variables:
+            return None
         return t
         
     # 4. If receiver is a module-level variable (scope is method/function/module)
@@ -116,6 +169,8 @@ def resolve_receiver_type(
     current_module = scope_resolver(scope)
     t = context.variable_types.get((current_module, receiver))
     if t:
+        if (current_module, receiver) in context.ambiguous_variables:
+            return None
         return t
         
     # 5. If receiver is a nested attribute (e.g. "container.service")
@@ -150,6 +205,11 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
     # Extraction of current facts from nodes
     assignments = [n for n in graph.nodes if n.kind == "ASSIGNMENT"]
     calls = [n for n in graph.nodes if n.kind == "CALL_EXPR"]
+    methods_by_scope = {
+        str(node.properties.get("scope")): node
+        for node in graph.nodes
+        if node.kind == "METHOD" and node.properties.get("scope")
+    }
 
     context = ResolutionContext()
 
@@ -206,22 +266,14 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
                 resolved_type = resolve_class_name(call_name, current_module, index)
                 if resolved_type:
                     key = (scope, target)
-                    existing_type = context.variable_types.get(key)
-                    if existing_type and existing_type != resolved_type:
-                        candidates = context.ambiguous_variables.setdefault(key, [existing_type])
-                        if resolved_type not in candidates:
-                            candidates.append(resolved_type)
-                        continue
-                    if key not in context.variable_types:
-                        context.variable_types[key] = resolved_type
-                        file_path, line_no = get_node_location(assign.id, graph)
-                        evidence = Evidence(
-                            description=f"Direct constructor assignment: {target} = {call_name}()",
-                            file=file_path,
-                            line=line_no,
-                            source="INFERRED"
-                        )
-                        context.evidences[key] = [evidence]
+                    file_path, line_no = get_node_location(assign.id, graph)
+                    evidence = Evidence(
+                        description=f"Direct constructor assignment: {target} = {call_name}()",
+                        file=file_path,
+                        line=line_no,
+                        source="INFERRED"
+                    )
+                    if _remember_variable_type(context, key, resolved_type, [evidence]):
                         
                         # Add INSTANCE_OF edge explaining this resolution
                         edge_id = f"inferred_instance_of__{assign.id}__class:{resolved_type}"
@@ -236,6 +288,30 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
                                 evidence=[evidence]
                             ))
 
+        # Pass 1a: An annotated binding is exact static evidence when it names
+        # one project-local runtime class.  This covers the widespread
+        # ``self.repo: Repository = injected_repo`` style without guessing for
+        # collections or heterogeneous unions.
+        for assign in assignments:
+            scope = str(assign.properties.get("scope") or "")
+            target = str(assign.properties.get("target") or "")
+            value = str(assign.properties.get("value") or "")
+            resolved_type = _resolve_assignment_annotation(str(assign.properties.get("annotation") or ""), index)
+            if not scope or not target or not value or not resolved_type:
+                continue
+            file_path, line_no = get_node_location(assign.id, graph)
+            _remember_variable_type(
+                context,
+                (scope, target),
+                resolved_type,
+                [Evidence(
+                    description=f"Assignment annotation: {target}: {assign.properties.get('annotation')}",
+                    file=file_path,
+                    line=line_no,
+                    source="EXTRACTED",
+                )],
+            )
+
         # Pass 1b: Factory/provider return propagation from exact return annotations.
         for assign in assignments:
             scope = str(assign.properties.get("scope") or "")
@@ -248,14 +324,18 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
             if not return_type:
                 continue
             resolved_return_type = index.canonicalize_class_name(return_type) or return_type
-            context.variable_types[(scope, target)] = resolved_return_type
             file_path, line_no = get_node_location(assign.id, graph)
-            context.evidences[(scope, target)] = [Evidence(
-                description=f"Factory return propagation: {call_name}() -> {resolved_return_type}",
-                file=file_path,
-                line=line_no,
-                source="INFERRED",
-            )]
+            _remember_variable_type(
+                context,
+                (scope, target),
+                resolved_return_type,
+                [Evidence(
+                    description=f"Factory return propagation: {call_name}() -> {resolved_return_type}",
+                    file=file_path,
+                    line=line_no,
+                    source="INFERRED",
+                )],
+            )
 
         # Pass 2: Constructor argument binding
         for assign in assignments:
@@ -274,15 +354,7 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
                 resolved_target_type = resolve_class_name(call_name, current_module, index)
                 if resolved_target_type:
                     constructor_scope = f"{resolved_target_type}.__init__"
-                    constructor_node = next(
-                        (
-                            n
-                            for n in graph.nodes
-                            if n.kind == "METHOD"
-                            and n.properties.get("scope") == constructor_scope
-                        ),
-                        None,
-                    )
+                    constructor_node = methods_by_scope.get(constructor_scope)
                     param_order = []
                     if constructor_node:
                         raw_param_order = constructor_node.properties.get("param_order", [])
@@ -399,6 +471,43 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
                                     confidence=0.90,
                                     evidence=context.evidences[field_key]
                                 ))
+
+        # Pass 3b: Preserve aliases of a known local or instance field.  The
+        # source expression is intentionally restricted to a simple name or a
+        # ``self.<field>`` chain; arbitrary Python expressions have side
+        # effects and need runtime evidence rather than a guessed type.
+        for assign in assignments:
+            scope = str(assign.properties.get("scope") or "")
+            target = str(assign.properties.get("target") or "")
+            value = str(assign.properties.get("value") or "")
+            value_parts = value.split(".")
+            is_simple_name = value.isidentifier()
+            is_self_field = len(value_parts) > 1 and value_parts[0] == "self" and all(part.isidentifier() for part in value_parts[1:])
+            if not scope or not target or not (is_simple_name or is_self_field):
+                continue
+            source_type = resolve_receiver_type(value, scope, context, graph, index)
+            if not source_type:
+                continue
+            file_path, line_no = get_node_location(assign.id, graph)
+            source_evidence = context.evidences.get((scope, value), [])
+            if is_self_field and "." in scope:
+                owner = scope.rsplit(".", 1)[0]
+                source_evidence = (
+                    context.evidences.get((owner, value), [])
+                    or context.evidences.get((f"{owner}.__init__", value), [])
+                    or source_evidence
+                )
+            _remember_variable_type(
+                context,
+                (scope, target),
+                source_type,
+                source_evidence + [Evidence(
+                    description=f"Local alias propagation: {target} = {value} in {scope}",
+                    file=file_path,
+                    line=line_no,
+                    source="INFERRED",
+                )],
+            )
 
         # Pass 4: Call resolution (e.g., self.repository.save(order))
         for call in calls:

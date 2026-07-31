@@ -66,6 +66,7 @@ def build_nested_object_graph_input(graph: GraphDocument) -> dict[str, Any]:
         "options": {},
     }
     class_ids = _class_ids(graph)
+    class_id_lookup = _build_class_id_lookup(class_ids)
     method_names_by_class: dict[str, set[str]] = {class_id: set() for class_id in class_ids}
 
     for node in graph.nodes:
@@ -85,7 +86,7 @@ def build_nested_object_graph_input(graph: GraphDocument) -> dict[str, Any]:
                             {
                                 "class": owner,
                                 "param": param,
-                                "type": _canonical_type(str(value), class_ids),
+                                "type": _canonical_type(str(value), class_ids, class_id_lookup),
                                 "confidence": 0.95,
                                 "evidence": [f"{scope}: {param}: {value}"],
                             }
@@ -125,7 +126,7 @@ def build_nested_object_graph_input(graph: GraphDocument) -> dict[str, Any]:
                     }
                 )
 
-    source_facts = _collect_python_source_facts(graph, class_ids)
+    source_facts = _collect_python_source_facts(graph, class_ids, class_id_lookup)
     for key in ("constructor_params", "assignments", "field_bindings", "dict_bindings", "aliases", "calls"):
         facts[key].extend(source_facts.get(key, []))
 
@@ -162,7 +163,11 @@ def _add_nested_edge(graph: GraphDocument, edge_data: dict[str, Any]) -> bool:
     return True
 
 
-def _collect_python_source_facts(graph: GraphDocument, class_ids: set[str]) -> dict[str, list[dict[str, Any]]]:
+def _collect_python_source_facts(
+    graph: GraphDocument,
+    class_ids: set[str],
+    class_id_lookup: dict[str, str | None],
+) -> dict[str, list[dict[str, Any]]]:
     root_value = graph.metadata.get("project_path") or graph.metadata.get("path")
     if not root_value:
         return {}
@@ -194,16 +199,16 @@ def _collect_python_source_facts(graph: GraphDocument, class_ids: set[str]) -> d
         for class_node in [n for n in ast.iter_child_nodes(tree) if isinstance(n, ast.ClassDef)]:
             class_id = f"{module}.{class_node.name}"
             if class_id not in class_ids:
-                class_id = _canonical_type(class_id, class_ids)
+                class_id = _canonical_type(class_id, class_ids, class_id_lookup)
             for func in [n for n in class_node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
                 scope = f"{class_id}.{func.name}"
                 if func.name == "__init__":
-                    output["constructor_params"].extend(_constructor_params_from_ast(func, class_id, imports, class_ids))
+                    output["constructor_params"].extend(_constructor_params_from_ast(func, class_id, imports, class_ids, class_id_lookup))
                 for stmt in ast.walk(func):
                     if isinstance(stmt, ast.Assign):
-                        _append_assignment_facts(stmt, scope, output, imports, class_ids)
+                        _append_assignment_facts(stmt, scope, output, imports, class_ids, class_id_lookup)
                     elif isinstance(stmt, ast.AnnAssign) and stmt.value is not None:
-                        _append_assignment_fact(stmt.target, stmt.value, scope, output, imports, class_ids)
+                        _append_assignment_fact(stmt.target, stmt.value, scope, output, imports, class_ids, class_id_lookup)
                     elif isinstance(stmt, ast.Call):
                         call_fact = _call_fact_from_ast(stmt, scope)
                         if call_fact:
@@ -211,7 +216,13 @@ def _collect_python_source_facts(graph: GraphDocument, class_ids: set[str]) -> d
     return output
 
 
-def _constructor_params_from_ast(func: ast.FunctionDef | ast.AsyncFunctionDef, class_id: str, imports: dict[str, str], class_ids: set[str]) -> list[dict[str, Any]]:
+def _constructor_params_from_ast(
+    func: ast.FunctionDef | ast.AsyncFunctionDef,
+    class_id: str,
+    imports: dict[str, str],
+    class_ids: set[str],
+    class_id_lookup: dict[str, str | None],
+) -> list[dict[str, Any]]:
     facts = []
     for arg in func.args.args:
         if arg.arg == "self" or arg.annotation is None:
@@ -220,7 +231,7 @@ def _constructor_params_from_ast(func: ast.FunctionDef | ast.AsyncFunctionDef, c
             annotation = ast.unparse(arg.annotation)
         except Exception:
             continue
-        target_type = _canonical_type(_primary_annotation_type(annotation, imports), class_ids)
+        target_type = _canonical_type(_primary_annotation_type(annotation, imports), class_ids, class_id_lookup)
         facts.append({"class": class_id, "param": arg.arg, "type": target_type, "confidence": 0.95, "evidence": [f"{class_id}.__init__: {arg.arg}: {annotation}"]})
     return facts
 
@@ -231,9 +242,10 @@ def _append_assignment_facts(
     output: dict[str, list[dict[str, Any]]],
     imports: dict[str, str],
     class_ids: set[str],
+    class_id_lookup: dict[str, str | None],
 ) -> None:
     for target in stmt.targets:
-        _append_assignment_fact(target, stmt.value, scope, output, imports, class_ids)
+        _append_assignment_fact(target, stmt.value, scope, output, imports, class_ids, class_id_lookup)
 
 
 def _append_assignment_fact(
@@ -243,6 +255,7 @@ def _append_assignment_fact(
     output: dict[str, list[dict[str, Any]]],
     imports: dict[str, str],
     class_ids: set[str],
+    class_id_lookup: dict[str, str | None],
 ) -> None:
         try:
             target_text = ast.unparse(target)
@@ -250,7 +263,7 @@ def _append_assignment_fact(
         except Exception:
             return
         output["assignments"].append({"scope": scope, "target": target_text, "value": value_text, "confidence": 0.90, "evidence": [f"{scope}: {target_text} = {value_text}"]})
-        target_type = _assignment_value_type(value, imports, class_ids)
+        target_type = _assignment_value_type(value, imports, class_ids, class_id_lookup)
         if target_text.startswith("self.") and target_type and "." in scope:
             owner = scope.rsplit(".", 1)[0]
             output["field_bindings"].append(
@@ -270,7 +283,7 @@ def _append_assignment_fact(
                     try:
                         key_name = str(key.value)
                         entries[key_name] = ast.unparse(item_value)
-                        resolved_value_type = _assignment_value_type(item_value, imports, class_ids)
+                        resolved_value_type = _assignment_value_type(item_value, imports, class_ids, class_id_lookup)
                         if resolved_value_type:
                             value_types[key_name] = resolved_value_type
                     except Exception:
@@ -334,13 +347,18 @@ def _primary_annotation_type(annotation: str, imports: dict[str, str]) -> str:
     return imports.get(text, text)
 
 
-def _assignment_value_type(value: ast.AST, imports: dict[str, str], class_ids: set[str]) -> str | None:
+def _assignment_value_type(
+    value: ast.AST,
+    imports: dict[str, str],
+    class_ids: set[str],
+    class_id_lookup: dict[str, str | None],
+) -> str | None:
     """Infer a target type from constructor/default-factory assignment values."""
 
     call = value if isinstance(value, ast.Call) else None
     if isinstance(value, ast.BoolOp) and isinstance(value.op, ast.Or):
         for item in value.values:
-            inferred = _assignment_value_type(item, imports, class_ids)
+            inferred = _assignment_value_type(item, imports, class_ids, class_id_lookup)
             if inferred:
                 return inferred
     if not call:
@@ -349,7 +367,7 @@ def _assignment_value_type(value: ast.AST, imports: dict[str, str], class_ids: s
     if not call_name:
         return None
     resolved = imports.get(call_name, call_name)
-    return _canonical_type(resolved, class_ids)
+    return _canonical_type(resolved, class_ids, class_id_lookup)
 
 
 def _class_ids(graph: GraphDocument) -> set[str]:
@@ -366,11 +384,26 @@ def _owner_class(scope: str, class_ids: set[str]) -> str | None:
     return max(candidates, key=len) if candidates else None
 
 
-def _canonical_type(value: str, class_ids: set[str]) -> str:
+def _build_class_id_lookup(class_ids: set[str]) -> dict[str, str | None]:
+    """Index unique short class names once for the source-fact pass."""
+    lookup: dict[str, str | None] = {}
+    for class_id in class_ids:
+        tail = class_id.rsplit(".", 1)[-1]
+        if tail not in lookup:
+            lookup[tail] = class_id
+        elif lookup[tail] != class_id:
+            lookup[tail] = None
+    return lookup
+
+
+def _canonical_type(value: str, class_ids: set[str], class_id_lookup: dict[str, str | None] | None = None) -> str:
     clean = value.replace("'", "").replace('"', "")
     if clean in class_ids:
         return clean
     tail = clean.rsplit(".", 1)[-1]
+    if class_id_lookup is not None:
+        resolved = class_id_lookup.get(tail)
+        return resolved if resolved is not None else clean
     matches = [class_id for class_id in class_ids if class_id == clean or class_id.endswith("." + tail)]
     return matches[0] if len(matches) == 1 else clean
 

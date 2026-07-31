@@ -28,7 +28,10 @@ def is_tree_sitter_available() -> bool:
 def get_supported_tree_sitter_languages() -> List[str]:
     if not is_tree_sitter_available():
         return []
-    return ["javascript", "typescript", "go", "java"]
+    # These names are validated by tree-sitter-language-pack at parse time.
+    # Keeping the list explicit makes capability reporting deterministic while
+    # the pack supplies the maintained grammar binaries.
+    return ["javascript", "typescript", "go", "java", "rust", "csharp", "kotlin", "php", "ruby"]
 
 
 def get_node_text(node) -> str:
@@ -67,6 +70,81 @@ def find_go_package(root_node) -> str:
     return "main"
 
 
+def _js_binding_name(node) -> str:
+    """Return a stable source spelling for a JS/TS callable binding."""
+    if node is None:
+        return ""
+    if node.type in {"identifier", "property_identifier", "private_property_identifier"}:
+        return get_node_text(node).strip()
+    if node.type in {"member_expression", "subscript_expression"}:
+        return get_node_text(node).strip()
+    return ""
+
+
+def _js_bound_callable(node):
+    """Recognise declarations such as ``const f = () =>`` and ``app.f = function``.
+
+    Tree-sitter represents these as declarations/assignments rather than as a
+    named function node.  Handling them at the binding site makes the result
+    independent of framework conventions (Express, React handlers, Node
+    exports, TypeScript class fields, and ordinary callbacks all use it).
+    """
+    if node.type == "assignment_expression":
+        binding = node.child_by_field_name("left")
+        value = node.child_by_field_name("right")
+    elif node.type == "variable_declarator":
+        binding = node.child_by_field_name("name")
+        value = node.child_by_field_name("value")
+    elif node.type == "pair":
+        binding = node.child_by_field_name("key")
+        value = node.child_by_field_name("value")
+    elif node.type in {"public_field_definition", "field_definition"}:
+        binding = node.child_by_field_name("name")
+        value = node.child_by_field_name("value")
+    else:
+        return None
+    if value is None or value.type not in {"function_expression", "generator_function", "arrow_function"}:
+        return None
+    name = _js_binding_name(binding)
+    return (name, value) if name else None
+
+
+def _add_js_bound_callable(graph, node, rel_path, scope, imports) -> None:
+    binding = _js_bound_callable(node)
+    if binding is None:
+        return
+    name, function_node = binding
+    method_id = f"js_method:{rel_path}:{name}"
+    graph.add_node(Node(
+        id=method_id,
+        kind="METHOD",
+        name=name,
+        properties={
+            "file": rel_path,
+            "line": node.start_point[0] + 1,
+            "end_line": function_node.end_point[0] + 1,
+            "decorators": collect_decorators(node),
+            "scope": method_id,
+            "binding": name,
+            "extractor_id": "tree_sitter",
+        },
+    ))
+    if scope:
+        # Preserve the lexical owner as explicit structure.  Consumers such as
+        # the React resolver can then lift a callback's behavioural dependency
+        # to its enclosing hook without guessing from names.
+        graph.add_edge(Edge(
+            id=f"contains:{scope}:{method_id}",
+            kind="CONTAINS",
+            from_node=scope,
+            to_node=method_id,
+            source="EXTRACTED",
+            confidence=1.0,
+        ))
+    for child in function_node.children:
+        walk_js_ts(child, None, rel_path, graph, scope=method_id, imports=imports)
+
+
 def walk_js_ts(node, file_path, rel_path, graph, scope="", imports=None):
     if imports is None:
         imports = set()
@@ -98,13 +176,19 @@ def walk_js_ts(node, file_path, rel_path, graph, scope="", imports=None):
                 id=class_id,
                 kind="CLASS",
                 name=class_name,
-                properties={"file": rel_path, "line": node.start_point[0] + 1, "decorators": decs, "scope": class_id}
+                properties={"file": rel_path, "line": node.start_point[0] + 1, "end_line": node.end_point[0] + 1, "decorators": decs, "scope": class_id}
             ))
             for child in node.children:
                 walk_js_ts(child, file_path, rel_path, graph, scope=class_id, imports=imports)
             return
 
-    # 3. Functions
+    # 3. Bound functions and arrows.  This must precede generic function
+    # handling because the RHS has no name of its own.
+    elif _js_bound_callable(node) is not None:
+        _add_js_bound_callable(graph, node, rel_path, scope, imports)
+        return
+
+    # 4. Functions
     elif node_type in ("function_declaration", "generator_function_declaration"):
         name_node = None
         for child in node.children:
@@ -119,13 +203,13 @@ def walk_js_ts(node, file_path, rel_path, graph, scope="", imports=None):
                 id=func_id,
                 kind="METHOD",
                 name=func_name,
-                properties={"file": rel_path, "line": node.start_point[0] + 1, "decorators": decs, "scope": func_id}
+                properties={"file": rel_path, "line": node.start_point[0] + 1, "end_line": node.end_point[0] + 1, "decorators": decs, "scope": func_id}
             ))
             for child in node.children:
                 walk_js_ts(child, file_path, rel_path, graph, scope=func_id, imports=imports)
             return
 
-    # 4. Methods
+    # 5. Methods
     elif node_type == "method_definition":
         name_node = None
         for child in node.children:
@@ -140,13 +224,13 @@ def walk_js_ts(node, file_path, rel_path, graph, scope="", imports=None):
                 id=method_id,
                 kind="METHOD",
                 name=method_name,
-                properties={"file": rel_path, "line": node.start_point[0] + 1, "decorators": decs, "scope": method_id}
+                properties={"file": rel_path, "line": node.start_point[0] + 1, "end_line": node.end_point[0] + 1, "decorators": decs, "scope": method_id}
             ))
             for child in node.children:
                 walk_js_ts(child, file_path, rel_path, graph, scope=method_id, imports=imports)
             return
 
-    # 5. Calls
+    # 6. Calls
     elif node_type == "call_expression":
         func_child = None
         for child in node.children:
@@ -248,7 +332,7 @@ def walk_go(node, file_path, rel_path, graph, scope="", imports=None, package_na
                 id=func_id,
                 kind="METHOD",
                 name=func_name,
-                properties={"file": rel_path, "line": node.start_point[0] + 1}
+                properties={"file": rel_path, "line": node.start_point[0] + 1, "end_line": node.end_point[0] + 1}
             ))
             for child in node.children:
                 walk_go(child, file_path, rel_path, graph, scope=func_id, imports=imports, package_name=package_name)
@@ -287,7 +371,7 @@ def walk_go(node, file_path, rel_path, graph, scope="", imports=None, package_na
                 id=func_id,
                 kind="METHOD",
                 name=method_name,
-                properties={"file": rel_path, "line": node.start_point[0] + 1}
+                properties={"file": rel_path, "line": node.start_point[0] + 1, "end_line": node.end_point[0] + 1}
             ))
             for child in node.children:
                 walk_go(child, file_path, rel_path, graph, scope=func_id, imports=imports, package_name=package_name)
@@ -378,7 +462,7 @@ def walk_java(node, file_path, rel_path, graph, scope="", imports=None, package_
                 id=class_id,
                 kind="CLASS",
                 name=class_name,
-                properties={"file": rel_path, "line": node.start_point[0] + 1, "decorators": decs}
+                properties={"file": rel_path, "line": node.start_point[0] + 1, "end_line": node.end_point[0] + 1, "decorators": decs}
             ))
             for child in node.children:
                 walk_java(child, file_path, rel_path, graph, scope=class_id, imports=imports, package_name=package_name)
@@ -398,7 +482,7 @@ def walk_java(node, file_path, rel_path, graph, scope="", imports=None, package_
                 id=method_id,
                 kind="METHOD",
                 name=method_name,
-                properties={"file": rel_path, "line": node.start_point[0] + 1, "decorators": decs}
+                properties={"file": rel_path, "line": node.start_point[0] + 1, "end_line": node.end_point[0] + 1, "decorators": decs}
             ))
             for child in node.children:
                 walk_java(child, file_path, rel_path, graph, scope=method_id, imports=imports, package_name=package_name)
@@ -456,6 +540,145 @@ def walk_java(node, file_path, rel_path, graph, scope="", imports=None, package_
 
     for child in node.children:
         walk_java(child, file_path, rel_path, graph, scope=scope, imports=imports, package_name=package_name)
+
+
+# Generic native extraction is deliberately structural.  Tree-sitter grammars
+# share enough node vocabulary to give newly-supported languages accurate
+# source ranges, declarations and direct calls without pretending they have
+# Python-level type or framework resolution.
+_GENERIC_CLASS_TYPES = {
+    "class_declaration", "class_definition", "struct_item", "struct_declaration",
+    "interface_declaration", "trait_item", "enum_declaration", "enum_item",
+    "object_declaration",
+}
+_GENERIC_CALLABLE_TYPES = {
+    "function_declaration", "function_definition", "function_item",
+    "method_declaration", "method_definition", "method", "constructor_declaration",
+}
+_GENERIC_CALL_TYPES = {
+    "call_expression", "invocation_expression", "function_call_expression",
+    "method_call_expression", "call", "command",
+}
+_GENERIC_IMPORT_TYPES = {
+    "import_declaration", "import_header", "import_statement", "use_declaration",
+    "using_directive", "namespace_use_declaration", "require",
+}
+_GENERIC_NAME_TYPES = {
+    "identifier", "type_identifier", "name", "constant", "field_identifier",
+    "property_identifier", "simple_identifier",
+}
+
+
+def _generic_symbol_name(node) -> str:
+    for field in ("name", "function", "method", "object"):
+        child = node.child_by_field_name(field)
+        if child is not None:
+            value = get_node_text(child).strip()
+            if value:
+                return value
+    for child in node.named_children:
+        if child.type in _GENERIC_NAME_TYPES:
+            value = get_node_text(child).strip()
+            if value:
+                return value
+    return ""
+
+
+def walk_generic_tree_sitter(node, rel_path, graph, language, scope="", imports=None):
+    if imports is None:
+        imports = set()
+    node_type = node.type
+    module_id = f"module:{rel_path.rsplit('.', 1)[0]}"
+
+    if node_type in _GENERIC_IMPORT_TYPES:
+        value = _generic_symbol_name(node) or get_node_text(node).strip().rstrip(";")
+        if value:
+            imports.add(value.strip("'\""))
+
+    if node_type in _GENERIC_CLASS_TYPES:
+        name = _generic_symbol_name(node)
+        if name:
+            node_id = f"{language}:{rel_path}:{name}"
+            graph.add_node(Node(
+                id=node_id, kind="CLASS", name=name,
+                properties={"file": rel_path, "line": node.start_point[0] + 1, "end_line": node.end_point[0] + 1,
+                            "scope": node_id, "extractor_id": "tree_sitter_generic"},
+            ))
+            graph.add_edge(Edge(
+                id=f"{scope or module_id}__DECLARES__{node_id}", kind="DECLARES", from_node=scope or module_id,
+                to_node=node_id, source="EXTRACTED", confidence=0.60,
+                evidence=[Evidence(file=rel_path, line=node.start_point[0] + 1, description=f"{language} declaration: {name}")],
+                properties={"extractor_id": "tree_sitter_generic"},
+            ))
+            for child in node.children:
+                walk_generic_tree_sitter(child, rel_path, graph, language, scope=node_id, imports=imports)
+            return
+
+    if node_type in _GENERIC_CALLABLE_TYPES:
+        name = _generic_symbol_name(node)
+        if name:
+            node_id = f"{scope}.{name}" if scope else f"{language}:{rel_path}:{name}"
+            graph.add_node(Node(
+                id=node_id, kind="METHOD", name=name,
+                properties={"file": rel_path, "line": node.start_point[0] + 1, "end_line": node.end_point[0] + 1,
+                            "scope": node_id, "extractor_id": "tree_sitter_generic"},
+            ))
+            graph.add_edge(Edge(
+                id=f"{scope or module_id}__DECLARES__{node_id}", kind="DECLARES", from_node=scope or module_id,
+                to_node=node_id, source="EXTRACTED", confidence=0.60,
+                evidence=[Evidence(file=rel_path, line=node.start_point[0] + 1, description=f"{language} callable: {name}")],
+                properties={"extractor_id": "tree_sitter_generic"},
+            ))
+            for child in node.children:
+                walk_generic_tree_sitter(child, rel_path, graph, language, scope=node_id, imports=imports)
+            return
+
+    if node_type in _GENERIC_CALL_TYPES:
+        call_name = _generic_symbol_name(node)
+        if call_name and scope:
+            line = node.start_point[0] + 1
+            call_id = f"call_expr:{rel_path}:{line}:{node.start_point[1]}"
+            graph.add_node(Node(
+                id=call_id, kind="CALL_EXPR", name=call_name,
+                properties={"file": rel_path, "line": line, "scope": scope, "call_name": call_name,
+                            "extractor_id": "tree_sitter_generic"},
+            ))
+            graph.add_edge(Edge(
+                id=f"ts_generic_call__{scope}__{call_name}__{line}", kind="CALLS", from_node=scope,
+                to_node=call_name, source="EXTRACTED", confidence=0.60,
+                evidence=[Evidence(file=rel_path, line=line, description=f"Static {language} call: {call_name}")],
+                properties={"extractor_id": "tree_sitter_generic"},
+            ))
+
+    for child in node.children:
+        walk_generic_tree_sitter(child, rel_path, graph, language, scope=scope, imports=imports)
+
+
+def resolve_generic_local_calls(graph: GraphDocument, rel_path: str) -> None:
+    """Resolve unqualified calls when one same-file declaration proves target.
+
+    This is intentionally bounded: overloaded names and cross-file imports stay
+    unresolved rather than being guessed.  It gives every generic Tree-sitter
+    language a useful local call graph without claiming type-aware dispatch.
+    """
+    methods_by_name: dict[str, list[Node]] = {}
+    for node in graph.nodes:
+        node_file = str(node.properties.get("file") or node.properties.get("path") or "").replace("\\", "/")
+        if node.kind == "METHOD" and node_file == rel_path:
+            methods_by_name.setdefault(node.name, []).append(node)
+    for edge in list(graph.edges):
+        if edge.kind != "CALLS" or edge.properties.get("extractor_id") != "tree_sitter_generic":
+            continue
+        candidates = methods_by_name.get(edge.to_node, [])
+        if len(candidates) != 1:
+            continue
+        target = candidates[0]
+        graph.add_edge(Edge(
+            id=f"ts_generic_local_call__{edge.from_node}__{target.id}", kind="RESOLVES_TO",
+            from_node=edge.from_node, to_node=target.id, source="INFERRED", confidence=0.80,
+            evidence=list(edge.evidence),
+            properties={"extractor_id": "tree_sitter_generic", "resolution": "unique_same_file_callable"},
+        ))
 
 
 
@@ -569,6 +792,44 @@ def _fallback_extract_js_ts(file_path: Path, rel_path: str, lang_name: str, grap
         line = _line_for_offset(content, fm.start())
         graph.add_node(Node(id=func_id, kind="METHOD", name=name, properties={"file": rel_path, "line": line, "scope": func_id, "extractor_id": "tree_sitter_fallback"}))
         graph.add_edge(Edge(id=f"{module_id}__DECLARES__{func_id}", kind="DECLARES", from_node=module_id, to_node=func_id, source="EXTRACTED", confidence=0.60, evidence=[Evidence(file=rel_path, line=line, description=f"Fallback function declaration: {name}")], properties={"extractor_id": "tree_sitter_fallback"}))
+
+    # Function-valued bindings are the JS/TS equivalent of a named function
+    # declaration.  Keep this fallback deliberately narrow: it recognises only
+    # an identifier/member binding followed by a real function/arrow body,
+    # never a call expression or arbitrary assignment.
+    bound_pattern = re.compile(
+        r"(?m)^\s*((?:[A-Za-z_$][\w$]*\.)*[A-Za-z_$][\w$]*)\s*=\s*"
+        r"(?:async\s+)?(?:function(?:\s+[A-Za-z_$][\w$]*)?\s*\([^)]*\)|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)\s*\{"
+    )
+    for bm in bound_pattern.finditer(clean):
+        binding = bm.group(1)
+        start_brace = clean.find("{", bm.end() - 1)
+        end_brace = _find_matching_brace(clean, start_brace)
+        method_id = f"js_method:{rel_path}:{binding}"
+        line = _line_for_offset(content, bm.start())
+        graph.add_node(Node(
+            id=method_id,
+            kind="METHOD",
+            name=binding,
+            properties={
+                "file": rel_path,
+                "line": line,
+                "end_line": _line_for_offset(content, end_brace),
+                "scope": method_id,
+                "binding": binding,
+                "extractor_id": "tree_sitter_fallback",
+            },
+        ))
+        graph.add_edge(Edge(
+            id=f"{module_id}__DECLARES__{method_id}",
+            kind="DECLARES",
+            from_node=module_id,
+            to_node=method_id,
+            source="EXTRACTED",
+            confidence=0.60,
+            evidence=[Evidence(file=rel_path, line=line, description=f"Fallback bound callable: {binding}")],
+            properties={"extractor_id": "tree_sitter_fallback"},
+        ))
 
 
 def _fallback_extract_go(file_path: Path, rel_path: str, graph: GraphDocument) -> None:
@@ -689,15 +950,9 @@ def extract_tree_sitter_file(file_path: Path, rel_path: str, lang_name: str, gra
                 walk_java(tree.root_node, file_path, rel_path, graph, imports=imports, package_name=pkg)
                 mod_id = f"module:{rel_path.rsplit('.', 1)[0]}"
             else:
-                diagnostics.append({
-                    "file": rel_path,
-                    "language": lang_name,
-                    "status": "skipped",
-                    "reason": f"Unsupported language: {lang_name}",
-                    "extractor_id": "tree_sitter",
-                    "parser_runtime": "tree-sitter-language-pack"
-                })
-                return
+                walk_generic_tree_sitter(tree.root_node, rel_path, graph, lang_name, imports=imports)
+                resolve_generic_local_calls(graph, rel_path)
+                mod_id = f"module:{rel_path.rsplit('.', 1)[0]}"
                 
             # Add MODULE node mapping if not added by parser
             if not any(n.id == mod_id for n in graph.nodes):
@@ -760,13 +1015,18 @@ def extract_tree_sitter_project(
     if languages is None:
         languages = get_supported_tree_sitter_languages()
         if not languages:
-            languages = ["javascript", "typescript", "go", "java"]
+            languages = ["javascript", "typescript", "go", "java", "rust", "csharp", "kotlin", "php", "ruby"]
 
     lang_ext_map = {
         "javascript": [".js", ".jsx"],
         "typescript": [".ts", ".tsx"],
         "go": [".go"],
-        "java": [".java"]
+        "java": [".java"],
+        "rust": [".rs"],
+        "csharp": [".cs"],
+        "kotlin": [".kt", ".kts"],
+        "php": [".php"],
+        "ruby": [".rb"],
     }
     selected = set()
     for item in files or []:

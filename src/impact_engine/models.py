@@ -2,7 +2,7 @@
 import json
 import hashlib
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, overload
 
 # Predefined schema sets from docs/GRAPH_SCHEMA.md
 NODE_KINDS = {
@@ -34,6 +34,16 @@ SOURCE_PRIORITY = {
     "AI_PROPOSED": 5,
 }
 
+# These keys are attached after extraction for presentation, graph hygiene, or
+# incremental bookkeeping.  They must never make an unchanged source fact look
+# modified on the next incremental run.
+_FACT_VOLATILE_PROPERTIES = {
+    "line", "absolute_path", "timestamp", "stable_id", "canonical_identity",
+    "community_id", "graph_degree", "is_hub", "source_fact_ids",
+    "dependency_keys", "resolver_id", "observations", "resolution_status",
+    "evidence_class", "validation_status", "quality_guard", "warnings",
+}
+
 
 def _evidence_key(ev: "Evidence") -> Tuple[Any, ...]:
     return (ev.description, ev.file, ev.line, ev.source)
@@ -47,7 +57,7 @@ class Evidence:
     source: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        res = {"description": self.description}
+        res: Dict[str, Any] = {"description": self.description}
         if self.file is not None:
             res["file"] = self.file
         if self.line is not None:
@@ -109,6 +119,12 @@ class Edge:
     def rule_id(self) -> str:
         return str(self.properties.get("support_pack_rule_id") or self.properties.get("rule_id") or "")
 
+    @overload
+    def semantic_key(self, include_source: Literal[True] = True) -> Tuple[str, str, str, str, str]: ...
+
+    @overload
+    def semantic_key(self, include_source: Literal[False]) -> Tuple[str, str, str, str]: ...
+
     def semantic_key(self, include_source: bool = True) -> Tuple[str, str, str, str, str] | Tuple[str, str, str, str]:
         base = (self.from_node, self.to_node, self.kind, self.rule_id)
         if include_source:
@@ -135,7 +151,7 @@ class GraphDocument:
     metadata: Dict[str, Any] = field(default_factory=dict)
     # Runtime-only indexes. They are intentionally excluded from serialization.
     _node_index: Dict[str, Node] = field(default_factory=dict, init=False, repr=False)
-    _edge_index: Dict[Tuple[str, str, str, str], Edge] = field(default_factory=dict, init=False, repr=False)
+    _edge_index: Dict[Tuple[str, str, str, str, str], Edge] = field(default_factory=dict, init=False, repr=False)
     _edge_base_index: Dict[Tuple[str, str, str, str], Edge] = field(default_factory=dict, init=False, repr=False)
     _edge_id_index: Dict[str, Edge] = field(default_factory=dict, init=False, repr=False)
     _incoming_index: Dict[str, List[Edge]] = field(default_factory=dict, init=False, repr=False)
@@ -236,14 +252,16 @@ class GraphDocument:
         # Conflict resolution: same semantic edge and rule id, different source -> keep higher-priority provenance.
         conflict = self._edge_base_index.get(edge.semantic_key(False))
         if conflict is not None:
+            old_exact_key = conflict.semantic_key(True)
             self._merge_edge(conflict, edge)
-            self._rebuild_edge_indexes()
+            self._refresh_merged_edge_indexes(conflict, old_exact_key)
             return
         # Id dedupe fallback.
         same_id = self._edge_id_index.get(edge.id)
         if same_id is not None:
+            old_exact_key = same_id.semantic_key(True)
             self._merge_edge(same_id, edge)
-            self._rebuild_edge_indexes()
+            self._refresh_merged_edge_indexes(same_id, old_exact_key)
             return
         self.edges.append(edge)
         self._edge_index[edge.semantic_key(True)] = edge
@@ -261,6 +279,20 @@ class GraphDocument:
         for edge in self.edges:
             self._incoming_index.setdefault(edge.to_node, []).append(edge)
             self._outgoing_index.setdefault(edge.from_node, []).append(edge)
+
+    def _refresh_merged_edge_indexes(self, edge: Edge, old_exact_key: Tuple[str, str, str, str, str]) -> None:
+        """Refresh only keys changed by provenance merging.
+
+        Resolver passes routinely rediscover the same logical edge with a
+        different source. Rebuilding every index for every collision makes full
+        semantic analysis quadratic on large repositories, although endpoints
+        and adjacency lists do not change.
+        """
+        if self._edge_index.get(old_exact_key) is edge:
+            del self._edge_index[old_exact_key]
+        self._edge_index[edge.semantic_key(True)] = edge
+        self._edge_base_index[edge.semantic_key(False)] = edge
+        self._edge_id_index[edge.id] = edge
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -334,7 +366,7 @@ class FactDocument:
     def from_graph(cls, graph: GraphDocument) -> "FactDocument":
         facts = cls()
         def stable_fact(kind: str, subject: str, target: str | None, properties: dict[str, Any], file: str | None, line: int | None) -> dict[str, Any]:
-            normalized = {str(k): v for k, v in properties.items() if k not in {"line", "absolute_path", "timestamp"}}
+            normalized = {str(k): v for k, v in properties.items() if k not in _FACT_VOLATILE_PROPERTIES}
             identity = json.dumps({"kind": kind, "subject": subject, "target": target, "properties": normalized, "file": str(file or "").replace("\\", "/")}, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
             return {"fact_id": "fact:" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:20], "fact_kind": kind, "language": _fact_language(str(file or "")), "file": file, "scope": properties.get("scope"), "canonical_subject": subject, "canonical_target": target, "normalized_properties": normalized, "evidence_line": line}
         for node in graph.nodes:
@@ -413,8 +445,16 @@ class FactDiff:
 
 
 def diff_fact_documents(old: FactDocument, new: FactDocument, changed_files: list[str]) -> FactDiff:
-    old_map = {fact.get("fact_id"): fact for fact in old.facts if fact.get("fact_id")}
-    new_map = {fact.get("fact_id"): fact for fact in new.facts if fact.get("fact_id")}
+    old_map: dict[str, dict[str, Any]] = {}
+    new_map: dict[str, dict[str, Any]] = {}
+    for fact in old.facts:
+        fact_id = fact.get("fact_id")
+        if isinstance(fact_id, str) and fact_id:
+            old_map[fact_id] = fact
+    for fact in new.facts:
+        fact_id = fact.get("fact_id")
+        if isinstance(fact_id, str) and fact_id:
+            new_map[fact_id] = fact
     old_ids, new_ids = set(old_map), set(new_map)
     modified = []
     for fact_id in old_ids & new_ids:

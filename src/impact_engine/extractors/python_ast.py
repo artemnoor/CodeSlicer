@@ -19,7 +19,7 @@ class ASTFactExtractor(ast.NodeVisitor):
         self.current_class = None
         self.current_method = None
         self.scope = module_name
-        self.imports = {}
+        self.imports: dict[str, str] = {}
 
     def _module_node(self):
         module_id = f"module:{self.module_name}"
@@ -79,6 +79,9 @@ class ASTFactExtractor(ast.NodeVisitor):
             properties={
                 "module": self.module_name,
                 "class": full_class_name,
+                "file": self.relative_path,
+                "line": node.lineno,
+                "end_line": getattr(node, "end_lineno", node.lineno),
                 "bases": [self.imports.get(ast.unparse(base), f"{self.module_name}.{ast.unparse(base)}") for base in node.bases],
             }
         )
@@ -103,7 +106,7 @@ class ASTFactExtractor(ast.NodeVisitor):
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
         self._visit_func(node)
 
-    def _visit_func(self, node: ast.AST):
+    def _visit_func(self, node: ast.FunctionDef | ast.AsyncFunctionDef):
         func_name = node.name
         old_method = self.current_method
         old_scope = self.scope
@@ -132,7 +135,8 @@ class ASTFactExtractor(ast.NodeVisitor):
             "name": func_name,
             "scope": self.scope,
             "file": self.relative_path,
-            "line": node.lineno
+            "line": node.lineno,
+            "end_line": getattr(node, "end_lineno", node.lineno),
         }
         if decorators:
             properties["decorators"] = decorators
@@ -154,9 +158,10 @@ class ASTFactExtractor(ast.NodeVisitor):
                             pass
             if param_order:
                 properties["param_order"] = param_order
-        if getattr(node, "returns", None) is not None:
+        return_annotation = node.returns
+        if return_annotation is not None:
             try:
-                return_text = ast.unparse(node.returns)
+                return_text = ast.unparse(return_annotation)
                 properties["return_type"] = self.imports.get(return_text, f"{self.module_name}.{return_text}")
             except Exception:
                 pass
@@ -230,61 +235,86 @@ class ASTFactExtractor(ast.NodeVisitor):
             self.add_fact_edge(edge_id, "IMPORTS", module_id, target_module_id, node.lineno, f"Module {self.module_name} imports from {node.module}")
         self.generic_visit(node)
 
-    def visit_Assign(self, node: ast.Assign):
+    def _record_assignment(
+        self,
+        target: ast.expr,
+        value: ast.expr,
+        lineno: int,
+        annotation: ast.expr | None = None,
+    ) -> None:
+        """Emit one assignment fact without losing the Python binding form.
+
+        ``AnnAssign`` is not merely syntax decoration in a typed Python code
+        base: it is often the only project-local evidence of the concrete
+        object stored in a dependency field.  Keep it on the same fact shape as
+        a regular assignment, so the resolver can apply identical conservative
+        data-flow rules to both forms.
+        """
         if self.current_method:
             parent_id = f"method:{self.scope}"
         else:
             parent_id = f"module:{self.scope}"
 
         method_id = parent_id
-        
+        target_str = ast.unparse(target)
+
+        if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and target.value.id == "self":
+            target_kind = "self_attribute"
+        else:
+            target_kind = "local"
+
+        value_str = ast.unparse(value)
+        props: dict[str, object] = {
+            "target": target_str,
+            "value": value_str,
+            "scope": self.scope,
+            "target_kind": target_kind,
+        }
+        if annotation is not None:
+            annotation_text = ast.unparse(annotation)
+            # Resolve direct imported aliases while retaining the original
+            # spelling for built-ins and generic wrappers.
+            props["annotation"] = self.imports.get(annotation_text, annotation_text)
+
+        if isinstance(value, ast.Call):
+            call_name = ast.unparse(value.func)
+            props["call_name"] = call_name
+            kw_args = {}
+            for kw in value.keywords:
+                if kw.arg:
+                    kw_args[kw.arg] = ast.unparse(kw.value)
+            props["keyword_args"] = kw_args
+            if value.args:
+                props["args"] = [ast.unparse(arg) for arg in value.args]
+
+        assignment_id = f"assignment:{self.scope}:{lineno}:{target_str}"
+        self.add_fact_node(
+            node_id=assignment_id,
+            kind="ASSIGNMENT",
+            name=f"{target_str} = {value_str}",
+            properties=props,
+        )
+
+        edge_id = f"{method_id}__CONTAINS__{assignment_id}"
+        self.add_fact_edge(
+            edge_id=edge_id,
+            kind="CONTAINS",
+            from_node=method_id,
+            to_node=assignment_id,
+            lineno=lineno,
+            description=f"Method contains assignment to {target_str}",
+        )
+
+    def visit_Assign(self, node: ast.Assign):
         for target in node.targets:
-            target_str = ast.unparse(target)
-            
-            if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and target.value.id == "self":
-                target_kind = "self_attribute"
-            else:
-                target_kind = "local"
-                
-            value_str = ast.unparse(node.value)
-            
-            props = {
-                "target": target_str,
-                "value": value_str,
-                "scope": self.scope,
-                "target_kind": target_kind
-            }
-            
-            if isinstance(node.value, ast.Call):
-                call_name = ast.unparse(node.value.func)
-                props["call_name"] = call_name
-                kw_args = {}
-                for kw in node.value.keywords:
-                    if kw.arg:
-                        kw_args[kw.arg] = ast.unparse(kw.value)
-                props["keyword_args"] = kw_args
-                if node.value.args:
-                    props["args"] = [ast.unparse(arg) for arg in node.value.args]
-                
-            assignment_id = f"assignment:{self.scope}:{node.lineno}:{target_str}"
-            
-            self.add_fact_node(
-                node_id=assignment_id,
-                kind="ASSIGNMENT",
-                name=f"{target_str} = {value_str}",
-                properties=props
-            )
-            
-            edge_id = f"{method_id}__CONTAINS__{assignment_id}"
-            self.add_fact_edge(
-                edge_id=edge_id,
-                kind="CONTAINS",
-                from_node=method_id,
-                to_node=assignment_id,
-                lineno=node.lineno,
-                description=f"Method contains assignment to {target_str}"
-            )
-            
+            self._record_assignment(target, node.value, node.lineno)
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign):
+        # An annotation without a value is a declaration rather than an object
+        # binding; resolving it as a runtime type would fabricate call edges.
+        if node.value is not None:
+            self._record_assignment(node.target, node.value, node.lineno, node.annotation)
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call):
@@ -416,7 +446,7 @@ def extract_project(
             id=module_id,
             kind="MODULE",
             name=module_name,
-            properties={"name": module_name}
+            properties={"name": module_name, "file": rel_path}
         ))
         
         edge_id = f"{file_id}__CONTAINS__{module_id}"

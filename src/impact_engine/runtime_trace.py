@@ -86,9 +86,11 @@ def runtime_trace_project_core(
     if graph_path:
         graph = GraphDocument.from_json(Path(graph_path).read_text(encoding="utf-8"))
     else:
+        from impact_engine.analysis_lock import analysis_lock
         from impact_engine.analysis.pipeline import analyze_project_core
 
-        analysis = analyze_project_core(str(project))
+        with analysis_lock(project, owner="runtime-trace"):
+            analysis = analyze_project_core(str(project))
         graph = GraphDocument.from_dict(analysis["graph"])
 
     trace = run_runtime_trace_boost(

@@ -6,13 +6,14 @@ from impact_engine.languages.semantics import build_language_capability_diagnost
 
 def test_list_language_profiles():
     profiles = list_language_profiles()
-    assert len(profiles) >= 5
+    assert len(profiles) >= 10
     ids = {p.language_id for p in profiles}
     assert "python" in ids
     assert "javascript" in ids
     assert "typescript" in ids
     assert "go" in ids
     assert "java" in ids
+    assert {"rust", "csharp", "kotlin", "php", "ruby"} <= ids
 
 
 def test_get_language_profile():
@@ -77,6 +78,13 @@ def test_language_semantic_provider_capabilities_are_honest():
     assert java.capabilities.structural_extraction is True
     assert java.capabilities.call_resolution == "semantic"
     assert java.capabilities.framework_rules is True
+
+    for language in ("rust", "csharp", "kotlin", "php", "ruby"):
+        provider = get_language_semantic_provider(language)
+        assert provider is not None
+        assert provider.capabilities.structural_extraction is True
+        assert provider.capabilities.call_resolution == "limited"
+        assert provider.capabilities.production_semantic_baseline is False
 
 
 def test_build_language_capability_diagnostics_contains_unknown_fallback():
