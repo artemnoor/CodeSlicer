@@ -287,6 +287,10 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  async showDemo(): Promise<void> {
+    await this.view?.webview.postMessage({ type: "showDemo" });
+  }
+
   async applyDemoChange(): Promise<void> {
     const project = this.state.demo.projectPath;
     if (!project) return;
@@ -606,7 +610,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
         sourceCurrent: () => this.setReviewSource("current-changes"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
-        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), openProject: () => this.openOrCreateProject(), importGit: () => this.importFromGit()
+        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), openProject: () => this.openOrCreateProject(), importGit: () => this.importFromGit(), showDemo: () => this.showDemo()
       };
       await actions[message.action || ""]?.();
       return;

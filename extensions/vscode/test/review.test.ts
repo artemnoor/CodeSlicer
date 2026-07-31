@@ -22,6 +22,7 @@ test("first screen reacts to an empty folder and offers safe next steps", () => 
   assert.match(html, /data-action="openProject"/);
   assert.match(html, /data-action="importGit"/);
   assert.match(html, /data-demo-start/);
+  assert.match(html, /data-demo-next/);
   assert.match(html, /не скачивает файлы, не запускает CLI/);
 });
 
@@ -33,7 +34,7 @@ test("ready project starts with install and review instead of empty-folder actio
   assert.match(html, /safe simulation/);
 });
 
-test("router opens Start first, changes tabs, and forwards only explicit actions", () => {
+test("router opens Start first, changes tabs, and starts the demo from a real button click", () => {
   const elements = new Map<string, any>();
   const messages: unknown[] = [];
   const listeners: Record<string, (event: any) => void> = {};
@@ -41,13 +42,18 @@ test("router opens Start first, changes tabs, and forwards only explicit actions
   const get = (id: string) => { if (!elements.has(id)) elements.set(id, makeElement()); return elements.get(id); };
   const tabs = ["start", "check", "result", "tests", "architecture", "settings"].map(tab => ({ ...makeElement(), dataset: { tab } }));
   const documentStub: any = { getElementById: get, querySelectorAll: (selector: string) => selector === "[role=tab]" ? tabs : [], querySelector: (selector: string) => tabs.find(tab => selector.includes(tab.dataset.tab)), addEventListener: (type: string, listener: (event: any) => void) => { listeners[type] = listener; } };
-  new Function("document", "acquireVsCodeApi", clientRouter)(documentStub, () => ({ getState: () => undefined, setState() {}, postMessage: (message: unknown) => messages.push(message) }));
+  new Function("document", "acquireVsCodeApi", "setTimeout", "clearTimeout", clientRouter)(documentStub, () => ({ getState: () => undefined, setState() {}, postMessage: (message: unknown) => messages.push(message) }), () => 0, () => {});
   const click = (dataset: Record<string, string>) => listeners.click({ target: { dataset, closest() { return this; } } });
   assert.equal(tabs[0].attributes["aria-selected"], "true");
   click({ tab: "check" });
   assert.equal(tabs[1].attributes["aria-selected"], "true");
   click({ action: "installRuntime" });
   assert.deepEqual(messages, [{ type: "action", action: "installRuntime" }]);
+  click({ demoStart: "", action: "showDemo" });
+  assert.equal(tabs[1].attributes["aria-selected"], "true");
+  assert.deepEqual(messages[1], { type: "action", action: "showDemo" });
+  click({ demoNext: "" });
+  assert.equal(tabs[2].attributes["aria-selected"], "true");
 });
 
 test("automatic install and optional IDE picker are exposed without the former guide", () => {
@@ -64,11 +70,13 @@ test("automatic install and optional IDE picker are exposed without the former g
 });
 
 test("demo uses the actual tab router and does not post a process action", () => {
-  assert.match(clientRouter, /selectTab\('check'\)/);
+  assert.match(clientRouter, /selectTab\('check',true\)/);
   assert.match(clientRouter, /typeValue\('main'\)/);
-  assert.match(clientRouter, /selectTab\('result'\)/);
-  assert.match(clientRouter, /selectTab\('tests'\)/);
-  assert.match(clientRouter, /selectTab\('architecture'\)/);
+  assert.match(clientRouter, /selectTab\('result',true\)/);
+  assert.match(clientRouter, /selectTab\('tests',true\)/);
+  assert.match(clientRouter, /selectTab\('architecture',true\)/);
+  assert.match(clientRouter, /dataset\.demoStart.*action:'showDemo'/);
+  assert.match(clientRouter, /dataset\.demoNext/);
   assert.doesNotMatch(clientRouter, /postMessage\(\{type:'action',action:'(?:startDemo|applyDemoChange|reviewDemo|testDemo)'/);
 });
 

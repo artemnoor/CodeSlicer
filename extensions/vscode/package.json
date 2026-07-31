@@ -2,7 +2,7 @@
   "name": "codeslicer-impact-cockpit",
   "displayName": "CodeSlicer",
   "description": "See the risk, evidence, and tests behind your local Git changes before review.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "publisher": "CodeSlicer",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/artemnoor/CodeSlicer.git" },
