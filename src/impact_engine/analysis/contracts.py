@@ -21,6 +21,7 @@ class AnalysisOptions:
     scope: str | None = None
     memory_budget_mb: int | None = None
     time_budget_seconds: float | None = None
+    force_full_resolution: bool = False
 
 
 @dataclass

@@ -612,6 +612,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                 "enable_remote_registry": args.remote_registry,
                 "create_research_requests": not args.no_research_requests,
                 "graphify_path": args.graphify,
+                "force_full_resolution": args.full_resolution,
             })
         else:
             with CacheLock(args.path, owner="cli-analyze"):
@@ -619,6 +620,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                     args.path, out_path=out_path, enable_remote_registry=args.remote_registry,
                     create_research_requests=not args.no_research_requests, graphify_path=args.graphify,
                     progress_callback=report_progress, scope=args.scope, cancellation=cancellation,
+                    force_full_resolution=args.full_resolution,
                 )
 
         try:

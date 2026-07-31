@@ -56,6 +56,7 @@ class _Daemon:
                 raw_graph_cache_path=params.get("raw_graph_cache_path"), scope=scope,
                 create_research_requests=bool(params.get("create_research_requests", True)),
                 enable_remote_registry=bool(params.get("enable_remote_registry", False)),
+                force_full_resolution=bool(params.get("force_full_resolution", False)),
                 cancellation=task.cancellation,
             )
         if method == "analyze-incremental":

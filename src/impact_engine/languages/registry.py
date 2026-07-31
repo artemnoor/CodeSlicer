@@ -10,6 +10,10 @@ from impact_engine.languages.semantics import (
     PYTHON_SEMANTICS,
     TYPESCRIPT_SEMANTICS,
     CPP_SEMANTICS,
+    RUST_SEMANTICS,
+    KOTLIN_SEMANTICS,
+    PHP_SEMANTICS,
+    RUBY_SEMANTICS,
 )
 
 # Pre-defined profiles
@@ -87,6 +91,30 @@ CPP_PROFILE = LanguageProfile(
     semantic_provider=CPP_SEMANTICS,
 )
 
+RUST_PROFILE = LanguageProfile(
+    language_id="rust", display_name="Rust", file_extensions={".rs"},
+    package_manifest_files={"cargo.toml"}, standard_library_modules={"std", "core", "alloc"},
+    default_extractor_id="tree_sitter", semantic_provider=RUST_SEMANTICS,
+)
+
+KOTLIN_PROFILE = LanguageProfile(
+    language_id="kotlin", display_name="Kotlin", file_extensions={".kt", ".kts"},
+    package_manifest_files={"build.gradle.kts"}, standard_library_modules={"kotlin", "java"},
+    default_extractor_id="tree_sitter", semantic_provider=KOTLIN_SEMANTICS,
+)
+
+PHP_PROFILE = LanguageProfile(
+    language_id="php", display_name="PHP", file_extensions={".php"},
+    package_manifest_files={"composer.json"}, standard_library_modules=set(),
+    default_extractor_id="tree_sitter", semantic_provider=PHP_SEMANTICS,
+)
+
+RUBY_PROFILE = LanguageProfile(
+    language_id="ruby", display_name="Ruby", file_extensions={".rb"},
+    package_manifest_files={"gemfile", "gemspec"}, standard_library_modules=set(),
+    default_extractor_id="tree_sitter", semantic_provider=RUBY_SEMANTICS,
+)
+
 PROFILES = {
     "python": PYTHON_PROFILE,
     "javascript": JAVASCRIPT_PROFILE,
@@ -95,6 +123,10 @@ PROFILES = {
     "java": JAVA_PROFILE,
     "csharp": CSHARP_PROFILE,
     "cpp": CPP_PROFILE,
+    "rust": RUST_PROFILE,
+    "kotlin": KOTLIN_PROFILE,
+    "php": PHP_PROFILE,
+    "ruby": RUBY_PROFILE,
 }
 
 

@@ -18,18 +18,17 @@ def get_node_location(node_id: str, doc: GraphDocument) -> Tuple[Optional[str], 
 
 
 def module_for_scope(scope: str, graph: GraphDocument) -> str:
-    longest_module = ""
-    for node in graph.nodes:
-        if node.kind == "MODULE":
-            mod_name = node.id
-            if mod_name.startswith("module:"):
-                mod_name = mod_name[7:]
-            if scope == mod_name or scope.startswith(mod_name + "."):
-                if len(mod_name) > len(longest_module):
-                    longest_module = mod_name
-    if longest_module:
-        return longest_module
-    return scope.split(".")[0]
+    cache = getattr(graph, "_module_scope_cache", None)
+    if not isinstance(cache, dict):
+        cache = {"scopes": {}, "modules": sorted({
+            node.id[7:] if node.id.startswith("module:") else node.id
+            for node in graph.nodes if node.kind == "MODULE"
+        }, key=len, reverse=True)}
+        setattr(graph, "_module_scope_cache", cache)
+    scopes = cache["scopes"]
+    if scope not in scopes:
+        scopes[scope] = next((name for name in cache["modules"] if scope == name or scope.startswith(name + ".")), scope.split(".")[0])
+    return scopes[scope]
 
 
 def build_module_scope_resolver(graph: GraphDocument) -> Callable[[str], str]:

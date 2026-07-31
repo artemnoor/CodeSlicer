@@ -21,7 +21,70 @@ from impact_engine.incremental_index import affected_closure
 from impact_engine.resolver_registry import list_resolver_contracts
 from impact_engine.selective_execution import ResolverExecutionPlan, ResolverContextBuilder
 from impact_engine.security import validate_project_path
-from impact_engine.persistence import CancellationToken, project_snapshot as persistent_project_snapshot
+from impact_engine.persistence import (
+    CancellationToken,
+    project_snapshot as persistent_project_snapshot,
+    project_snapshot_stats,
+)
+
+
+SNAPSHOT_SCHEMA_VERSION = 2
+MAX_INCREMENTAL_FACT_DELTA = 5_000
+MAX_INCREMENTAL_GRAPH_NODES = 30_000
+MAX_INCREMENTAL_CALL_SITES = 12_000
+
+
+def project_snapshot_state(
+    project_path: str | Path,
+    previous_snapshot: dict[str, Any] | None = None,
+    scope: str | None = None,
+) -> dict[str, Any]:
+    """Return a versioned snapshot and reuse hashes for unchanged files.
+
+    The persistent cache remains the source of truth for scope decisions.  The
+    stat record is only a fast path: a changed size or mtime always causes a
+    content hash to be recomputed.
+    """
+    root = validate_project_path(project_path)
+    previous_files = previous_snapshot.get("files", {}) if isinstance(previous_snapshot, dict) else {}
+    stats = project_snapshot_stats(root, scope)
+    files: dict[str, dict[str, int | str]] = {}
+    for relative, stat in stats.items():
+        prior = previous_files.get(relative) if isinstance(previous_files, dict) else None
+        if (
+            isinstance(prior, dict)
+            and prior.get("size") == stat.get("size")
+            and prior.get("mtime_ns") == stat.get("mtime_ns")
+            and isinstance(prior.get("sha256"), str)
+        ):
+            digest = prior["sha256"]
+        else:
+            try:
+                digest = hashlib.sha256((root / relative).read_bytes()).hexdigest()
+            except OSError:
+                continue
+        files[relative] = {
+            "size": int(stat.get("size", 0)),
+            "mtime_ns": int(stat.get("mtime_ns", 0)),
+            "sha256": digest,
+        }
+    return {"schema_version": SNAPSHOT_SCHEMA_VERSION, "files": files}
+
+
+def normalize_changed_files(project_path: str | Path, paths: list[str] | None) -> list[str] | None:
+    """Canonicalize editor or Git paths and reject paths outside the project."""
+    if paths is None:
+        return None
+    root = validate_project_path(project_path)
+    normalized: set[str] = set()
+    for value in paths:
+        candidate = Path(value)
+        resolved = candidate.resolve() if candidate.is_absolute() else (root / candidate).resolve()
+        try:
+            normalized.add(resolved.relative_to(root).as_posix())
+        except ValueError as exc:
+            raise ValueError(f"Changed path is outside the project: {value}") from exc
+    return sorted(normalized)
 
 
 def project_snapshot(project_path: str | Path, scope: str | None = None) -> dict[str, str]:
@@ -109,20 +172,48 @@ def incremental_update(
     fact_diff = diff_fact_documents(old_facts, new_facts, changed)
     result["fact_diff"] = fact_diff.to_dict()
     graph.metadata["fact_diff"] = fact_diff.to_dict()
-    fact_by_location = {(fact.get("file"), fact.get("evidence_line")): fact for fact in new_facts.facts}
-    for edge in graph.edges:
-        ids = []
-        for evidence in edge.evidence:
-            fact = fact_by_location.get((evidence.file, evidence.line))
-            if fact and fact.get("fact_id"):
-                ids.append(fact["fact_id"])
-        if not ids:
-            ids = [fact["fact_id"] for fact in new_facts.facts if fact.get("canonical_subject") in {edge.from_node, edge.to_node}][:8]
-        if ids:
-            edge.properties.setdefault("source_fact_ids", sorted(set(ids)))
-            edge.properties.setdefault("dependency_keys", sorted({f"symbol:{value}" for value in (edge.from_node, edge.to_node)}))
-            edge.properties.setdefault("resolver_id", edge.properties.get("resolver_hook_name") or edge.properties.get("extractor_id") or "unknown")
-    closure = affected_closure(graph, fact_diff.to_dict(), (old_facts, new_facts))
+    fact_delta = sum(
+        len(value) for value in result["fact_diff"].values()
+        if isinstance(value, (list, tuple, set, dict))
+    )
+    call_sites = sum(1 for node in graph.nodes if node.kind == "CALL_EXPR")
+    if len(graph.nodes) > MAX_INCREMENTAL_GRAPH_NODES or call_sites > MAX_INCREMENTAL_CALL_SITES:
+        closure = {
+            "status": "deferred_by_scale_budget",
+            "reason": "Graph scale exceeds the bounded incremental-planning budget; a partial resolver claim is not made.",
+            "affected_fact_ids": [],
+            "affected_dependency_keys": [],
+            "affected_edge_ids": [],
+            "affected_node_ids": [],
+            "affected_resolver_ids": [],
+            "skipped_resolver_ids": [item["resolver_id"] for item in list_resolver_contracts()],
+        }
+    elif fact_delta > MAX_INCREMENTAL_FACT_DELTA:
+        closure = {
+            "status": "deferred_by_fact_delta_budget",
+            "reason": "Fact delta exceeded the selective-context budget; a partial resolver claim is not made.",
+            "affected_fact_ids": [],
+            "affected_dependency_keys": [],
+            "affected_edge_ids": [],
+            "affected_node_ids": [],
+            "affected_resolver_ids": [],
+            "skipped_resolver_ids": [item["resolver_id"] for item in list_resolver_contracts()],
+        }
+    else:
+        fact_by_location = {(fact.get("file"), fact.get("evidence_line")): fact for fact in new_facts.facts}
+        for edge in graph.edges:
+            ids = []
+            for evidence in edge.evidence:
+                fact = fact_by_location.get((evidence.file, evidence.line))
+                if fact and fact.get("fact_id"):
+                    ids.append(fact["fact_id"])
+            if not ids:
+                ids = [fact["fact_id"] for fact in new_facts.facts if fact.get("canonical_subject") in {edge.from_node, edge.to_node}][:8]
+            if ids:
+                edge.properties.setdefault("source_fact_ids", sorted(set(ids)))
+                edge.properties.setdefault("dependency_keys", sorted({f"symbol:{value}" for value in (edge.from_node, edge.to_node)}))
+                edge.properties.setdefault("resolver_id", edge.properties.get("resolver_hook_name") or edge.properties.get("extractor_id") or "unknown")
+        closure = affected_closure(graph, fact_diff.to_dict(), (old_facts, new_facts))
     result["affected_closure"] = closure
     graph.metadata["affected_closure"] = closure
     context_builder = ResolverContextBuilder(new_facts.facts)

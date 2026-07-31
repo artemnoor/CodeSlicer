@@ -14,6 +14,7 @@ def build_parser(prog: str = "impact-engine") -> argparse.ArgumentParser:
     analyze.add_argument("--no-research-requests", action="store_true")
     analyze.add_argument("--graphify", default=None, help="Optional Graphify graph.json to normalize and merge")
     analyze.add_argument("--use-scan-plan", action="store_true", help="Create/reuse .impact_engine/scan_plan.json before analysis")
+    analyze.add_argument("--full-resolution", action="store_true", help="Opt into unbounded semantic and precision resolution for large projects")
     analyze.add_argument("--scope", default=None, help="Workspace/package scope to analyze")
     analyze.add_argument("--progress", choices=["human", "jsonl"], default="human", help="Progress stream format; JSON Lines is written to stderr")
     analyze.add_argument("--no-daemon", action="store_true", help="Do not use the local daemon owner")

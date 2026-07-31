@@ -79,12 +79,18 @@ def test_language_semantic_provider_capabilities_are_honest():
     assert java.capabilities.call_resolution == "semantic"
     assert java.capabilities.framework_rules is True
 
-    for language in ("rust", "csharp", "kotlin", "php", "ruby"):
+    for language in ("rust", "kotlin", "php", "ruby"):
         provider = get_language_semantic_provider(language)
         assert provider is not None
         assert provider.capabilities.structural_extraction is True
         assert provider.capabilities.call_resolution == "limited"
         assert provider.capabilities.production_semantic_baseline is False
+
+    # The current main branch has a stronger C# provider than the generic
+    # structural providers introduced by the hardening branch.
+    csharp = get_language_semantic_provider("csharp")
+    assert csharp is not None
+    assert csharp.capabilities.call_resolution == "semantic"
 
 
 def test_build_language_capability_diagnostics_contains_unknown_fallback():

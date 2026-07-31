@@ -23,6 +23,7 @@ from impact_engine.graph_identity import annotate_stable_identities
 from impact_engine.unknown_regions import analyze_unknown_regions, build_research_requests, write_research_requests
 from impact_engine.resolution_coverage import build_resolution_coverage
 from impact_engine.incremental_index import build_reverse_dependency_index
+from impact_engine.nextjs_routes import apply_nextjs_routes
 from impact_engine.plugin_architecture.contracts import PluginContext
 from impact_engine.plugin_architecture.execution import extract_selected_languages, execute_selected_framework_hooks, resolve_selected_languages, selected_compatibility_packs, selected_semantic_recipes
 from impact_engine.plugin_architecture.integrity import annotate_plugin_provenance, plugin_graph_integrity_gate
@@ -186,6 +187,7 @@ class AnalysisPipeline:
         self._progress("normalization", 0, 1, "Нормализация фактов и структурного графа")
         with self.profiler.measure("normalization"):
             graph = self._merge_and_normalize(raw_graphs)
+            graph = apply_nextjs_routes(graph, self.project_path)
         self._progress("normalization", 1, 1, "Нормализация завершена")
         fact_document = FactDocument.from_graph(graph)
         graph.metadata["fact_document"] = fact_document.summary()
@@ -214,14 +216,18 @@ class AnalysisPipeline:
             }
             for pack in support_packs
         ]
+        deep_resolution_enabled = self._deep_resolution_enabled(graph)
         started = time.perf_counter()
         self._progress("semantic", 0, 1, "Semantic binding и support-pack context")
-        with self.profiler.measure("semantic_binding"):
-            graph = self._apply_semantic_layer(graph)
+        if deep_resolution_enabled:
+            with self.profiler.measure("semantic_binding"):
+                graph = self._apply_semantic_layer(graph)
+        else:
+            graph.metadata["semantic_binding_layer"] = {"status": "skipped_by_scale_budget", "reason": "Structural extraction is current; use --full-resolution for unbounded semantic binding."}
         self.stage_timings["semantic_binding"] = round(time.perf_counter() - started, 4)
         self._progress("semantic", 1, 1, "Semantic binding завершён")
         run_quality_gate(graph, "semantic_binding")
-        if self.selection_plan:
+        if self.selection_plan and deep_resolution_enabled:
             plugin_context = PluginContext(
                 Path(self.project_path),
                 getattr(self, "_inventory_data", {}),
@@ -236,22 +242,26 @@ class AnalysisPipeline:
         local_registry_summary = self._sync_local_registry(inventory_data)
         started = time.perf_counter()
         self._progress("resolution", 0, 1, "Precision и framework resolution")
-        with self.profiler.measure("precision_resolution"):
-            resolved = resolve_precision(graph, support_packs=support_packs)
-            resolved.metadata["plugin_hook_execution_phase"] = "completed"
-            if self.selection_plan:
-                plugin_context = PluginContext(Path(self.project_path), getattr(self, "_inventory_data", {}), self.selection_plan.selected_ids(), cancellation=self.cancellation)
-                resolved, plugin_diags = resolve_selected_languages(
-                    self.selection_plan, plugin_context, resolved,
-                    selected_ids=self.selective_language_ids,
-                )
-                self.plugin_diagnostics.extend(item.to_dict() for item in plugin_diags)
+        if deep_resolution_enabled:
+            with self.profiler.measure("precision_resolution"):
+                resolved = resolve_precision(graph, support_packs=support_packs)
+                resolved.metadata["plugin_hook_execution_phase"] = "completed"
+                if self.selection_plan:
+                    plugin_context = PluginContext(Path(self.project_path), getattr(self, "_inventory_data", {}), self.selection_plan.selected_ids(), cancellation=self.cancellation)
+                    resolved, plugin_diags = resolve_selected_languages(
+                        self.selection_plan, plugin_context, resolved,
+                        selected_ids=self.selective_language_ids,
+                    )
+                    self.plugin_diagnostics.extend(item.to_dict() for item in plugin_diags)
+        else:
+            resolved = graph
+            resolved.metadata["precision_resolution"] = {"status": "skipped_by_scale_budget", "reason": "Structural extraction is current; use --full-resolution for unbounded precision resolution."}
         self.stage_timings["resolution"] = round(time.perf_counter() - started, 4)
         self._progress("resolution", 1, 1, "Resolution завершён")
         run_quality_gate(resolved, "generic_and_framework_resolution")
         if local_registry_summary:
             resolved.metadata["local_registry"] = local_registry_summary
-        if self.selection_plan:
+        if self.selection_plan and deep_resolution_enabled:
             plugin_context = PluginContext(Path(self.project_path), getattr(self, "_inventory_data", {}), self.selection_plan.selected_ids(), cancellation=self.cancellation)
             with self.profiler.measure("framework_hooks"):
                 resolved, post_hook_diags = execute_selected_framework_hooks(
@@ -283,7 +293,13 @@ class AnalysisPipeline:
             resolved = annotate_edge_contracts(resolved)
             resolved = annotate_graph_quality(resolved)
             run_quality_gate(resolved, "final_graph")
-        self._annotate_unknown_regions(resolved)
+        if self._should_defer_unknown_regions(resolved):
+            resolved.metadata["unknown_regions"] = {"status": "deferred_by_scale_budget", "policy": "full workspace inventory deferred", "counts": {}, "regions": []}
+            resolved.metadata["all_unknown_regions"] = {}
+            resolved.metadata["unknown_region_research_requests"] = []
+            self.diagnostics.add("unknown_regions_deferred_by_scale_budget", "Large analysis deferred the global unknown-region inventory; request it separately when that report is needed.", component="unknown_regions", severity="info", actionable=False)
+        else:
+            self._annotate_unknown_regions(resolved)
         resolved.metadata["resolution_coverage"] = build_resolution_coverage(resolved)
         resolved.metadata["coverage_quality_gate"] = {
             "status": "ok" if resolved.metadata["resolution_coverage"].get("accounting", {}).get("valid") else "warning",
@@ -530,6 +546,28 @@ class AnalysisPipeline:
             support_pack_load_errors=list(graph_metadata.get("support_pack_load_errors", [])),
             nodes=len(graph_payload.get("nodes", [])), edges=len(graph_payload.get("edges", [])), graph=graph_payload, progress=progress,
             profiling=self.profiler.snapshot(),
+        )
+
+    def _deep_resolution_enabled(self, graph: GraphDocument) -> bool:
+        calls = sum(1 for node in graph.nodes if node.kind == "CALL_EXPR")
+        budget = {"max_nodes": 30_000, "max_calls": 12_000}
+        enabled = self.options.force_full_resolution or (len(graph.nodes) <= budget["max_nodes"] and calls <= budget["max_calls"])
+        graph.metadata["deep_resolution_budget"] = {"status": "enabled" if enabled else "skipped_by_scale_budget", "force_full_resolution": self.options.force_full_resolution, "nodes": len(graph.nodes), "calls": calls, **budget}
+        if not enabled:
+            self.diagnostics.add("deep_resolution_skipped_by_scale_budget", "Large project: semantic and precision enrichment skipped; structural extraction is complete. Re-run with --full-resolution to opt in.", component="analysis.scale_budget", severity="warning", actionable=True, details=graph.metadata["deep_resolution_budget"])
+        return enabled
+
+    def _should_defer_unknown_regions(self, graph: GraphDocument) -> bool:
+        """Avoid materializing a global gaps report that would dominate a large run.
+
+        The structural graph and its explicit deep-resolution coverage marker
+        remain available. A detailed unknown-region inventory can be requested
+        separately; it is not required to return a useful, evidence-backed
+        graph for a large workspace.
+        """
+        return bool(
+            len(graph.nodes) > 30_000
+            or sum(1 for node in graph.nodes if node.kind == "CALL_EXPR") > 12_000
         )
 
     def _annotate_unknown_regions(self, graph: GraphDocument) -> None:
@@ -1008,7 +1046,14 @@ class AnalysisPipeline:
         # Do not remove endpoint edges speculatively here.
         reverse_index = build_reverse_dependency_index(graph)
         reverse_summary = reverse_index.to_dict()
-        graph.metadata["reverse_dependency_index"] = reverse_summary
+        # The full reverse index is persisted as a dedicated cache artifact
+        # below. Duplicating every record inside graph.json makes a large
+        # workspace graph needlessly expensive to load in a local UI, while
+        # the graph itself does not consume these records at query time.
+        graph.metadata["reverse_dependency_index"] = {
+            key: reverse_summary[key]
+            for key in ("record_count", "source_count", "dependent_count")
+        }
         if self.incremental_cache_stats:
             graph.metadata["incremental_cache"] = dict(self.incremental_cache_stats)
         if self.options.raw_graph_cache_path:
@@ -1224,6 +1269,7 @@ def analyze_project_core(
     scope: str | None = None,
     memory_budget_mb: int | None = None,
     time_budget_seconds: float | None = None,
+    force_full_resolution: bool = False,
 ) -> dict[str, Any]:
     """Backward-compatible analysis entrypoint used by CLI, MCP, and tests."""
     options = AnalysisOptions(
@@ -1241,6 +1287,7 @@ def analyze_project_core(
         scope=scope,
         memory_budget_mb=memory_budget_mb,
         time_budget_seconds=time_budget_seconds,
+        force_full_resolution=force_full_resolution,
     )
     pipeline = AnalysisPipeline(options)
     result = pipeline.run()

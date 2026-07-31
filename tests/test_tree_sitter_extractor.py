@@ -88,6 +88,20 @@ app.set = function set(setting, value) {
     assert bound[0].properties["end_line"] >= 4
 
 
+def test_nested_js_callback_keeps_calls_on_its_lexical_owner(tmp_path: Path):
+    source = tmp_path / "hook.js"
+    source.write_text(
+        "export function useOrders() { const createOrder = (data) => postOrder(data); return { createOrder }; }\n",
+        encoding="utf-8",
+    )
+
+    graph = extract_tree_sitter_project(tmp_path, languages=["javascript"])
+    post_order = next(node for node in graph.nodes if node.kind == "CALL_EXPR" and node.properties.get("call_name") == "postOrder")
+
+    assert any(edge.kind == "CALLS" and edge.from_node == "useOrders" and edge.to_node == post_order.id for edge in graph.edges)
+    assert any(node.kind == "METHOD" and node.name == "createOrder" for node in graph.nodes)
+
+
 @pytest.mark.parametrize(("language", "filename", "source", "method"), [
     ("rust", "service.rs", "pub struct Service; impl Service { pub fn run(&self) { helper(); } } fn helper() {}", "run"),
     ("csharp", "Service.cs", "using System; class Service { void Run() { Helper(); } void Helper() {} }", "Run"),
@@ -107,6 +121,18 @@ def test_extract_generic_native_languages_with_declarations_and_calls(tmp_path: 
     assert calls
     assert calls[0].properties["extractor_id"] == "tree_sitter_generic"
     assert any(edge.kind == "RESOLVES_TO" and edge.from_node == methods[0].id for edge in graph.edges)
+
+
+def test_kotlin_class_method_keeps_the_declared_class_as_its_owner(tmp_path: Path):
+    (tmp_path / "Service.kt").write_text(
+        "class Service { fun run() { helper() } fun helper() {} }",
+        encoding="utf-8",
+    )
+    graph = extract_tree_sitter_project(tmp_path, languages=["kotlin"])
+
+    methods = [node for node in graph.nodes if node.kind == "METHOD" and node.name == "run"]
+    assert len(methods) == 1
+    assert methods[0].id.endswith(":Service.run")
 
 
 def test_extract_go_project():

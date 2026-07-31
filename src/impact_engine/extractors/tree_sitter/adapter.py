@@ -141,8 +141,14 @@ def _add_js_bound_callable(graph, node, rel_path, scope, imports) -> None:
             source="EXTRACTED",
             confidence=1.0,
         ))
+    # Preserve the long-standing lexical-call contract for callbacks declared
+    # inside a function or hook. The callback still has its own METHOD node and
+    # a CONTAINS edge, but its body contributes to the enclosing callable's
+    # structural behaviour as well. This keeps React/Express wrapper analysis
+    # compatible without claiming that the callback was independently invoked.
+    body_scope = scope or method_id
     for child in function_node.children:
-        walk_js_ts(child, None, rel_path, graph, scope=method_id, imports=imports)
+        walk_js_ts(child, None, rel_path, graph, scope=body_scope, imports=imports)
 
 
 def walk_js_ts(node, file_path, rel_path, graph, scope="", imports=None):
@@ -597,6 +603,14 @@ def walk_generic_tree_sitter(node, rel_path, graph, language, scope="", imports=
 
     if node_type in _GENERIC_CLASS_TYPES:
         name = _generic_symbol_name(node)
+        # The Kotlin grammar can wrap an otherwise valid declaration in an
+        # ERROR node when a compact class body is parsed.  The declaration
+        # text still provides explicit syntax evidence, so recover only the
+        # declared class/interface/object name rather than assigning a nested
+        # callable or type annotation as the owner.
+        if language == "kotlin":
+            match = re.search(r"\b(?:class|interface|object)\s+([A-Za-z_][\w]*)", get_node_text(node))
+            name = match.group(1) if match else name
         if name:
             node_id = f"{language}:{rel_path}:{name}"
             graph.add_node(Node(

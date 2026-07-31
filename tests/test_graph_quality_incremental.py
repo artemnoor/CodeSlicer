@@ -182,7 +182,7 @@ def test_large_incremental_graph_defers_global_unknown_region_inventory(tmp_path
 
     result = analyze_project_core(str(project), changed_files=["main.py"])
 
-    assert result["graph"]["metadata"]["unknown_regions"]["status"] == "deferred_by_incremental_scale"
+    assert result["graph"]["metadata"]["unknown_regions"]["status"] == "deferred_by_scale_budget"
 
     incremental = incremental_update(str(project), lambda: analyze_project_core(str(project), changed_files=["main.py"]))
     assert incremental["affected_closure"]["status"] == "deferred_by_scale_budget"
