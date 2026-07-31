@@ -22,6 +22,8 @@ test("cockpit separates review, results, tests, technologies, history, architect
   assert.match(html, /class="app-shell"/);
   assert.match(html, /--cs-bg: #0a0a0b/);
   assert.match(html, /--cs-green: #f4f4f5/);
+  assert.match(html, /#675de1/);
+  assert.match(html, /#ff6564/);
   assert.match(html, /font-family: var\(--vscode-font-family, Inter/);
   assert.match(html, /\.branch-tree::before/);
   assert.doesNotMatch(html, /linear-gradient/);

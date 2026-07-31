@@ -389,6 +389,30 @@ button:active { transform: scale(.96); }
 .guide-target { position: relative; z-index: 1; outline: 2px solid #f1f1f2; outline-offset: 4px; border-color: #f1f1f2 !important; }.guide-target::after { position: absolute; inset: -8px; z-index: -1; border: 1px solid #66666e; border-radius: inherit; content: ""; pointer-events: none; }
 .demo-guide { position: fixed; right: 20px; bottom: 20px; z-index: 20; width: min(350px, calc(100vw - 32px)); padding: 17px; border: 1px solid #56565e; border-radius: 12px; background: #1b1b1e; color: #f2f2f4; box-shadow: 0 20px 50px rgb(0 0 0 / .45); }.demo-guide > p { margin: 7px 0 5px; color: #a9a9b1; font-size: 9px; font-weight: 750; letter-spacing: .11em; }.demo-guide > strong { display: block; font-size: 16px; letter-spacing: -.025em; }.demo-guide > span { display: block; margin: 6px 0 14px; color: #b2b2ba; line-height: 1.5; }.demo-guide .action-row { justify-content: flex-end; }.guide-handle { display: grid; grid-template-columns: repeat(3, 3px); gap: 3px; width: 28px; min-height: 26px; padding: 5px; border: 0; border-radius: 5px; background: transparent; cursor: grab; }.guide-handle:active { cursor: grabbing; }.guide-handle span { width: 3px; height: 3px; border-radius: 50%; background: #7a7a82; }.guide-handle:hover span { background: #f0f0f1; }
 
+/* The workflow keeps dark working surfaces; vivid color marks the kind of work, like a compact Kanban board. */
+.rail-nav [role=tab][aria-selected=false][data-tab=start] .icon { color: #e5ad2c; }
+.rail-nav [role=tab][aria-selected=false][data-tab=review] .icon { color: #ff6664; }
+.rail-nav [role=tab][aria-selected=false][data-tab=results] .icon { color: #8477ff; }
+.rail-nav [role=tab][aria-selected=false][data-tab=tests] .icon { color: #41ce98; }
+.rail-nav [role=tab][aria-selected=false][data-tab=architecture] .icon { color: #55a6ff; }
+.rail-nav [role=tab][aria-selected=false][data-tab=git] .icon { color: #ea9f37; }
+.rail-nav [role=tab][aria-selected=false][data-tab=guides] .icon { color: #ef6fa8; }
+.rail-nav [role=tab][aria-selected=false][data-tab=tech] .icon { color: #57cbb8; }
+.source-option.is-selected { border-color: #7268ee; background: #5148ca; color: #fff; }
+.button--primary[data-action=review], .button--primary[data-action=showGraph], .button--primary[data-action=showDemo] { border-color: #675de1; background: #675de1; color: #fff; }
+.button--primary[data-action=review]:hover, .button--primary[data-action=showGraph]:hover, .button--primary[data-action=showDemo]:hover { background: #7b71f4; }
+.metric-grid .metric:nth-child(2) strong { color: #877bff; }.metric-grid .metric:nth-child(3) strong { color: #ef6fa8; }
+.task-card__step { display: inline-flex; width: fit-content; min-height: 23px; align-items: center; padding: 3px 7px; border-radius: 5px; background: #2a2a2e; color: #e9e9eb; }
+.task-card:nth-child(1) { border-top: 3px solid #e2a537; }.task-card:nth-child(1) .task-card__step { background: #6d5018; color: #ffe09b; }
+.task-card:nth-child(2) { border-top: 3px solid #7b70f4; }.task-card:nth-child(2) .task-card__step { background: #48418d; color: #ddd9ff; }
+.task-card:nth-child(3) { border-top: 3px solid #4ba6ef; }.task-card:nth-child(3) .task-card__step { background: #1e4e72; color: #b9e1ff; }
+.task-card:nth-child(4) { border-top: 3px solid #41ce98; }.task-card:nth-child(4) .task-card__step { background: #1c644d; color: #baf6df; }
+.guide-task:nth-child(1) { border-top-color: #ff6564; }.guide-task:nth-child(1) .task-card__step { background: #6f3235; color: #ffd2d3; }
+.guide-task:nth-child(2) { border-top-color: #7b70f4; }.guide-task:nth-child(2) .task-card__step { background: #48418d; color: #ddd9ff; }
+.guide-task:nth-child(3) { border-top-color: #41ce98; }.guide-task:nth-child(3) .task-card__step { background: #1c644d; color: #baf6df; }
+.guide-task:nth-child(4) { border-top-color: #e2a537; }.guide-task:nth-child(4) .task-card__step { background: #6d5018; color: #ffe09b; }
+.push-workflow { border-top: 3px solid #41ce98; }.push-readout { border-color: #355d52; }.remote-row strong { color: #8dbdf9; }
+
 @media (max-width: 720px) { .app-shell { display: block; }.rail { position: relative; height: auto; padding: 10px; border-inline-end: 0; border-bottom: 1px solid #29292d; }.brand, .workspace-line, .rail-footer { display: none; }.rail-nav, .nav-group { display: flex; gap: 4px; }.rail-nav { overflow-x: auto; padding-bottom: 2px; }.nav-divider { width: 1px; height: 24px; margin: 4px 3px; flex: 0 0 auto; }.rail-nav [role=tab] { width: auto; min-width: 36px; justify-content: center; padding: 8px; }.rail-nav [role=tab] span { display: none; }.content { padding: 13px; }.command-bar { margin-bottom: 18px; padding-inline: 4px; }.command-bar strong { max-width: 13rem; }.overview-hero, .git-grid, .task-grid, .guide-grid { grid-template-columns: 1fr; }.metric-grid { gap: 8px; }.metric { min-height: 96px; padding: 12px; }.metric strong { font-size: 25px; }.test-card { grid-template-columns: 1fr; }.test-card .button { justify-self: start; }.history-list li { grid-template-columns: auto minmax(0, 1fr); }.history-list time { grid-column: 2; text-align: start; }.split-heading { align-items: flex-start; flex-direction: column; }.safety-note { text-align: start; }.demo-guide { right: 12px; bottom: 12px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
 `;
