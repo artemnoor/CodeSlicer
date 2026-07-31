@@ -1,0 +1,49 @@
+name: VS Code platform runtime
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: win32-x64, os: windows-latest }
+          - { target: win32-arm64, os: windows-11-arm }
+          - { target: darwin-x64, os: macos-13 }
+          - { target: darwin-arm64, os: macos-latest }
+          - { target: linux-x64, os: ubuntu-latest }
+          - { target: linux-arm64, os: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Install build dependencies
+        run: python -m pip install '.[dev]' pyinstaller
+      - name: Test extension
+        working-directory: extensions/vscode
+        run: npm ci && npm test
+      - name: Build target VSIX
+        working-directory: extensions/vscode
+        run: npm run package:target -- ${{ matrix.target }}
+      - name: Inspect package contents
+        shell: bash
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          artifact = glob.glob('extensions/vscode/*.vsix')[0]
+          names = zipfile.ZipFile(artifact).namelist()
+          assert any('/runtime/${{ matrix.target }}/manifest.json' in n for n in names)
+          assert not any('/.venv/' in n or '/node_modules/' in n or '/tests/' in n for n in names)
+          print(artifact, len(names))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codeslicer-${{ matrix.target }}
+          path: extensions/vscode/*.vsix

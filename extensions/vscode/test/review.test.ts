@@ -49,11 +49,11 @@ test("router changes one of four screens and routes each action to VS Code", () 
   assert.equal(tabs[1].attributes["aria-selected"], "true");
 });
 
-test("extension uses the local server, Graphify, and a graph action that builds missing graphs", () => {
+test("extension keeps Graphify optional and separate from the local runtime", () => {
   const source = readFileSync(join(__dirname, "../../src/extension.ts"), "utf8");
   assert.match(source, /impact-engine-local-api/);
   assert.match(source, /analyzeAndShowGraph/);
-  assert.match(source, /graphifyy/);
+  assert.doesNotMatch(source, /pip\s+install|graphifyy/u);
   assert.match(source, /"--code-only"/);
   assert.match(source, /\["--json", "inspect"/);
 });

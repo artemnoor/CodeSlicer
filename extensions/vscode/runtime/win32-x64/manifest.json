@@ -1,0 +1,12 @@
+{
+  "arch": "x64",
+  "extensionCompatibility": "0.6.1",
+  "files": {
+    "LICENSE": "172828ba823054666dd7b22c045315ae09961d690a917f37db7795929819c0d9",
+    "THIRD_PARTY_NOTICES_RUNTIME.md": "ae75d386b5e035bcc23a9a133688409e77e9bbb7df09f1b2c3b030fab60a7cd7",
+    "bin/codeslicer.exe": "350e4f511edb2d9629ab4cc453bb8bb50ea88d849a01b57690c0d02b6a9719d4",
+    "bin/impact-engine-local-api.exe": "6f1ff49d7d1366f1c648b6b67aa25e5037db33227841b52f5b7f6b1f91f50405"
+  },
+  "platform": "win32",
+  "runtimeVersion": "0.5.0"
+}

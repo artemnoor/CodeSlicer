@@ -1,56 +1,37 @@
 # CodeSlicer for VS Code
 
-CodeSlicer helps answer one practical question before merge: what do these changes affect, why, and what should I test?
+CodeSlicer is local-first. The TypeScript package supplies the cockpit while the canonical Python Core is bundled as a separate process inside each platform-specific VSIX. Normal users do not install Python, pip, a virtualenv, source code, Graphify, or an executable.
 
-This extension is a separate TypeScript package in the CodeSlicer repository. It calls the local `codeslicer` CLI and renders its canonical evidence, risk, impact, and test-plan report. It does not contain a second analyzer.
+Install the matching VSIX, open a trusted project, and select **Review current changes**. The extension uses argv-only spawning with `shell: false` and logs argv, cwd, stdout, stderr, and exit status. No process runs during activation.
 
-## Local review workflow
+## Platform packages
 
-Open a trusted workspace, open the CodeSlicer activity-bar view, then choose **Review current changes**. The first screen explains that source code stays on the computer, analysis needs no AI or API key, and no process runs before an explicit action.
+| Target | Build method |
+| --- | --- |
+| `win32-x64`, `win32-arm64` | native Windows runner |
+| `darwin-x64`, `darwin-arm64` | native macOS runner |
+| `linux-x64`, `linux-arm64` | native Linux runner |
 
-The view keeps the normal path to four screens and exposes advanced options only when they are needed:
+VS Code selects platform-specific packages created with `vsce --target`. The runtime resolves in the workspace extension host, so WSL, SSH, Dev Containers, and Codespaces need the matching VSIX installed in that remote window. Unsupported hosts get a diagnostic; CodeSlicer never downloads a substitute.
 
-- **Start** — three actions: start and open Local Hub, build a local project graph, or open the review screen. The server binds only to the configured loopback URL.
-- **Review project** — comparison branch, results, evidence, and safe test suggestions on one screen.
-- **Graphs** — the compact canonical CodeSlicer graph and a local Git branch timeline on one screen. If no CodeSlicer graph exists, the explicit action analyzes the workspace first.
-- **More** — optional Graphify and advanced settings. **Install Graphify** asks for confirmation before installing the official `graphifyy` Python package; **Build Graphify map** runs its local `graphify extract <project> --code-only` command.
+Each package contains `runtime/<target>/bin/{codeslicer,impact-engine-local-api}`, a manifest with version/platform/architecture/SHA-256 data, and embedded-runtime notices/licenses. The extension verifies its launcher checksum before execution.
 
-IDE skills, Graphify, comparison, and GitHub PR review are optional advanced actions; they are not part of the first-run path.
-
-## Interactive demo
-
-**Start → Start guided tour** is an in-product, six-step simulation. It visibly switches through the server, review, result, code graph, Git branch, and optional architecture tabs without downloading files, running the CLI, or changing the workspace. The guide is safe to run at any time.
-
-For local review the extension verifies the `origin/HEAD` branch when possible. If it cannot establish one safe base, it lists verified `main`, `master`, `develop`, or `trunk` candidates for the developer to choose. It never assumes that `main` is correct.
-
-Advanced source modes (compare refs or a diff file) are represented in the core contract. GitHub Pull Request review is available as an explicit OAuth flow: after you supply a canonical PR URL and confirm sign-in, the extension sends two read-only GitHub REST requests (metadata and diff), saves the diff only in VS Code global storage, then runs the local CLI. It never uploads source code, creates checks, or posts comments.
-
-Use **CodeSlicer: Compare with base branch** or **CodeSlicer: Review a diff file** from the Command Palette for those advanced local sources. The extension retains the ten most recent report summaries in VS Code workspace state; reports stay local to the workspace.
-
-## Runtime and privacy
-
-**Start → Install CodeSlicer** is the standard Windows path. One explicit click downloads the official CodeSlicer ZIP into VS Code private storage, extracts it, creates a local `.venv`, and configures the resulting `codeslicer.exe` automatically. No browser download folder, destination picker, or manual executable path is required. **Choose an existing executable** remains available only as an advanced option.
-
-After CodeSlicer is configured, **Settings → Choose IDE and skills** opens `codeslicer agent install` in the integrated PowerShell terminal after a second confirmation. It uses the existing interactive IDE chooser and changes only selected integrations; the installer creates a side-by-side backup before editing an existing MCP configuration.
-
-There is no GitHub PAT setting in this extension. **CodeSlicer: Review GitHub pull request (optional)** uses VS Code Authentication/OAuth only after the developer selects it. Any future check or comment will remain a separate explicit action. Local review never uploads code and never stores a token.
-
-Graphify is an optional architecture engine. Its graph, communities, and inferred links do not contribute to CodeSlicer risk, impact ranking, or canonical evidence.
-
-## Develop and package
+## Development and packaging
 
 ```powershell
 cd extensions/vscode
 npm ci
 npm test
-```
-
-Open `extensions/vscode` in VS Code and press `F5` to start an Extension Development Host. Activation does not analyze, run tests, start a daemon, install a runtime, or run Graphify.
-
-Create the VSIX with:
-
-```powershell
+# Press F5 here for an Extension Development Host.
 npm run package
 ```
 
-The package excludes the Python repository, virtual environments, `node_modules`, graphs, `.impact_engine`, `.codeslicer`, caches, tokens, and test artifacts.
+`scripts/build_bundled_runtime.py` refuses cross-platform builds. It uses PyInstaller on a native runner to package the current Core, support packs, language plugins, Tree-sitter dependencies, and private Python runtime. Install `pyinstaller` in the build environment. CI creates non-Windows artifacts. Inspect generated VSIX files with `Expand-Archive` or `unzip -l`.
+
+The VSIX excludes the source repository, `.venv`, `node_modules`, caches, `.impact_engine`, Graphify outputs, tests, and secrets.
+
+## Product boundaries
+
+The cockpit supports analysis, working-tree/compare/diff review, risk/evidence/test recommendations, confirmed test execution, selected-symbol inspect, local history, source navigation, and the canonical architecture slice. Local Hub opens only after an explicit user action and listens on loopback.
+
+Graphify is optional and separate: CodeSlicer never downloads or installs it, and its data does not affect canonical evidence or ranking. Local Git review needs no GitHub token. GitHub PR preparation is advanced and read-only; publishing comments/checks is not implemented.

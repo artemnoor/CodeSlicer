@@ -83,3 +83,8 @@ src/impact_engine.egg-info/
 
 # Optional local checkouts of third-party acceptance corpora
 tests/corpus/
+# The single native runtime verified in this repository is intentional VSIX input.
+!extensions/vscode/runtime/
+!extensions/vscode/runtime/**
+!extensions/vscode/runtime/**/bin/
+!extensions/vscode/runtime/**/bin/**

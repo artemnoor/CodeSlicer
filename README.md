@@ -37,7 +37,7 @@ frontend-клиента и теста. Graphify отвечает за свой, 
 
 `codeslicer review <project> --json` выдаёт `ReviewReport/v2`: понятную сводку, источник проверки, freshness, ограниченный список затронутых областей, evidence, human-readable ограничения и безопасный test plan с `argv`, `cwd`, runner и confidence. Поля v1 сохранены для существующих клиентов.
 
-VS Code extension находится в [`extensions/vscode`](extensions/vscode/README.md) как отдельный package этого репозитория. Он использует установленный локальный CLI, а не второй engine. На первом экране нет MCP, entity ID, raw JSON или полного графа; каждый локальный процесс и каждый тест запускается только явным действием в trusted workspace.
+VS Code extension находится в [`extensions/vscode`](extensions/vscode/README.md) как отдельный TypeScript package этого репозитория. Для обычного пользователя он поставляет platform-specific VSIX со встроенным self-contained CodeSlicer runtime: Python, pip, `.venv`, clone репозитория и ручной путь к executable не требуются. Runtime запускается отдельным локальным процессом только по явному действию в trusted workspace.
 
 Помимо проверки текущих изменений extension поддерживает explicit local compare с base branch и выбор локального diff-file из Command Palette, а последние десять summary сохраняет только в workspace state. GitHub PR review запускается только отдельной командой через VS Code OAuth: extension читает metadata и diff выбранного PR, сохраняет diff в global storage и анализирует его локально. Исходный код не отправляется, checks/comments не публикуются.
 
@@ -52,9 +52,15 @@ GitHub PR review не требует и не хранит PAT: он исполь
 
 ![Семантический граф CodeSlicer](docs/images/codeslicer-hero.png)
 
-## Начните здесь: Windows, macOS, Linux, IDE и первый проект
+## VS Code: встроенный runtime
 
-Для первого запуска достаточно Git и Python 3.10+. Все команды ниже создают
+Установите VSIX, соответствующий host extension (локальный Windows/macOS/Linux либо Linux в WSL/SSH/container/Codespaces), откройте проект и нажмите **«Проверить изменения»**. VSIX не скачивает source archive, не запускает `pip`, не создаёт `.venv` и не устанавливает Graphify. Проверяется manifest runtime с версией, target и SHA-256 launcher. Все шесть target (`win32-x64`, `win32-arm64`, `darwin-x64`, `darwin-arm64`, `linux-x64`, `linux-arm64`) готовятся отдельной native CI matrix; подробнее — [`extensions/vscode/README.md`](extensions/vscode/README.md).
+
+Interactive demo в extension — только симуляция вкладок: он не меняет workspace, не скачивает ничего и не запускает CLI, Git или тесты.
+
+## Начните здесь: Python Core из исходников
+
+Для работы с Python Core из исходников достаточно Git и Python 3.10+. Все команды ниже создают
 изолированную `.venv`: глобальные Python-пакеты и старый `impact-engine` в
 `PATH` не используются. Рекомендуемая команда после установки —
 `codeslicer`.
@@ -71,23 +77,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
 В меню: `↑`/`↓` — перемещение, `Space` — отметить IDE, `Enter` — установить.
 Installer по умолчанию настраивает `user` scope: skills доступны во всех
 последующих проектах. Перезапустите IDE и откройте свой рабочий репозиторий.
-
-В расширении VS Code первым открывается экран **«Начало»**. Если открыта
-пустая папка, он кратко объясняет порядок: создать или открыть проект,
-выполнить `git init`, сделать первый commit и только затем проверять новые
-изменения. Если Git-проект уже есть, доступны две понятные кнопки:
-**«Установить CodeSlicer»** и **«Проверить изменения»**. Установка одним
-нажатием скачает официальный архив в служебную папку VS Code, создаст `.venv`
-и сразу подключит локальный `codeslicer.exe`; папку и путь выбирать не нужно.
-IDE/skills, Graphify, сравнение веток и GitHub PR остаются необязательными
-advanced-возможностями.
-
-На том же экране есть **«Интерактивное демо»**: пользователь проходит только
-кнопку «Далее». Расширение скачивает закреплённый commit собственного
-публичного fixture‑проекта CodeSlicer в служебную папку VS Code, добавляет
-заранее известную маленькую правку, показывает локальный impact review и
-запускает единственный заранее заданный `unittest`. Открытый пользователем
-проект при этом не изменяется.
 
 ### macOS и Linux (bash/zsh)
 

@@ -17,3 +17,4 @@ out/test/**
 .playwright-cli/**
 out/**/*.map
 tsconfig.json
+scripts/**

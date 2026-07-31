@@ -14,8 +14,9 @@
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Testing", "Other"],
   "main": "./out/src/extension.js",
+  "extensionKind": ["workspace"],
   "activationEvents": [
-    "onView:codeslicer.cockpit", "onCommand:codeslicer.configureExecutable", "onCommand:codeslicer.installRuntime", "onCommand:codeslicer.setupSkills", "onCommand:codeslicer.analyzeWorkspace",
+    "onView:codeslicer.cockpit", "onCommand:codeslicer.configureExecutable", "onCommand:codeslicer.setupSkills", "onCommand:codeslicer.analyzeWorkspace",
     "onCommand:codeslicer.reviewCurrentChanges", "onCommand:codeslicer.explainSelectedSymbol", "onCommand:codeslicer.openLocalHub",
     "onCommand:codeslicer.refresh", "onCommand:codeslicer.runRecommendedTest", "onCommand:codeslicer.startLocalServer"
   ],
@@ -44,7 +45,7 @@
     "configuration": {
       "title": "CodeSlicer",
       "properties": {
-        "codeslicer.executable": { "type": "string", "default": "", "description": "Advanced: absolute path to an existing local codeslicer executable. The normal runtime location is VS Code global storage." },
+        "codeslicer.executable": { "type": "string", "default": "", "description": "Advanced/developer fallback only: absolute path to an existing local codeslicer executable. The bundled platform runtime is the normal path." },
         "codeslicer.baseRef": { "type": "string", "default": "", "description": "Optional explicit Git base ref. Otherwise CodeSlicer verifies and selects a safe local base." },
         "codeslicer.codeLens": { "type": "boolean", "default": false, "description": "Show the optional CodeSlicer review CodeLens. It never starts analysis automatically." },
         "codeslicer.localHubUrl": { "type": "string", "default": "http://127.0.0.1:8001/", "description": "Loopback URL where CodeSlicer starts its local Local Hub server." },
@@ -54,6 +55,6 @@
       }
     }
   },
-  "scripts": { "compile": "tsc -p .", "watch": "tsc -watch -p .", "test": "npm run compile && node --test out/test/*.test.js", "package": "npm run compile && npx @vscode/vsce package --no-dependencies" },
+  "scripts": { "compile": "tsc -p .", "watch": "tsc -watch -p .", "test": "npm run compile && node --test out/test/*.test.js", "package": "npm run compile && node scripts/package-target.mjs win32-x64", "package:target": "npm run compile && node scripts/package-target.mjs" },
   "devDependencies": { "@types/node": "^20.11.30", "@types/vscode": "^1.85.0", "@vscode/vsce": "^3.2.1", "typescript": "^5.4.5" }
 }
