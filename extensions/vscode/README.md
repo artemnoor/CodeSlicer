@@ -8,20 +8,22 @@ This extension is a separate TypeScript package in the CodeSlicer repository. It
 
 Open a trusted workspace, open the CodeSlicer activity-bar view, then choose **Review current changes**. The first screen explains that source code stays on the computer, analysis needs no AI or API key, and no process runs before an explicit action.
 
-The view has six sections:
+The view keeps the normal first-run path short and exposes the detail only when it is needed:
 
-- **Start** — the single first screen. For an empty folder it explains that you should create/open a project, run `git init`, and make an initial commit before there are changes to review. For an existing Git project it offers only **Install CodeSlicer** and **Review changes**.
+- **Start** — install CodeSlicer once, then use **Start local server**, **Show code graph**, or **Show Git branches**. The server binds only to the configured loopback URL. It does not open a browser until **Open Local Hub** is explicitly selected.
 - **Check** — review source, runtime status, and verified comparison branch.
 - **Result** — bounded affected areas and clickable evidence locations.
 - **Tests** — safe argv test suggestions; every test asks for a separate confirmation.
-- **Architecture** — an optional, separate Graphify view.
+- **Code graph** — a compact visual preview of the canonical local CodeSlicer graph. If no graph exists yet, the explicit action analyzes the workspace first.
+- **Git branches** — a local timeline of recent commits across all local branches.
+- **Architecture** — an optional, separate Graphify view. **Download and set up Graphify** asks for confirmation before installing the official `graphifyy` Python package; **Build Graphify map** runs its local `graphify extract <project> --code-only` command.
 - **Settings** — custom executable and other advanced options.
 
 IDE skills, Graphify, comparison, and GitHub PR review are optional advanced actions; they are not part of the first-run path.
 
 ## Interactive demo
 
-**Start → Start demo** is a linear, four-click product walkthrough: it downloads a pinned, public CodeSlicer fixture into VS Code private storage, adds a known small change, runs a local impact review, and runs one predefined Python `unittest`. The fixture is from a fixed CodeSlicer Git commit, not an arbitrary Internet repository. The demo never edits the workspace currently open in VS Code.
+**Start → Start guided tour** is an in-product, six-step simulation. It visibly switches through the server, review, result, code graph, Git branch, and optional architecture tabs without downloading files, running the CLI, or changing the workspace. The guide is safe to run at any time.
 
 For local review the extension verifies the `origin/HEAD` branch when possible. If it cannot establish one safe base, it lists verified `main`, `master`, `develop`, or `trunk` candidates for the developer to choose. It never assumes that `main` is correct.
 

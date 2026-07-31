@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
+import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 import { buildAnalyzeArgs, buildReviewArgs, formatCommand, runProcess, safeTestCommand } from "./cli";
 import { parseReviewJson, withReview } from "./review";
@@ -30,6 +31,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   private state: CockpitState = structuredClone(INITIAL_STATE);
   private tests: TestRecommendation[] = [];
   private selectedLanguage?: "ru" | "en";
+  private serverProcess?: ChildProcessWithoutNullStreams;
   private readonly runtime: CodeSlicerRuntimeManager;
   private readonly github = new GitHubReviewService();
   private readonly status: vscode.StatusBarItem;
@@ -42,6 +44,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     this.status.tooltip = "Review current local Git changes with CodeSlicer";
     this.status.show();
     context.subscriptions.push(this.status);
+    context.subscriptions.push({ dispose: () => this.serverProcess?.kill() });
     const saved = context.workspaceState.get<ReviewState>("codeslicer.lastReview");
     const history = context.workspaceState.get<ReviewHistoryEntry[]>("codeslicer.reviewHistory") || [];
     const reviewSource = context.workspaceState.get<CockpitState["reviewSource"]>("codeslicer.reviewSource") || INITIAL_STATE.reviewSource;
@@ -115,6 +118,34 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   private async trusted(): Promise<boolean> {
     if (vscode.workspace.isTrusted) return true;
     await vscode.window.showWarningMessage("CodeSlicer does not run CLI commands in an untrusted workspace. Trust the workspace first.");
+    return false;
+  }
+
+  private localHubUrl(): URL | undefined {
+    try {
+      const url = new URL(this.config<string>("localHubUrl"));
+      if (!["127.0.0.1", "localhost", "::1"].includes(url.hostname)) throw new Error();
+      return url;
+    } catch {
+      void vscode.window.showErrorMessage("codeslicer.localHubUrl must be a loopback URL, for example http://127.0.0.1:8001/.");
+      return undefined;
+    }
+  }
+
+  private setServer(status: CockpitState["server"]["status"], message: string, url?: string): void {
+    this.state = { ...this.state, server: { status, message, url: url || this.state.server.url } };
+    this.render();
+  }
+
+  private async waitForServer(url: URL): Promise<boolean> {
+    const health = new URL("api/health", url).toString();
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try {
+        const response = await fetch(health);
+        if (response.ok) return true;
+      } catch { /* The local process is still starting. */ }
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
     return false;
   }
 
@@ -426,6 +457,153 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     if (root && vscode.workspace.isTrusted) await this.refresh();
   }
 
+  async startLocalServer(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    const url = this.localHubUrl();
+    if (!url) return;
+    if (this.serverProcess && this.serverProcess.exitCode === null) {
+      this.setServer("ready", "Local server is already running.", url.toString());
+      return;
+    }
+    const executable = await this.executable(root);
+    if (!executable) return;
+    const localApi = join(dirname(executable), process.platform === "win32" ? "impact-engine-local-api.exe" : "impact-engine-local-api");
+    if (!existsSync(localApi)) {
+      this.setServer("error", "The installed CodeSlicer runtime does not include impact-engine-local-api.", url.toString());
+      await vscode.window.showErrorMessage("This CodeSlicer runtime cannot start the local server. Reinstall CodeSlicer from the start screen.");
+      return;
+    }
+    this.setServer("running", "Starting the local-only server…", url.toString());
+    const args = ["--host", url.hostname === "localhost" ? "127.0.0.1" : url.hostname, "--port", String(url.port ? Number(url.port) : 80), "--default-project", root];
+    const child = spawn(localApi, args, { cwd: root, shell: false, windowsHide: true });
+    this.serverProcess = child;
+    child.stdout.on("data", data => OUTPUT.append(data.toString()));
+    child.stderr.on("data", data => OUTPUT.append(data.toString()));
+    child.on("error", error => this.setServer("error", `Could not start the local server: ${String(error)}`, url.toString()));
+    child.on("close", code => {
+      if (this.serverProcess === child) {
+        this.serverProcess = undefined;
+        if (this.state.server.status === "running") this.setServer("error", `Local server stopped (exit ${code ?? "unknown"}).`, url.toString());
+      }
+    });
+    if (!await this.waitForServer(url)) {
+      child.kill();
+      this.setServer("error", "The local server did not answer on its loopback URL. See CodeSlicer Output.", url.toString());
+      await vscode.window.showErrorMessage("CodeSlicer local server did not start. See CodeSlicer Output.");
+      return;
+    }
+    this.setServer("ready", "Running locally on this computer. No source code is sent to the network.", url.toString());
+    await vscode.window.showInformationMessage("CodeSlicer local server is ready. Choose Open Local Hub when you want to view it in your browser.");
+  }
+
+  async stopLocalServer(): Promise<void> {
+    this.serverProcess?.kill();
+    this.serverProcess = undefined;
+    this.setServer("idle", "Server stopped.");
+  }
+
+  async showCodeGraph(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root) return;
+    try {
+      const data = JSON.parse(await readFile(graphPath(root), "utf8")) as { nodes?: unknown[]; edges?: unknown[] };
+      const rawNodes = Array.isArray(data.nodes) ? data.nodes : [];
+      const nodes = rawNodes.slice(0, 32).flatMap(raw => {
+        if (!raw || typeof raw !== "object") return [];
+        const node = raw as { id?: unknown; name?: unknown; kind?: unknown };
+        if (typeof node.id !== "string") return [];
+        return [{ id: node.id, label: String(node.name || node.id).slice(0, 48), kind: String(node.kind || "symbol") }];
+      });
+      const ids = new Set(nodes.map(node => node.id));
+      const edges = (Array.isArray(data.edges) ? data.edges : []).slice(0, 120).flatMap(raw => {
+        if (!raw || typeof raw !== "object") return [];
+        const edge = raw as { from?: unknown; to?: unknown; from_node?: unknown; to_node?: unknown; source?: unknown; target?: unknown };
+        const source = String(edge.from || edge.from_node || edge.source || "");
+        const target = String(edge.to || edge.to_node || edge.target || "");
+        return ids.has(source) && ids.has(target) ? [{ source, target }] : [];
+      });
+      this.state = { ...this.state, codeGraph: { status: "ready", nodes, edges, totalNodes: rawNodes.length, totalEdges: Array.isArray(data.edges) ? data.edges.length : 0, message: `Showing a readable sample of ${nodes.length} nodes.` } };
+      this.render();
+    } catch {
+      this.state = { ...this.state, codeGraph: { ...this.state.codeGraph, status: "error", message: "No CodeSlicer graph yet. Run Analyze workspace first." } };
+      this.render();
+    }
+  }
+
+  async analyzeAndShowGraph(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    if (!existsSync(graphPath(root))) {
+      try {
+        await this.analyze();
+      } catch (error) {
+        this.state = { ...this.state, codeGraph: { ...this.state.codeGraph, status: "error", message: `Could not build the code graph: ${String(error)}` } };
+        this.render();
+        await vscode.window.showErrorMessage(`CodeSlicer could not build the code graph: ${String(error)}`);
+        return;
+      }
+    }
+    await this.showCodeGraph();
+  }
+
+  async showGitBranches(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    const result = await runProcess("git", ["log", "--all", "--date-order", "--decorate=short", "--pretty=format:%H%x09%P%x09%D%x09%s", "-n", "32"], root, 30_000);
+    this.log(result);
+    if (result.exitCode !== 0) {
+      this.state = { ...this.state, gitGraph: { status: "error", commits: [], message: result.stderr.trim() || "Git history is unavailable." } };
+      this.render();
+      return;
+    }
+    const commits = result.stdout.split(/\r?\n/u).flatMap(line => {
+      const [id, parents = "", refs = "", subject = ""] = line.split("\t", 4);
+      return id ? [{ id, parents: parents.split(" ").filter(Boolean), refs, subject }] : [];
+    });
+    this.state = { ...this.state, gitGraph: { status: "ready", commits, message: `${commits.length} recent commits across local branches.` } };
+    this.render();
+  }
+
+  async installGraphify(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    const choice = await vscode.window.showWarningMessage("Install the official Graphify CLI package (graphifyy) with Python for this user? It is optional and runs only after you choose a Graphify action.", { modal: true }, "Install Graphify");
+    if (choice !== "Install Graphify") return;
+    this.state = { ...this.state, graphify: { status: "running", message: "Installing official Graphify CLI…" } };
+    this.render();
+    const result = await runProcess("py", ["-3", "-m", "pip", "install", "--user", "graphifyy"], root, 900_000);
+    this.log(result);
+    if (result.exitCode !== 0) {
+      this.state = { ...this.state, graphify: { status: "error", message: result.stderr.trim() || "Graphify installation failed. See CodeSlicer Output." } };
+      this.render();
+      return;
+    }
+    this.state = { ...this.state, graphify: { status: "ready", message: "Graphify installed. If Windows cannot find it yet, reload VS Code and click Build architecture graph." } };
+    this.render();
+  }
+
+  async buildGraphifyGraph(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    const executable = this.config<string>("graphifyExecutable").trim() || "graphify";
+    const output = join(root, ".codeslicer", "artifacts", "graphify");
+    this.state = { ...this.state, graphify: { status: "running", message: "Building a separate local architecture graph…" } };
+    this.render();
+    const result = await runProcess(executable, ["extract", root, "--code-only", "--out", output], root, 300_000);
+    this.log(result);
+    const candidates = [join(output, "graphify-out", "graph.json"), join(output, "graph.json")];
+    const graph = candidates.find(existsSync);
+    if (result.exitCode !== 0 || !graph) {
+      this.state = { ...this.state, graphify: { status: "error", message: result.stderr.trim() || "Graphify did not create graph.json. Install it or choose its executable in Settings." } };
+      this.render();
+      return;
+    }
+    await vscode.workspace.getConfiguration("codeslicer").update("graphifyGraphPath", graph, vscode.ConfigurationTarget.Workspace);
+    this.state = { ...this.state, project: { ...this.state.project, graphifyAvailable: true, graphifyPath: graph }, graphify: { status: "ready", graphPath: graph, message: "Graphify architecture graph is ready. It remains separate from CodeSlicer risk and evidence." } };
+    this.render();
+  }
+
   private async executable(root: string): Promise<string | undefined> {
     const runtime = await this.runtime.validate(root, this.config<string>("executable"));
     this.state = { ...this.state, runtime };
@@ -562,14 +740,10 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   }
 
   async hub(graphify = false): Promise<void> {
-    try {
-      const url = new URL(this.config<string>("localHubUrl"));
-      if (!["127.0.0.1", "localhost", "::1"].includes(url.hostname)) throw new Error();
-      if (graphify) url.hash = "graphify";
-      await vscode.env.openExternal(vscode.Uri.parse(url.toString()));
-    } catch {
-      await vscode.window.showErrorMessage("codeslicer.localHubUrl must be a loopback URL, for example http://127.0.0.1:8001/.");
-    }
+    const url = this.localHubUrl();
+    if (!url) return;
+    if (graphify) url.hash = "graphify";
+    await vscode.env.openExternal(vscode.Uri.parse(url.toString()));
   }
 
   async runTest(index?: number): Promise<void> {
@@ -610,7 +784,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
         sourceCurrent: () => this.setReviewSource("current-changes"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
-        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), openProject: () => this.openOrCreateProject(), importGit: () => this.importFromGit(), showDemo: () => this.showDemo()
+        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), openProject: () => this.openOrCreateProject(), importGit: () => this.importFromGit(), showDemo: () => this.showDemo(), startServer: () => this.startLocalServer(), stopServer: () => this.stopLocalServer(), showGraph: () => this.analyzeAndShowGraph(), showGit: () => this.showGitBranches(), installGraphify: () => this.installGraphify(), buildGraphify: () => this.buildGraphifyGraph()
       };
       await actions[message.action || ""]?.();
       return;
@@ -647,7 +821,7 @@ export function activate(context: vscode.ExtensionContext): void {
   for (const [id, handler] of [
     ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.installRuntime", () => provider.downloadCodeSlicer()], ["codeslicer.setupSkills", () => provider.setupSkills()], ["codeslicer.analyzeWorkspace", () => provider.analyze()], ["codeslicer.runtimeDoctor", () => provider.doctor()], ["codeslicer.runtimeUpdate", () => provider.runtimeAvailability()], ["codeslicer.runtimeRollback", () => provider.runtimeAvailability()],
     ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.reviewCompare", async () => { await provider.setReviewSource("compare"); await provider.review(); }], ["codeslicer.reviewDiffFile", async () => { await provider.setReviewSource("diff-file"); await provider.review(); }], ["codeslicer.githubSignIn", () => provider.setReviewSource("github-pr")], ["codeslicer.showReviewHistory", () => provider.showHistory()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],
-    ["codeslicer.openLocalHub", () => provider.hub()], ["codeslicer.refresh", () => provider.refresh()],
+    ["codeslicer.openLocalHub", () => provider.hub()], ["codeslicer.startLocalServer", () => provider.startLocalServer()], ["codeslicer.refresh", () => provider.refresh()],
     ["codeslicer.runRecommendedTest", () => provider.runTest()]
   ] as [string, () => Promise<void>][]) context.subscriptions.push(vscode.commands.registerCommand(id, handler));
 }

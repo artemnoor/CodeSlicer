@@ -6,6 +6,14 @@ export interface ReviewSourceState{mode:ReviewSourceMode;diffFile?:string;baseRe
 export interface ReviewHistoryEntry{createdAt:string;source:ReviewSourceMode;risk:string;affected:number}
 export type WorkspaceReadiness="unknown"|"empty"|"project";
 export interface ProjectState{workspace?:string;branch?:string;baseRef?:string;baseCandidates?:string[];baseStatus?:string;readiness:WorkspaceReadiness;graphStatus:"unknown"|"present"|"missing";freshness:string;graphifyAvailable:boolean;graphifyPath?:string}
+export type OperationStatus="idle"|"ready"|"running"|"error";
+export interface LocalServerState{status:OperationStatus;url:string;message:string}
+export interface GraphNodePreview{id:string;label:string;kind:string}
+export interface GraphEdgePreview{source:string;target:string}
+export interface CodeGraphState{status:OperationStatus;nodes:GraphNodePreview[];edges:GraphEdgePreview[];totalNodes:number;totalEdges:number;message:string}
+export interface GitCommitPreview{id:string;parents:string[];refs:string;subject:string}
+export interface GitGraphState{status:OperationStatus;commits:GitCommitPreview[];message:string}
+export interface GraphifyState{status:OperationStatus;message:string;graphPath?:string}
 export interface IntegrationState{githubTokenConfigured:boolean;githubAuthenticated?:boolean;githubStatus?:string}
 export interface EvidenceLocation{file?:string;line?:number;text?:string;provenance?:string}
 export interface ImpactItem{entityId:string;label:string;kind:string;confidence:string;file?:string;line?:number;reason:string;evidence:EvidenceLocation[]}
@@ -14,5 +22,5 @@ export interface TestRecommendation{file?:string;symbol:string;category:string;c
 export interface ReviewState{status:"idle"|"ready"|"error";riskLevel:string;riskConfidence:string;riskReasons:string[];impacts:ImpactItem[];chains:EvidenceChain[];tests:TestRecommendation[];warnings:string[];limitations:string[];localDiffNotice:string}
 export type DemoStatus="idle"|"downloaded"|"changed"|"reviewed"|"tested"|"error";
 export interface DemoState{status:DemoStatus;projectPath?:string;message?:string}
-export interface CockpitState{runtime:RuntimeState;project:ProjectState;integration:IntegrationState;reviewSource:ReviewSourceState;history:ReviewHistoryEntry[];review:ReviewState;demo:DemoState}
-export const INITIAL_STATE:CockpitState={runtime:{status:"unchecked",version:"Not checked",diagnostic:"Run Refresh to validate a local CodeSlicer executable."},project:{readiness:"unknown",graphStatus:"unknown",freshness:"Not checked",graphifyAvailable:false},integration:{githubTokenConfigured:false},reviewSource:{mode:"current-changes"},history:[],review:{status:"idle",riskLevel:"—",riskConfidence:"—",riskReasons:[],limitations:[],impacts:[],chains:[],tests:[],warnings:[],localDiffNotice:"Analyzes a local Git diff only; GitHub metadata, comments, and checks are not read."},demo:{status:"idle"}};
+export interface CockpitState{runtime:RuntimeState;project:ProjectState;integration:IntegrationState;reviewSource:ReviewSourceState;history:ReviewHistoryEntry[];review:ReviewState;demo:DemoState;server:LocalServerState;codeGraph:CodeGraphState;gitGraph:GitGraphState;graphify:GraphifyState}
+export const INITIAL_STATE:CockpitState={runtime:{status:"unchecked",version:"Not checked",diagnostic:"Run Refresh to validate a local CodeSlicer executable."},project:{readiness:"unknown",graphStatus:"unknown",freshness:"Not checked",graphifyAvailable:false},integration:{githubTokenConfigured:false},reviewSource:{mode:"current-changes"},history:[],review:{status:"idle",riskLevel:"—",riskConfidence:"—",riskReasons:[],limitations:[],impacts:[],chains:[],tests:[],warnings:[],localDiffNotice:"Analyzes a local Git diff only; GitHub metadata, comments, and checks are not read."},demo:{status:"idle"},server:{status:"idle",url:"http://127.0.0.1:8001/",message:"Server is not running."},codeGraph:{status:"idle",nodes:[],edges:[],totalNodes:0,totalEdges:0,message:"Build an analysis, then open the code graph."},gitGraph:{status:"idle",commits:[],message:"Open Git branches when you need them."},graphify:{status:"idle",message:"Graphify is optional and separate from CodeSlicer evidence."}};

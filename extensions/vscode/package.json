@@ -2,7 +2,7 @@
   "name": "codeslicer-impact-cockpit",
   "displayName": "CodeSlicer",
   "description": "See the risk, evidence, and tests behind your local Git changes before review.",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "publisher": "CodeSlicer",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/artemnoor/CodeSlicer.git" },
@@ -17,7 +17,7 @@
   "activationEvents": [
     "onView:codeslicer.cockpit", "onCommand:codeslicer.configureExecutable", "onCommand:codeslicer.installRuntime", "onCommand:codeslicer.setupSkills", "onCommand:codeslicer.analyzeWorkspace",
     "onCommand:codeslicer.reviewCurrentChanges", "onCommand:codeslicer.explainSelectedSymbol", "onCommand:codeslicer.openLocalHub",
-    "onCommand:codeslicer.refresh", "onCommand:codeslicer.runRecommendedTest"
+    "onCommand:codeslicer.refresh", "onCommand:codeslicer.runRecommendedTest", "onCommand:codeslicer.startLocalServer"
   ],
   "contributes": {
     "viewsContainers": { "activitybar": [{ "id": "codeslicer", "title": "CodeSlicer", "icon": "media/codeslicer.svg" }] },
@@ -37,6 +37,7 @@
       { "command": "codeslicer.githubSignIn", "title": "CodeSlicer: Review GitHub pull request (optional)" },
       { "command": "codeslicer.explainSelectedSymbol", "title": "CodeSlicer: Explain selected symbol" },
       { "command": "codeslicer.openLocalHub", "title": "CodeSlicer: Open Local Hub" },
+      { "command": "codeslicer.startLocalServer", "title": "CodeSlicer: Start local server" },
       { "command": "codeslicer.refresh", "title": "CodeSlicer: Refresh" },
       { "command": "codeslicer.runRecommendedTest", "title": "CodeSlicer: Run recommended test" }
     ],
@@ -46,7 +47,8 @@
         "codeslicer.executable": { "type": "string", "default": "", "description": "Advanced: absolute path to an existing local codeslicer executable. The normal runtime location is VS Code global storage." },
         "codeslicer.baseRef": { "type": "string", "default": "", "description": "Optional explicit Git base ref. Otherwise CodeSlicer verifies and selects a safe local base." },
         "codeslicer.codeLens": { "type": "boolean", "default": false, "description": "Show the optional CodeSlicer review CodeLens. It never starts analysis automatically." },
-        "codeslicer.localHubUrl": { "type": "string", "default": "http://127.0.0.1:8001/", "description": "Loopback URL of an already-running CodeSlicer Local Hub." },
+        "codeslicer.localHubUrl": { "type": "string", "default": "http://127.0.0.1:8001/", "description": "Loopback URL where CodeSlicer starts its local Local Hub server." },
+        "codeslicer.graphifyExecutable": { "type": "string", "default": "", "description": "Advanced: absolute path to the local Graphify executable. By default, CodeSlicer uses graphify from PATH." },
         "codeslicer.graphifyGraphPath": { "type": "string", "default": "", "description": "Optional absolute path to an existing Graphify graph.json. It remains separate from CodeSlicer evidence." },
         "codeslicer.uiLanguage": { "type": "string", "default": "auto", "enum": ["auto", "ru", "en"], "enumDescriptions": ["Follow VS Code language", "Русский", "English"], "description": "Language of the CodeSlicer cockpit." }
       }
