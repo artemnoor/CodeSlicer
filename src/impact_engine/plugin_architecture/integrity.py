@@ -1,6 +1,7 @@
 """Plugin graph integrity gate with explicit diagnostics."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from impact_engine.models import GraphDocument, Node
@@ -68,10 +69,40 @@ def annotate_plugin_provenance(graph: GraphDocument, plan: PluginSelectionPlan) 
         if plan.registry and plugin_id in plan.registry.manifests
     }
     selected_languages = {
-        plan.registry.manifests[plugin_id].language: plugin_id
+        plugin_id: plan.registry.manifests[plugin_id]
         for plugin_id in plan.selected_language_ids
         if plan.registry and plugin_id in plan.registry.manifests
     }
+    node_by_id = {node.id: node for node in graph.nodes}
+
+    def language_plugin_for_edge(edge: Any) -> str | None:
+        """Resolve extractor provenance from concrete source locations only.
+
+        A polyglot graph can contain several selected language plugins.  Using
+        their iteration order would silently mislabel facts from every language
+        after the first one.  Evidence locations and endpoint file metadata are
+        stable, local facts, so an unambiguous extension match is safe.  Unknown
+        extensions deliberately remain unannotated rather than guessed.
+        """
+        files: set[str] = set()
+        for evidence in getattr(edge, "evidence", []) or []:
+            file_name = getattr(evidence, "file", None)
+            if file_name:
+                files.add(str(file_name))
+        for endpoint in (edge.from_node, edge.to_node):
+            node = node_by_id.get(endpoint)
+            if node is None:
+                continue
+            file_name = (node.properties or {}).get("file") or (node.properties or {}).get("path")
+            if file_name:
+                files.add(str(file_name))
+        candidates = {
+            plugin_id
+            for file_name in files
+            for plugin_id, manifest in selected_languages.items()
+            if Path(file_name).suffix.lower() in {str(item).lower() for item in manifest.file_extensions}
+        }
+        return next(iter(candidates)) if len(candidates) == 1 else None
     for edge in graph.edges:
         props = edge.properties
         library = str(props.get("support_pack_library") or props.get("support_pack_id") or "").lower()
@@ -104,9 +135,9 @@ def annotate_plugin_provenance(graph: GraphDocument, plan: PluginSelectionPlan) 
                     props.setdefault("pack_id", plugin_id)
                     break
         if props.get("plugin_id") is None and edge.source == "EXTRACTED":
-            for language, plugin_id in selected_languages.items():
-                props.setdefault("plugin_id", plugin_id)
-                break
+            language_plugin = language_plugin_for_edge(edge)
+            if language_plugin:
+                props.setdefault("plugin_id", language_plugin)
         if props.get("support_pack_rule_id") and props.get("plugin_id"):
             props.setdefault("rule_id", props.get("support_pack_rule_id"))
         if props.get("plugin_id"):

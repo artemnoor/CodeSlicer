@@ -79,6 +79,23 @@ def test_inspect_alias_resolves_to_canonical_method(tmp_path: Path):
     assert report["resolved_entity"]["properties"]["file"] == "core/merge.py"
 
 
+def test_inspect_links_test_methods_by_confirmed_call_and_canonical_alias(tmp_path: Path):
+    graph = GraphDocument()
+    target = Node("method:app.service.save", "METHOD", "save", {"file": "app/service.py", "scope": "app.service.save"})
+    target_alias = Node("app.service.save", "EXTERNAL_LIBRARY", "save", {"canonical_identity": {"qualname": "app.service.save"}})
+    test = Node("method:tests.test_service.test_save", "METHOD", "test_save", {"file": "tests/test_service.py", "scope": "tests.test_service.test_save"})
+    test_alias = Node("tests.test_service.test_save", "EXTERNAL_LIBRARY", "test_save", {"canonical_identity": {"qualname": "tests.test_service.test_save"}})
+    for node in (target, target_alias, test, test_alias):
+        graph.add_node(node)
+    graph.add_edge(Edge("verified-test-call", "CALLS", test_alias.id, target_alias.id, source="EXTRACTED", confidence=.95, evidence=[Evidence("exact call", "tests/test_service.py", 5, "EXTRACTED")]))
+    path = tmp_path / "graph.json"
+    path.write_text(graph.to_json(), encoding="utf-8")
+
+    report = build_inspect_report(str(tmp_path), entity=target.id, graph_path=path)
+
+    assert [item["node"]["id"] for item in report["linked_tests"]] == [test.id]
+
+
 def test_inspect_materializes_canonical_downstream_calls(tmp_path: Path):
     project = Path(__file__).parent / "fixtures" / "realistic_impact_project"
     graph_path = tmp_path / "graph.json"

@@ -30,6 +30,7 @@ from impact_engine.review import (
     _resolve_graph,
 )
 from impact_engine.unknown_regions import analyze_unknown_regions
+from impact_engine.review_projection.filters import is_test_node
 
 
 SUPPRESSED_KINDS = {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "SUPPORT_PACK"}
@@ -591,16 +592,36 @@ def _context_visible(node: Node | None) -> bool:
 def _linked_boundary_nodes(graph: GraphDocument, node_id: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     node_by_id = {node.id: node for node in graph.nodes}
     tests, routes = [], []
+    resolved = node_by_id.get(node_id)
+    target_aliases = _canonical_aliases(resolved) if resolved is not None else {node_id}
+    target_ids = {
+        node.id for node in graph.nodes
+        if target_aliases.intersection(_canonical_aliases(node))
+    }
+
+    def visible_equivalent(endpoint: str) -> Node | None:
+        node = node_by_id.get(endpoint)
+        if _context_visible(node):
+            return node
+        aliases = _canonical_aliases(node) if node is not None else {endpoint}
+        candidates = [item for item in graph.nodes if _context_visible(item) and aliases.intersection(_canonical_aliases(item))]
+        return candidates[0] if len(candidates) == 1 else None
+
+    seen_tests: set[tuple[str, str]] = set()
     for edge in graph.edges:
-        if node_id not in {edge.from_node, edge.to_node}:
+        if not target_ids.intersection({edge.from_node, edge.to_node}):
             continue
-        other_id = edge.to_node if edge.from_node == node_id else edge.from_node
-        other = node_by_id.get(other_id)
+        other_id = edge.to_node if edge.from_node in target_ids else edge.from_node
+        other = visible_equivalent(other_id)
         if not other:
             continue
         item = {"node": _node_dict(other), "edge": edge.to_dict()}
-        if other.kind == "TEST":
+        # Test identity comes from the existing shared classifier; coverage is
+        # still reported only for an explicit, quality-approved call/test edge.
+        quality = classify_edge_quality(edge).status
+        if is_test_node(other) and str(edge.kind).upper() in {"TESTS", "CALLS"} and quality in {"confirmed", "likely"} and (other.id, edge.id) not in seen_tests:
             tests.append(item)
+            seen_tests.add((other.id, edge.id))
         if other.kind in BOUNDARY_KINDS or str(other.properties.get("boundary_category", "")).lower() in BOUNDARY_CATEGORIES:
             routes.append(item)
     return tests, routes

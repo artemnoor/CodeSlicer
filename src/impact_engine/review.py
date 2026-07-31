@@ -462,13 +462,24 @@ def _resolve_graph(root: Path, graph: GraphDocument | None, refresh: str, warnin
         return graph, freshness
     path = next((p for p in (root / ".impact_engine" / "graph.json", root / "graph.json") if p.is_file()), None)
     stale = False
+    loaded_from_project_cache = graph is None and path is not None
     if graph is None and path:
         graph = GraphDocument.from_json(path.read_text(encoding="utf-8"))
-    snapshot_path = root / ".impact_engine" / "project.snapshot.json"
+    # ``snapshot.json`` is the current persistent-cache artifact.  Retain the
+    # old filename for repositories created by earlier CodeSlicer versions.
+    # A disk graph without either snapshot cannot prove source freshness.
+    snapshot_path = next(
+        (candidate for candidate in (
+            root / ".impact_engine" / "project.snapshot.json",
+            root / ".impact_engine" / "snapshot.json",
+        ) if candidate.is_file()),
+        None,
+    )
     snapshot_changed = False
+    snapshot_unverified = loaded_from_project_cache and snapshot_path is None
     refresh_status = "reused" if graph is not None else "full_refresh"
     fallback_reason = None
-    if snapshot_path.is_file() and refresh in {"auto", "never"}:
+    if snapshot_path is not None and refresh in {"auto", "never"}:
         try:
             from impact_engine.incremental import project_snapshot
             previous = json.loads(snapshot_path.read_text(encoding="utf-8"))
@@ -486,7 +497,7 @@ def _resolve_graph(root: Path, graph: GraphDocument | None, refresh: str, warnin
     if graph is None or refresh == "force" or (refresh == "auto" and path is not None):
         from impact_engine.analysis.pipeline import analyze_project_core
         try:
-            if refresh == "auto" and path and path.exists() and snapshot_path.exists():
+            if refresh == "auto" and path and path.exists() and snapshot_path is not None:
                 from impact_engine.incremental import incremental_update, load_snapshot, save_snapshot
                 result = incremental_update(str(root), lambda changed=None: analyze_project_core(str(root), out_path=str(root / ".impact_engine" / "graph.json")), load_snapshot(snapshot_path), str(root / ".impact_engine" / "graph.json"), str(path))
                 save_snapshot(result["incremental"]["snapshot"], snapshot_path)
@@ -514,9 +525,18 @@ def _resolve_graph(root: Path, graph: GraphDocument | None, refresh: str, warnin
                 }
                 warnings.append("graph is missing; run a local analysis before relying on impact results")
                 return graph, freshness
-    elif refresh == "never" and snapshot_changed:
-        stale = True
-        warnings.append("graph snapshot differs from working tree")
+    elif refresh == "never":
+        # A supplied graph does not override a concrete stale snapshot.  The
+        # caller may choose the graph artifact, but it is still a claim about
+        # this workspace and must not look fresh when its recorded source set
+        # differs.  Only the absence of a snapshot is specific to a graph
+        # loaded from the project cache.
+        if snapshot_changed:
+            stale = True
+            warnings.append("graph snapshot differs from working tree")
+        elif loaded_from_project_cache and snapshot_unverified:
+            stale = True
+            warnings.append("graph source snapshot is unavailable; freshness cannot be verified")
     assert graph is not None
     age = max(0.0, time.time() - path.stat().st_mtime) if path and path.exists() else 0.0
     graph_fp = graph.metadata.get("graph_fingerprint") or graph_fingerprint(graph)

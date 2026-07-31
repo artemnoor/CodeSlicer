@@ -382,6 +382,26 @@ def test_multiple_python_framework_packs_keep_distinct_provenance(second_pack, s
         assert edge.evidence
 
 
+def test_language_provenance_uses_evidence_file_extension_in_polyglot_graph():
+    registry = discover_plugin_registry()
+    plan = build_plugin_selection_plan(
+        Path("."),
+        _inventory(languages=("python", "csharp"), files=("src/service.py", "src/Service.cs")),
+        registry=registry,
+    )
+    graph = GraphDocument()
+    for node_id, file_name in (("py-source", "src/service.py"), ("py-target", "src/target.py"), ("cs-source", "src/Service.cs"), ("cs-target", "src/Target.cs")):
+        graph.add_node(Node(node_id, "METHOD", node_id, {"file": file_name}))
+    graph.add_edge(Edge("py-edge", "CALLS", "py-source", "py-target", source="EXTRACTED", confidence=.9, evidence=[Evidence("Python call", "src/service.py", 4, "EXTRACTED")]))
+    graph.add_edge(Edge("cs-edge", "CALLS", "cs-source", "cs-target", source="EXTRACTED", confidence=.9, evidence=[Evidence("C# call", "src/Service.cs", 4, "EXTRACTED")]))
+
+    annotate_plugin_provenance(graph, plan)
+
+    by_id = {edge.id: edge for edge in graph.edges}
+    assert by_id["py-edge"].properties["plugin_id"] == "language.python"
+    assert by_id["cs-edge"].properties["plugin_id"] == "language.csharp"
+
+
 def test_plugin_integrity_gate_materializes_unresolved_endpoint_with_diagnostics():
     graph = GraphDocument(nodes=[Node("method:app.run", "METHOD", "run", {"scope": "app.run"})])
     graph.add_edge(Edge("e", "CALLS", "app.run", "external:pkg.call", evidence=[Evidence("call", "app.py", 2)]))

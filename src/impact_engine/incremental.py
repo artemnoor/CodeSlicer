@@ -21,24 +21,18 @@ from impact_engine.incremental_index import affected_closure
 from impact_engine.resolver_registry import list_resolver_contracts
 from impact_engine.selective_execution import ResolverExecutionPlan, ResolverContextBuilder
 from impact_engine.security import validate_project_path
-from impact_engine.persistence import CancellationToken
+from impact_engine.persistence import CancellationToken, project_snapshot as persistent_project_snapshot
 
 
 def project_snapshot(project_path: str | Path, scope: str | None = None) -> dict[str, str]:
-    root = validate_project_path(project_path)
-    snapshot: dict[str, str] = {}
-    ignored = {".git", ".impact_engine", ".codeslicer", "graphify-out", "__pycache__", "node_modules", ".venv"}
-    prefix = (scope or "").replace("\\", "/").strip("/")
-    if prefix == ".":
-        prefix = ""
-    scan_root = root / prefix if prefix and (root / prefix).is_dir() else root
-    for path in sorted(scan_root.rglob("*")):
-        if not path.is_file() or any(part in ignored for part in path.parts):
-            continue
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        relative = str(path.relative_to(root)).replace("\\", "/")
-        snapshot[relative] = digest
-    return snapshot
+    """Return the same source snapshot used by the persistent graph cache.
+
+    Incremental invalidation and review freshness must have one definition of
+    the project boundary.  Delegating prevents editor caches, hidden tooling
+    directories, generated output, and user-configured scan-plan exclusions
+    from making a graph appear stale when they were never analyzed.
+    """
+    return persistent_project_snapshot(validate_project_path(project_path), scope)
 
 
 def atomic_write_graph(graph: GraphDocument, output_path: str | Path) -> Path:
