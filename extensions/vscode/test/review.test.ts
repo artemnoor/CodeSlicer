@@ -45,6 +45,10 @@ test("cockpit separates review, results, tests, technologies, history, architect
   assert.match(html, /data-action="createBranch"/);
   assert.match(html, /data-guide-anchor="git-branch"/);
   assert.match(html, /Гиды по задачам/);
+  assert.match(html, /Начать работу с проектом/);
+  assert.match(html, /Подключить GitHub для PR/);
+  assert.match(html, /Подключить готовый Graphify/);
+  assert.match(html, /class="guide-spotlight"/);
   assert.match(html, /data-action="previewPush"/);
   assert.match(html, /data-action="configureGitHubToken"/);
   assert.match(html, /data-action="configureGraphify"/);
@@ -82,9 +86,13 @@ test("router changes real screens and routes only explicit actions to VS Code", 
   click({ demoNext: "" });
   assert.equal(tabs[1].attributes["aria-selected"], "true");
   click({ demoNext: "" });
+  assert.equal(tabs[1].attributes["aria-selected"], "true");
+  click({ demoNext: "" });
   assert.equal(tabs[2].attributes["aria-selected"], "true");
   click({ guide: "git" });
   assert.equal(tabs[5].attributes["aria-selected"], "true");
+  click({ guide: "github" });
+  assert.equal(tabs[9].attributes["aria-selected"], "true");
   click({ language: "en" });
   assert.deepEqual(messages.at(-1), { type: "setLanguage", language: "en" });
 });

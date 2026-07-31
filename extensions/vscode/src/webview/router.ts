@@ -9,24 +9,28 @@ function highlight(selector){clearGuideTarget();if(!selector)return;const target
 function stopDemo(){byId('demo-guide').hidden=true;clearGuideTarget()}
 function guideFlows(){const ru=isRussian();return {
  review:ru?[
-  ['1/3 · Выберите изменения','Здесь выберите, что именно хотите проверить: незакоммиченные изменения, staged‑файлы, сравнение веток или diff‑файл.','review','#panel-review .field-group'],
-  ['2/3 · Укажите базу','Проверьте, с какой веткой сравниваются изменения. Если нужно, нажмите «Изменить базу».','review','#panel-review .base-readout'],
-  ['3/3 · Прочитайте результат','После проверки здесь будут риск, причина, затронутые части кода и доказательства.','results','#panel-results .metric-grid']
+  ['1/4 · Выберите изменения','Выберите, что проверить: изменения в рабочей папке, staged‑файлы, сравнение веток или diff‑файл.','review','#panel-review .field-group'],
+  ['2/4 · Укажите базовую ветку','Проверьте, с какой веткой сравниваются изменения. Если нужно, выберите «Изменить базу».','review','#panel-review .base-readout'],
+  ['3/4 · Запустите проверку','Нажмите «Запустить проверку». CodeSlicer анализирует только локальный Git diff и не отправляет ваш код в GitHub.','review','[data-action="review"]'],
+  ['4/4 · Прочитайте результат','После проверки откройте результат: риск, причина, затронутые части кода и доказательства.','results','#panel-results .metric-grid']
  ]:[
-  ['1/3 · Choose changes','Choose what to review: working changes, staged files, branches, or a diff file.','review','#panel-review .field-group'],
-  ['2/3 · Check the base','Confirm the branch used for comparison. Choose Change base if needed.','review','#panel-review .base-readout'],
-  ['3/3 · Read the result','After review, this is where risk, reasons, affected code, and evidence appear.','results','#panel-results .metric-grid']
+  ['1/4 · Choose changes','Choose working changes, staged files, branch comparison, or a diff file.','review','#panel-review .field-group'],
+  ['2/4 · Check the base branch','Confirm the branch used for comparison. Choose Change base if needed.','review','#panel-review .base-readout'],
+  ['3/4 · Run the review','Choose Run review. CodeSlicer analyzes only a local Git diff and never sends your code to GitHub.','review','[data-action="review"]'],
+  ['4/4 · Read the result','Open Results to see risk, reasons, affected code, and evidence.','results','#panel-results .metric-grid']
  ],
  git:ru?[
-  ['1/4 · Посмотрите состояние','Эта карточка только показывает ветки, remotes и историю. Она ничего не меняет.','git','[data-guide-anchor="git-status"]'],
-  ['2/4 · Создайте ветку','Нажмите эту кнопку. Затем введите имя, например feature/my-task. Git создаст ветку и перейдёт на неё.','git','[data-guide-anchor="git-branch"]'],
-  ['3/4 · Подключите remote','Сначала введите имя origin, затем HTTPS или SSH‑адрес. На этом шаге код ещё не отправляется.','git','[data-guide-anchor="git-remote"]'],
-  ['4/4 · Проверьте и отправьте','Сначала проверьте направление push, затем внимательно подтвердите отправку. Force push недоступен.','git','[data-guide-anchor="git-push"]']
+  ['1/5 · Посмотрите состояние Git','Эта карточка показывает ветки, remotes и историю. Она ничего не меняет.','git','[data-guide-anchor="git-status"]'],
+  ['2/5 · Создайте ветку','Введите понятное имя, например feature/my-task. Git создаст ветку и сразу перейдёт на неё.','git','[data-guide-anchor="git-branch"]'],
+  ['3/5 · Переключитесь при необходимости','Если рабочая ветка уже существует, выберите её. При незавершённых изменениях Git объяснит, почему переход недоступен.','git','[data-guide-anchor="git-switch"]'],
+  ['4/5 · Подключите remote','Сначала введите имя origin, затем HTTPS или SSH‑адрес. На этом шаге код ещё не отправляется.','git','[data-guide-anchor="git-remote"]'],
+  ['5/5 · Проверьте и отправьте','Сначала проверьте направление push, затем внимательно подтвердите отправку. Force push недоступен.','git','[data-guide-anchor="git-push"]']
  ]:[
-  ['1/4 · See the state','This card only shows branches, remotes, and history. It changes nothing.','git','[data-guide-anchor="git-status"]'],
-  ['2/4 · Create a branch','Select this button, then enter a name such as feature/my-task. Git creates the branch and switches to it.','git','[data-guide-anchor="git-branch"]'],
-  ['3/4 · Connect a remote','First enter origin, then an HTTPS or SSH address. No code is sent at this step.','git','[data-guide-anchor="git-remote"]'],
-  ['4/4 · Check and push','Check the destination first, then carefully confirm the push. Force push is unavailable.','git','[data-guide-anchor="git-push"]']
+  ['1/5 · View Git status','This card shows branches, remotes, and history. It changes nothing.','git','[data-guide-anchor="git-status"]'],
+  ['2/5 · Create a branch','Enter a clear name such as feature/my-task. Git creates the branch and switches to it.','git','[data-guide-anchor="git-branch"]'],
+  ['3/5 · Switch if needed','Choose an existing working branch. If unfinished changes prevent it, Git explains why switching is unavailable.','git','[data-guide-anchor="git-switch"]'],
+  ['4/5 · Connect a remote','First enter origin, then an HTTPS or SSH address. No code is sent at this step.','git','[data-guide-anchor="git-remote"]'],
+  ['5/5 · Check and push','Check the destination first, then carefully confirm the push. Force push is unavailable.','git','[data-guide-anchor="git-push"]']
  ],
  tests:ru?[
   ['1/2 · Посмотрите рекомендацию','Здесь CodeSlicer объясняет, какой тест связан с изменением и почему его стоит запустить.','tests','#panel-tests .stack'],
@@ -43,8 +47,41 @@ function guideFlows(){const ru=isRussian();return {
   ['2/2 · Open details when needed','Use Local Hub for the larger graph. Graphify remains a separate tool.','architecture','#panel-architecture .content-section']
  ]
  }}
-function normalizedGuide(id){if(id==='git-status'||id==='git-branch'||id==='git-switch'||id==='git-remote'||id==='git-push')return 'git';return ['review','git','tests','map'].includes(id)?id:'review'}
-function showDemoStep(step){const flow=guideFlows()[guideId]||guideFlows().review;demoStep=Math.min(step,flow.length-1);const item=flow[demoStep];say(item[0],item[1]);selectTab(item[2],true);highlight(item[3])}
+function extraGuideFlow(id,ru){const flows=ru?{
+ start:[
+  ['1/3 · Посмотрите статус проекта','На главном экране видно, есть ли папка, Git и готовый CodeSlicer runtime. Ничего не запускается автоматически.','start','#panel-start'],
+  ['2/3 · Подготовьте папку','Если папка пустая, откройте проект или импортируйте репозиторий. Если Git ещё не подключён, инициализируйте его одной кнопкой.','start','#panel-start .action-row'],
+  ['3/3 · Перейдите к проверке','Когда проект готов, выберите «Проверка изменений». Так вы увидите риск и рекомендуемые тесты до commit.','review','#panel-review .field-group']
+ ],
+ github:[
+  ['1/3 · Откройте настройки','GitHub нужен только для проверки Pull Request. Обычная проверка изменений работает полностью локально.','settings','#panel-settings .info-card--secure'],
+  ['2/3 · Выберите безопасный вход','Можно использовать вход VS Code OAuth или сохранить личный token в Secret Storage VS Code. Token не попадёт в Git remote и логи.','settings','[data-action="configureGitHubToken"]'],
+  ['3/3 · Выберите GitHub PR','После входа выберите GitHub PR как источник изменений. Diff анализируется локально в вашем workspace.','review','#panel-review .field-group']
+ ],
+ graphify:[
+  ['1/3 · Откройте карту CodeSlicer','Сначала посмотрите подтверждённые связи CodeSlicer. Это основной источник риска и evidence.','architecture','#panel-architecture .graph-console'],
+  ['2/3 · Подключите готовый Graphify','Graphify не скачивается автоматически. Если он уже настроен, подключите его как отдельную архитектурную карту.','architecture','[data-action="configureGraphify"]'],
+  ['3/3 · Не смешивайте результаты','Graphify помогает исследовать архитектуру, но не изменяет риск и доказательства CodeSlicer.','architecture','#panel-architecture .content-section']
+ ]
+}:{
+ start:[
+  ['1/3 · Check the project status','The overview shows whether the folder, Git, and the CodeSlicer runtime are ready. Nothing starts automatically.','start','#panel-start'],
+  ['2/3 · Prepare the folder','For an empty folder, open a project or import a repository. If Git is missing, initialize it with one action.','start','#panel-start .action-row'],
+  ['3/3 · Move to review','When the project is ready, choose Review changes to see risk and recommended tests before a commit.','review','#panel-review .field-group']
+ ],
+ github:[
+  ['1/3 · Open settings','GitHub is only needed for pull-request review. Local change review works fully offline.','settings','#panel-settings .info-card--secure'],
+  ['2/3 · Choose a safe sign-in','Use VS Code OAuth or store a personal token in VS Code Secret Storage. The token never goes into a Git remote or logs.','settings','[data-action="configureGitHubToken"]'],
+  ['3/3 · Choose GitHub PR','After signing in, choose GitHub PR as the change source. The diff is analyzed locally in your workspace.','review','#panel-review .field-group']
+ ],
+ graphify:[
+  ['1/3 · Open the CodeSlicer map','Start with confirmed CodeSlicer relationships. They are the main source of risk and evidence.','architecture','#panel-architecture .graph-console'],
+  ['2/3 · Connect existing Graphify','Graphify is never downloaded automatically. Connect it as a separate architecture map only if it is already configured.','architecture','[data-action="configureGraphify"]'],
+  ['3/3 · Keep results separate','Graphify helps explore architecture but never changes CodeSlicer risk or evidence.','architecture','#panel-architecture .content-section']
+ ]
+};return flows[id]}
+function normalizedGuide(id){if(id==='git-status'||id==='git-branch'||id==='git-switch'||id==='git-remote'||id==='git-push')return 'git';return ['start','review','git','tests','map','github','graphify'].includes(id)?id:'review'}
+function showDemoStep(step){const flow=guideFlows()[guideId]||extraGuideFlow(guideId,isRussian())||guideFlows().review;demoStep=Math.min(step,flow.length-1);const item=flow[demoStep];say(item[0],item[1]);selectTab(item[2],true);highlight(item[3])}
 function startDemo(id='review'){guideId=normalizedGuide(id);byId('demo-guide').hidden=false;showDemoStep(0);byId('demo-title').focus?.()}
 function moveGuide(event){if(!dragState)return;const guide=byId('demo-guide');guide.style.left=Math.max(8,event.clientX-dragState.x)+'px';guide.style.top=Math.max(8,event.clientY-dragState.y)+'px';guide.style.right='auto';guide.style.bottom='auto'}
 document.addEventListener('pointerdown',event=>{const handle=event.target&&event.target.closest&&event.target.closest('[data-guide-handle]');if(!handle)return;const guide=byId('demo-guide');const box=guide.getBoundingClientRect?.();if(!box)return;dragState={x:event.clientX-box.left,y:event.clientY-box.top};handle.setPointerCapture?.(event.pointerId);event.preventDefault?.()});
