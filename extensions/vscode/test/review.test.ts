@@ -16,37 +16,44 @@ test("parses compatible ReviewReport fields and uses projection tests without ex
   assert.equal(review.tests[0].file, "tests/test_orders.py");
 });
 
-test("first-run cockpit exposes a four-screen path and every primary local action", () => {
+test("cockpit separates review, results, tests, technologies, history, and architecture", () => {
   const html = renderCockpit({ ...INITIAL_STATE, runtime: { ...INITIAL_STATE.runtime, status: "found" }, codeGraph: { status: "ready", nodes: [{ id: "a", label: "entry", kind: "FUNCTION" }], edges: [], totalNodes: 1, totalEdges: 0, message: "Ready" }, gitGraph: { status: "ready", commits: [{ id: "123456789", parents: [], refs: "HEAD -> main", subject: "Initial" }], message: "Ready" } }, "ru");
-  assert.match(html, /Три шага до понятной картины проекта/);
-  assert.match(html, /data-action="startServer"/);
+  assert.match(html, /Проект готов к проверке/);
+  assert.match(html, /data-tab="review"/);
+  assert.match(html, /data-tab="results"/);
+  assert.match(html, /data-tab="tests"/);
+  assert.match(html, /data-tab="tech"/);
+  assert.match(html, /data-tab="history"/);
+  assert.match(html, /data-tab="architecture"/);
+  assert.match(html, /data-language="ru"/);
+  assert.match(html, /data-language="en"/);
   assert.match(html, /data-action="showGraph"/);
   assert.match(html, /data-action="review"/);
   assert.match(html, /data-action="showGit"/);
-  assert.match(html, /data-action="installGraphify"/);
-  assert.match(html, /class="code-graph"/);
-  assert.match(html, /class="git-timeline"/);
-  assert.doesNotMatch(html, /data-tab="tests"/);
-  assert.doesNotMatch(html, /data-tab="architecture"/);
+  assert.match(html, /data-action="configureGraphify"/);
+  assert.match(html, /пакеты можно получать только из настроенного/i);
+  assert.match(html, /class="node-grid"/);
 });
 
-test("router changes one of four screens and routes each action to VS Code", () => {
+test("router changes real screens and routes only explicit actions to VS Code", () => {
   const elements = new Map<string, any>(), messages: unknown[] = [], listeners: Record<string, (event: any) => void> = {};
   const makeElement = (): any => ({ hidden: false, dataset: {}, attributes: {}, setAttribute(name: string, value: string) { this.attributes[name] = value; }, focus() {} });
   const get = (id: string) => { if (!elements.has(id)) elements.set(id, makeElement()); return elements.get(id); };
-  const tabs = ["start", "analysis", "graphs", "more"].map(tab => ({ ...makeElement(), dataset: { tab } }));
+  const tabs = ["start", "review", "results", "tests", "tech", "history", "architecture", "settings"].map(tab => ({ ...makeElement(), dataset: { tab } }));
   const documentStub: any = { getElementById: get, querySelectorAll: (selector: string) => selector === "[role=tab]" ? tabs : [], querySelector: (selector: string) => tabs.find(tab => selector.includes(tab.dataset.tab)), addEventListener: (type: string, listener: (event: any) => void) => { listeners[type] = listener; } };
   new Function("document", "acquireVsCodeApi", clientRouter)(documentStub, () => ({ getState: () => undefined, setState() {}, postMessage: (message: unknown) => messages.push(message) }));
   const click = (dataset: Record<string, string>) => listeners.click({ target: { dataset, closest() { return this; } } });
   assert.equal(tabs[0].attributes["aria-selected"], "true");
-  click({ tab: "graphs" });
-  assert.equal(tabs[2].attributes["aria-selected"], "true");
+  click({ tab: "architecture" });
+  assert.equal(tabs[6].attributes["aria-selected"], "true");
   click({ action: "showGraph" });
   assert.deepEqual(messages, [{ type: "action", action: "showGraph" }]);
-  click({ demoStart: "", action: "showDemo" });
-  assert.equal(tabs[0].attributes["aria-selected"], "true");
-  click({ demoNext: "" });
+  click({ demoStart: "" });
   assert.equal(tabs[1].attributes["aria-selected"], "true");
+  click({ demoNext: "" });
+  assert.equal(tabs[2].attributes["aria-selected"], "true");
+  click({ language: "en" });
+  assert.deepEqual(messages.at(-1), { type: "setLanguage", language: "en" });
 });
 
 test("extension keeps Graphify optional and separate from the local runtime", () => {

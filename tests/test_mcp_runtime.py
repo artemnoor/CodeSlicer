@@ -237,17 +237,25 @@ def test_mcp_project_onboarding_preflight_is_available_without_terminal_access()
 
 
 def test_mcp_subprocess_real(tmp_path):
+    import os
     import subprocess
     import sys
     
     cmd = [sys.executable, "-m", "impact_engine.mcp.server"]
+    env = os.environ.copy()
+    source_root = str(Path(__file__).resolve().parents[1] / "src")
+    # The subprocess intentionally runs in an isolated temp project.  Keep an
+    # absolute import root so the repository's documented PYTHONPATH=src setup
+    # does not become relative to that temporary cwd.
+    env["PYTHONPATH"] = source_root + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     
     proc = subprocess.Popen(
         cmd,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        cwd=str(tmp_path)
+        cwd=str(tmp_path),
+        env=env,
     )
     
     try:

@@ -14,7 +14,7 @@ Install the matching VSIX, open a trusted project, and select **Review current c
 
 VS Code selects platform-specific packages created with `vsce --target`. The runtime resolves in the workspace extension host, so WSL, SSH, Dev Containers, and Codespaces need the matching VSIX installed in that remote window. Unsupported hosts get a diagnostic; CodeSlicer never downloads a substitute.
 
-Each package contains `runtime/<target>/bin/{codeslicer,impact-engine-local-api}`, a manifest with version/platform/architecture/SHA-256 data, and embedded-runtime notices/licenses. The extension verifies its launcher checksum before execution.
+Each package contains `runtime/<target>/bin/{codeslicer,impact-engine-local-api}`, a manifest with version/platform/architecture/SHA-256 data, and embedded-runtime notices/licenses. The extension verifies every file declared by that manifest before execution; an invalid checksum, missing file, or unsafe manifest path blocks the runtime.
 
 ## Development and packaging
 
@@ -29,6 +29,30 @@ npm run package
 `scripts/build_bundled_runtime.py` refuses cross-platform builds. It uses PyInstaller on a native runner to package the current Core, support packs, language plugins, Tree-sitter dependencies, and private Python runtime. Install `pyinstaller` in the build environment. CI creates non-Windows artifacts. Inspect generated VSIX files with `Expand-Archive` or `unzip -l`.
 
 The VSIX excludes the source repository, `.venv`, `node_modules`, caches, `.impact_engine`, Graphify outputs, tests, and secrets.
+
+## Cockpit workflow
+
+The webview keeps the normal path simple:
+
+1. **Review** — choose working tree, staged changes, branch comparison, a local patch, or optional GitHub PR.
+2. **Results** — risk, reasons, affected entities, and evidence.
+3. **Tests** — recommendations; every real test requires a new modal confirmation.
+4. **Technologies** — built-in language coverage, graph freshness, and optional-pack status.
+5. **History** — the last local review summaries in workspace state.
+6. **Architecture** — a bounded canonical CodeSlicer slice and local Git history.
+
+The interactive guide only switches these real tabs. It does not invoke Git,
+the runtime, tests, or network requests.
+
+## Optional language packs
+
+Core language coverage is bundled for offline use. Additional language packs
+are deliberately unavailable until CodeSlicer publishes a signed registry and
+verification key. The extension does not contain a guessed endpoint or a
+pretend download action. A future registry must provide a target-specific,
+versioned manifest plus SHA-256 and signature verification, atomic installation
+and rollback; until then the Technologies screen reports the honest offline
+state.
 
 ## Product boundaries
 

@@ -1,7 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { createHash } from "node:crypto";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { runProcess } from "./cli";
 import { RuntimeState } from "./types";
 
@@ -23,6 +23,20 @@ export function runtimeExecutableRelative(platform = process.platform): string {
 }
 
 function sha256(value: Buffer): string { return createHash("sha256").update(value).digest("hex"); }
+
+/** Validate every file declared by a runtime manifest without allowing it to escape its VSIX directory. */
+export async function validateRuntimeFiles(root: string, files: Record<string, string>): Promise<string | undefined> {
+  for (const [name, expected] of Object.entries(files)) {
+    if (!name || !/^[a-f0-9]{64}$/iu.test(expected)) return `Runtime manifest has an invalid checksum for '${name}'.`;
+    if (name.split(/[\\/]/u).some(part => !part || part === "." || part === "..")) return `Runtime manifest contains an unsafe file path '${name}'.`;
+    const path = resolve(root, name);
+    if (relative(root, path).startsWith("..") || relative(root, path) === "") return `Runtime manifest contains an unsafe file path '${name}'.`;
+    try {
+      if (sha256(await readFile(path)) !== expected) return `Bundled runtime checksum validation failed for '${name}'. Reinstall the matching VSIX.`;
+    } catch { return `Bundled runtime file '${name}' is missing or unreadable. Reinstall the matching VSIX.`; }
+  }
+  return undefined;
+}
 
 /** Resolves and validates the runtime embedded in this platform-specific VSIX.
  * No workspace virtualenv or PATH probing is performed. */
@@ -48,7 +62,7 @@ export class CodeSlicerRuntimeManager {
     try {
       const parsed = JSON.parse(await readFile(join(root, "manifest.json"), "utf8")) as RuntimeManifest;
       const target = this.target();
-      if (!target || parsed.platform !== process.platform || parsed.arch !== process.arch || !parsed.runtimeVersion || !parsed.extensionCompatibility || !parsed.files) return undefined;
+      if (!target || parsed.platform !== process.platform || parsed.arch !== process.arch || !parsed.runtimeVersion || !parsed.extensionCompatibility || !parsed.files || !Object.keys(parsed.files).length) return undefined;
       return parsed;
     } catch { return undefined; }
   }
@@ -60,10 +74,10 @@ export class CodeSlicerRuntimeManager {
     const bundled = this.runtimePath();
     if (!manifest || !bundled) return { status: "install-unavailable", version: "Not available", diagnostic: `This ${target} VSIX does not contain a valid bundled runtime manifest.` };
     try {
-      const relative = runtimeExecutableRelative().replace(/\\/gu, "/");
-      const expected = manifest.files[relative];
-      const actual = sha256(await readFile(bundled));
-      if (!expected || expected !== actual) return { status: "incompatible", executable: bundled, version: manifest.runtimeVersion, diagnostic: "Bundled runtime checksum validation failed. Reinstall the matching VSIX." };
+      const invalid = await validateRuntimeFiles(this.runtimeRoot(target)!, manifest.files);
+      if (invalid) return { status: "incompatible", executable: bundled, version: manifest.runtimeVersion, diagnostic: invalid };
+      const runtimeFile = runtimeExecutableRelative().replace(/\\/gu, "/");
+      if (!manifest.files[runtimeFile]) return { status: "incompatible", executable: bundled, version: manifest.runtimeVersion, diagnostic: "Bundled runtime manifest does not declare the CodeSlicer executable." };
       await access(bundled, constants.X_OK);
       const result = await runProcess(bundled, ["--help"], cwd, 20_000);
       if (result.exitCode !== 0 || !/\breview\b/u.test(result.stdout) || !/\binspect\b/u.test(result.stdout)) return { status: "incompatible", executable: bundled, version: manifest.runtimeVersion, diagnostic: "Bundled runtime did not expose the required review and inspect commands." };

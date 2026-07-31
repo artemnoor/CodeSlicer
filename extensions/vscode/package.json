@@ -2,7 +2,7 @@
   "name": "codeslicer-impact-cockpit",
   "displayName": "CodeSlicer",
   "description": "See the risk, evidence, and tests behind your local Git changes before review.",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "publisher": "CodeSlicer",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/artemnoor/CodeSlicer.git" },
@@ -28,7 +28,7 @@
       { "command": "codeslicer.runtimeDoctor", "title": "CodeSlicer: Check runtime" },
       { "command": "codeslicer.runtimeUpdate", "title": "CodeSlicer: Update runtime" },
       { "command": "codeslicer.runtimeRollback", "title": "CodeSlicer: Roll back runtime" },
-      { "command": "codeslicer.installRuntime", "title": "CodeSlicer: Install automatically" },
+      { "command": "codeslicer.installRuntime", "title": "CodeSlicer: Check bundled runtime" },
       { "command": "codeslicer.setupSkills", "title": "CodeSlicer: Choose IDE and install skills" },
       { "command": "codeslicer.analyzeWorkspace", "title": "CodeSlicer: Analyze workspace" },
       { "command": "codeslicer.reviewCurrentChanges", "title": "CodeSlicer: Review current changes" },
@@ -52,6 +52,7 @@
         "codeslicer.localHubUrl": { "type": "string", "default": "http://127.0.0.1:8001/", "description": "Loopback URL where CodeSlicer starts its local Local Hub server." },
         "codeslicer.graphifyExecutable": { "type": "string", "default": "", "description": "Advanced: absolute path to the local Graphify executable. By default, CodeSlicer uses graphify from PATH." },
         "codeslicer.graphifyGraphPath": { "type": "string", "default": "", "description": "Optional absolute path to an existing Graphify graph.json. It remains separate from CodeSlicer evidence." },
+        "codeslicer.packRegistryUrl": { "type": "string", "default": "", "description": "Advanced: HTTPS URL of the official signed CodeSlicer language-pack catalog. No request is made until a future explicit pack action." },
         "codeslicer.uiLanguage": { "type": "string", "default": "auto", "enum": ["auto", "ru", "en"], "enumDescriptions": ["Follow VS Code language", "Русский", "English"], "description": "Language of the CodeSlicer cockpit." }
       }
     }
