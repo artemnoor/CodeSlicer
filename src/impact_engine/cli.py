@@ -30,6 +30,22 @@ def _print_result(data: object, json_output: bool, human: str | None = None) -> 
         print(human)
 
 
+def _analysis_artifact_paths(args: argparse.Namespace) -> tuple[Path, Path, Path]:
+    """Resolve analysis state under the project unless the caller opts out.
+
+    Keeping state beside the analyzed workspace prevents a VS Code process and a
+    terminal launched from another directory from silently using different
+    snapshots or raw caches.
+    """
+    root = Path(args.path).expanduser().resolve()
+    state_dir = root / ".impact_engine"
+    output = Path(args.out).expanduser().resolve() if args.out else state_dir / "graph.json"
+    snapshot_value = getattr(args, "snapshot", None)
+    snapshot = Path(snapshot_value).expanduser().resolve() if snapshot_value else state_dir / "project.snapshot.json"
+    raw_cache = state_dir / "raw_graph.json"
+    return output, snapshot, raw_cache
+
+
 def _load_support_pack_candidate(path: str) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
@@ -155,18 +171,19 @@ def _run_researcher_pro(args: argparse.Namespace) -> dict:
     return data
 
 
-def main(argv: list[str] | None = None) -> None:
+def _main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="impact-engine")
     parser.add_argument("--json", action="store_true", help="Output raw JSON results")
     sub = parser.add_subparsers(dest="command")
 
     analyze = sub.add_parser("analyze")
     analyze.add_argument("path")
-    analyze.add_argument("--out", default="graph.json")
+    analyze.add_argument("--out", default=None, help="Graph output; defaults to <project>/.impact_engine/graph.json")
     analyze.add_argument("--local-registry", dest="remote_registry", action="store_true", help="Use the local SQLite registry")
     analyze.add_argument("--no-research-requests", action="store_true")
     analyze.add_argument("--graphify", default=None, help="Optional Graphify graph.json to normalize and merge")
     analyze.add_argument("--use-scan-plan", action="store_true", help="Create/reuse .impact_engine/scan_plan.json before analysis")
+    analyze.add_argument("--full-resolution", action="store_true", help="Opt into unbounded semantic and precision resolution for large projects")
 
     scan_plan = sub.add_parser("scan-plan", help="Plan the files and directories that will be analyzed")
     scan_plan.add_argument("path")
@@ -183,12 +200,13 @@ def main(argv: list[str] | None = None) -> None:
 
     incremental = sub.add_parser("analyze-incremental")
     incremental.add_argument("path")
-    incremental.add_argument("--out", default="graph.json")
-    incremental.add_argument("--snapshot", default=".impact_engine/project.snapshot.json")
+    incremental.add_argument("--out", default=None, help="Graph output; defaults to <project>/.impact_engine/graph.json")
+    incremental.add_argument("--snapshot", default=None, help="Snapshot path; defaults to <project>/.impact_engine/project.snapshot.json")
+    incremental.add_argument("--changed", action="append", default=None, help="Known changed path (repeatable); still validates the final snapshot")
 
     watch = sub.add_parser("watch")
     watch.add_argument("path")
-    watch.add_argument("--out", default="graph.json")
+    watch.add_argument("--out", default=None, help="Graph output; defaults to <project>/.impact_engine/graph.json")
     watch.add_argument("--interval", type=float, default=1.0)
     watch.add_argument("--iterations", type=int, default=1)
 
@@ -225,6 +243,7 @@ def main(argv: list[str] | None = None) -> None:
     pr_review.add_argument("--diff-file", default=None)
     pr_review.add_argument("--depth", type=int, default=6)
     pr_review.add_argument("--min-confidence", type=float, default=0.0)
+    pr_review.add_argument("--technical", action="store_true", help="Include full raw traversal details in JSON output")
 
     runtime_trace = sub.add_parser("runtime-trace")
     runtime_trace.add_argument("project_path")
@@ -463,38 +482,55 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.command == "analyze-incremental":
         from impact_engine.analysis.pipeline import analyze_project_core
-        from impact_engine.incremental import incremental_update, load_snapshot, save_snapshot
-        previous = load_snapshot(args.snapshot) if Path(args.snapshot).exists() else None
-        raw_cache = str(Path(args.snapshot).with_name("raw_graph.json"))
-        result = incremental_update(
-            args.path,
-            lambda changed: analyze_project_core(
+        from impact_engine.analysis_lock import analysis_lock
+        from impact_engine.incremental import incremental_update, load_snapshot, normalize_changed_files, save_snapshot
+        output_path, snapshot_path, raw_cache = _analysis_artifact_paths(args)
+        previous = load_snapshot(snapshot_path) if snapshot_path.exists() else None
+        known_changed = normalize_changed_files(args.path, args.changed)
+        with analysis_lock(args.path, owner="cli-incremental"):
+            result = incremental_update(
                 args.path,
-                out_path=None,
-                changed_files=changed,
-                raw_graph_cache_path=raw_cache,
-            ),
-            previous_snapshot=previous,
-            out_path=args.out,
-            previous_graph_path=args.out,
-        )
-        save_snapshot(result["incremental"]["snapshot"], args.snapshot)
+                lambda changed: analyze_project_core(
+                    args.path,
+                    out_path=None,
+                    # The explicit editor event is advisory.  The final
+                    # filesystem snapshot remains authoritative so an event
+                    # drop cannot leave unrelated changes out of the graph.
+                    changed_files=sorted(set(changed) | set(known_changed or [])),
+                    raw_graph_cache_path=str(raw_cache),
+                ),
+                previous_snapshot=previous,
+                out_path=str(output_path),
+                previous_graph_path=str(output_path),
+            )
+            save_snapshot(result["incremental"]["snapshot"], snapshot_path)
         if args.json:
             _print_json(result)
         else:
             print(f"Incremental analysis: {result.get('status')}")
             print(f"  Changed files: {result['incremental']['changed_file_count']}")
-            print(f"  Graph: {result.get('graph_path') or args.out}")
+            print(f"  Graph: {result.get('graph_path') or output_path}")
 
     elif args.command == "watch":
         from impact_engine.analysis.pipeline import analyze_project_core
+        from impact_engine.incremental import load_snapshot
         from impact_engine.watch import watch_project
+        output_path, snapshot_path, raw_cache = _analysis_artifact_paths(args)
+        previous = load_snapshot(snapshot_path) if snapshot_path.exists() else None
         results = list(watch_project(
             args.path,
-            lambda: analyze_project_core(args.path, out_path=None),
+            lambda changed: analyze_project_core(
+                args.path,
+                out_path=None,
+                changed_files=changed,
+                raw_graph_cache_path=str(raw_cache),
+            ),
+            previous_snapshot=previous,
             interval_seconds=args.interval,
             iterations=args.iterations,
-            out_path=args.out,
+            out_path=str(output_path),
+            snapshot_path=str(snapshot_path),
+            previous_graph_path=str(output_path),
         ))
         result = results[-1] if results else {"incremental": {}}
         if args.json:
@@ -595,6 +631,7 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.command == "analyze":
         from impact_engine.analysis.pipeline import analyze_project_core
+        from impact_engine.analysis_lock import analysis_lock
         from impact_engine.support_packs.detection import detect_unknown_libraries_core
         if args.use_scan_plan:
             from impact_engine.scope import build_scan_plan, write_scan_plan
@@ -607,14 +644,18 @@ def main(argv: list[str] | None = None) -> None:
                 file=stream,
                 flush=True,
             )
-        summary = analyze_project_core(
-            args.path,
-            out_path=args.out,
-            enable_remote_registry=args.remote_registry,
-            create_research_requests=not args.no_research_requests,
-            graphify_path=args.graphify,
-            progress_callback=report_progress,
-        )
+        output_path, _snapshot_path, raw_cache = _analysis_artifact_paths(args)
+        with analysis_lock(args.path, owner="cli-analyze"):
+            summary = analyze_project_core(
+                args.path,
+                out_path=str(output_path),
+                enable_remote_registry=args.remote_registry,
+                create_research_requests=not args.no_research_requests,
+                graphify_path=args.graphify,
+                raw_graph_cache_path=str(raw_cache),
+                progress_callback=report_progress,
+                force_full_resolution=args.full_resolution,
+            )
         
         try:
             unknown_libs = detect_unknown_libraries_core(args.path)
@@ -700,6 +741,7 @@ def main(argv: list[str] | None = None) -> None:
                 diff_text=diff_text,
                 max_depth=args.depth,
                 min_confidence=args.min_confidence,
+                include_technical=args.technical,
             )
         except Exception as exc:
             result = {"status": "error", "error": str(exc)}
@@ -1190,6 +1232,24 @@ def main(argv: list[str] | None = None) -> None:
         
     else:
         parser.print_help()
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Console-script boundary with stable UTF-8 errors for editor clients."""
+    try:
+        _main(argv)
+    except Exception as exc:
+        # Keep lock contention and path failures understandable to VS Code and
+        # shell users instead of surfacing a bundled-runtime traceback only.
+        try:
+            sys.stderr.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+        if "--json" in (argv if argv is not None else sys.argv[1:]):
+            _print_json({"status": "error", "error": str(exc)})
+        else:
+            print(f"Impact Engine error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

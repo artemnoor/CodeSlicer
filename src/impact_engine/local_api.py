@@ -18,6 +18,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from impact_engine.analysis.pipeline import analyze_project_core
+from impact_engine.analysis_lock import analysis_lock
 from impact_engine.inventory.scanner import scan_project_inventory
 from impact_engine.impact import explain_edge, impact_query
 from impact_engine.models import GraphDocument
@@ -111,14 +112,15 @@ class LocalApiState:
         def report_progress(event: dict[str, Any]) -> None:
             with self.lock:
                 self.progress = {"status": "running", "current": event}
-        result = analyze_project_core(
-            str(path),
-            out_path=str(out_path),
-            support_pack_root=self.support_pack_root,
-            enable_remote_registry=False,
-            create_research_requests=True,
-            progress_callback=report_progress,
-        )
+        with analysis_lock(path, owner="local-api"):
+            result = analyze_project_core(
+                str(path),
+                out_path=str(out_path),
+                support_pack_root=self.support_pack_root,
+                enable_remote_registry=False,
+                create_research_requests=True,
+                progress_callback=report_progress,
+            )
         with self.lock:
             self.project_path = str(path)
             self.analysis = result

@@ -22,8 +22,12 @@ def annotate_communities(graph: GraphDocument) -> GraphDocument:
         degree[edge.to_node] = degree.get(edge.to_node, 0) + 1
     unseen = set(degree)
     components: list[list[str]] = []
-    while unseen:
-        seed = min(unseen)
+    # Sort once.  Repeated ``min(unseen)`` is quadratic when a repository has
+    # many isolated callsite nodes, which made post-extraction analysis appear
+    # to hang even though the graph itself was already complete.
+    for seed in sorted(degree):
+        if seed not in unseen:
+            continue
         unseen.remove(seed)
         component = []
         queue = deque([seed])

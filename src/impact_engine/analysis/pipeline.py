@@ -1,6 +1,7 @@
 """Unified analysis orchestration layer."""
 from __future__ import annotations
 
+import json
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,7 @@ from impact_engine.unknown_regions import analyze_unknown_regions, build_researc
 from impact_engine.resolution_coverage import build_resolution_coverage
 from impact_engine.polyglot_semantics import apply_limited_polyglot_semantics
 from impact_engine.incremental_index import build_reverse_dependency_index
+from impact_engine.nextjs_routes import apply_nextjs_routes
 
 
 class AnalysisPipeline:
@@ -79,6 +81,7 @@ class AnalysisPipeline:
         self._extract_graphify(raw_graphs)
         self._progress("normalization", 0, 1, "Нормализация фактов и структурного графа")
         graph = self._merge_and_normalize(raw_graphs)
+        graph = apply_nextjs_routes(graph, self.project_path)
         self._progress("normalization", 1, 1, "Нормализация завершена")
         fact_document = FactDocument.from_graph(graph)
         graph.metadata["fact_document"] = fact_document.summary()
@@ -106,17 +109,31 @@ class AnalysisPipeline:
             }
             for pack in support_packs
         ]
+        deep_resolution_enabled = self._deep_resolution_enabled(graph)
         started = time.perf_counter()
         self._progress("semantic", 0, 1, "Semantic binding и support-pack context")
-        graph = self._apply_semantic_layer(graph)
+        if deep_resolution_enabled:
+            graph = self._apply_semantic_layer(graph)
+        else:
+            graph.metadata["semantic_binding_layer"] = {
+                "status": "skipped_by_scale_budget",
+                "reason": "Structural graph is retained; use --full-resolution to opt into an unbounded semantic pass.",
+            }
         self.stage_timings["semantic_binding"] = round(time.perf_counter() - started, 4)
         self._progress("semantic", 1, 1, "Semantic binding завершён")
         run_quality_gate(graph, "semantic_binding")
         local_registry_summary = self._sync_local_registry(inventory_data)
         started = time.perf_counter()
         self._progress("resolution", 0, 1, "Precision и framework resolution")
-        resolved = resolve_precision(graph, support_packs=support_packs)
-        resolved = apply_limited_polyglot_semantics(resolved, self.project_path)
+        if deep_resolution_enabled:
+            resolved = resolve_precision(graph, support_packs=support_packs)
+            resolved = apply_limited_polyglot_semantics(resolved, self.project_path)
+        else:
+            resolved = graph
+            resolved.metadata["precision_resolution"] = {
+                "status": "skipped_by_scale_budget",
+                "reason": "Structural extraction remains complete; bounded deep resolution was skipped to keep the workspace responsive.",
+            }
         self.stage_timings["resolution"] = round(time.perf_counter() - started, 4)
         self._progress("resolution", 1, 1, "Resolution завершён")
         run_quality_gate(resolved, "generic_and_framework_resolution")
@@ -132,12 +149,34 @@ class AnalysisPipeline:
         resolved = annotate_edge_contracts(resolved)
         resolved = annotate_graph_quality(resolved)
         run_quality_gate(resolved, "final_graph")
-        self._annotate_unknown_regions(resolved)
+        if self._should_defer_unknown_regions(resolved):
+            resolved.metadata["unknown_regions"] = {
+                "status": "deferred_by_incremental_scale",
+                "policy": "structural graph is current; full workspace unknown-region inventory is deferred",
+                "counts": {},
+                "regions": [],
+                "deferred_reason": "large incremental analysis",
+            }
+            resolved.metadata["all_unknown_regions"] = {}
+            resolved.metadata["candidate_ai_tasks"] = 0
+            resolved.metadata["selected_ai_tasks"] = 0
+            resolved.metadata["research_patterns"] = 0
+            resolved.metadata["unknown_region_research_requests"] = []
+            self.diagnostics.add(
+                "unknown_regions_deferred_by_incremental_scale",
+                "Large incremental analysis deferred the global unknown-region inventory; run a full analysis when that report is needed.",
+                component="unknown_regions",
+                severity="info",
+                actionable=False,
+            )
+        else:
+            self._annotate_unknown_regions(resolved)
         resolved.metadata["resolution_coverage"] = build_resolution_coverage(resolved)
         resolved.metadata["coverage_quality_gate"] = {
             "status": "ok" if resolved.metadata["resolution_coverage"].get("accounting", {}).get("valid") else "warning",
             "accounting": resolved.metadata["resolution_coverage"].get("accounting", {}),
         }
+        self._compact_large_metadata(resolved)
         resolved.metadata["stage_timings_seconds"] = dict(self.stage_timings)
         self._progress("final", 0, 1, "Quality guard, diagnostics и fingerprint")
         self._record_graph_metadata(resolved)
@@ -160,6 +199,43 @@ class AnalysisPipeline:
             edges=len(resolved.edges),
             graph=resolved.to_dict(),
             progress=progress,
+        )
+
+    def _deep_resolution_enabled(self, graph: GraphDocument) -> bool:
+        """Keep default analysis responsive while making the coverage explicit.
+
+        Deep semantic passes are optional enrichment over extracted facts.  On a
+        large graph, silently running unbounded global joins is worse than
+        returning a complete structural graph with an honest coverage marker.
+        Users and automation can opt in to the expensive mode explicitly.
+        """
+        calls = sum(1 for node in graph.nodes if node.kind == "CALL_EXPR")
+        budget = {"max_nodes": 30_000, "max_calls": 12_000}
+        within_budget = len(graph.nodes) <= budget["max_nodes"] and calls <= budget["max_calls"]
+        enabled = self.options.force_full_resolution or within_budget
+        graph.metadata["deep_resolution_budget"] = {
+            "status": "enabled" if enabled else "skipped_by_scale_budget",
+            "force_full_resolution": self.options.force_full_resolution,
+            "nodes": len(graph.nodes),
+            "calls": calls,
+            **budget,
+        }
+        if not enabled:
+            self.diagnostics.add(
+                "deep_resolution_skipped_by_scale_budget",
+                "Large project: semantic and precision enrichment skipped; structural extraction is complete. Re-run with --full-resolution to opt in.",
+                component="analysis.scale_budget",
+                severity="warning",
+                actionable=True,
+                details=graph.metadata["deep_resolution_budget"],
+            )
+        return enabled
+
+    def _should_defer_unknown_regions(self, graph: GraphDocument) -> bool:
+        call_count = sum(1 for node in graph.nodes if node.kind == "CALL_EXPR")
+        return bool(
+            self.options.changed_files is not None
+            and (len(graph.nodes) > 30_000 or call_count > 12_000)
         )
 
     def _annotate_unknown_regions(self, graph: GraphDocument) -> None:
@@ -252,7 +328,12 @@ class AnalysisPipeline:
         raw_graphs: list[GraphDocument] = []
         if "python" in languages or not languages:
             self._extract_python(raw_graphs, self.options.changed_files)
-        tree_sitter_languages = [lang for lang in languages if lang in {"javascript", "typescript", "go", "java"}]
+        # Keep this independent of runtime availability: the adapter has an
+        # explicit low-confidence fallback and must still run when native
+        # Tree-sitter is unavailable.
+        tree_sitter_languages = [lang for lang in languages if lang in {
+            "javascript", "typescript", "go", "java", "rust", "csharp", "kotlin", "php", "ruby"
+        }]
         if tree_sitter_languages:
             self._extract_tree_sitter(raw_graphs, tree_sitter_languages, self.options.changed_files)
         self.stage_timings["extraction"] = round(time.perf_counter() - started, 4)
@@ -261,8 +342,23 @@ class AnalysisPipeline:
 
     def _extract_python(self, raw_graphs: list[GraphDocument], files: list[str] | None = None) -> None:
         try:
-            raw_graphs.append(extract_project(self.options.project_path, files=files))
+            graph = extract_project(self.options.project_path, files=files)
+            raw_graphs.append(graph)
             self.extractors_used.append("python_ast")
+            parse_errors = {
+                key.removeprefix("error_"): value
+                for key, value in graph.metadata.items()
+                if key.startswith("error_")
+            }
+            if parse_errors:
+                self.diagnostics.add(
+                    "python_parse_errors",
+                    "Some Python files could not be parsed; unaffected files were analyzed.",
+                    component="extractor.python_ast",
+                    severity="warning",
+                    actionable=True,
+                    details=parse_errors,
+                )
         except Exception as exc:
             self.diagnostics.add(
                 "python_extractor_error",
@@ -276,12 +372,11 @@ class AnalysisPipeline:
         if not is_tree_sitter_available():
             self.diagnostics.add(
                 "tree_sitter_diagnostic",
-                "Tree-sitter is unavailable; multi-language analysis skipped.",
+                "Tree-sitter is unavailable; using explicit low-confidence local fallback extraction.",
                 component="extractor.tree_sitter",
                 severity="warning",
                 actionable=True,
             )
-            return
         try:
             graph = extract_tree_sitter_project(self.options.project_path, languages=languages, files=files)
             raw_graphs.append(graph)
@@ -301,6 +396,52 @@ class AnalysisPipeline:
                 "tree_sitter_extractor_error",
                 str(exc),
                 component="extractor.tree_sitter",
+                severity="warning",
+                actionable=True,
+            )
+
+    def _compact_large_metadata(self, graph: GraphDocument) -> None:
+        """Keep graph artifacts usable without losing full diagnostic evidence.
+
+        Full unknown-region reports are persisted beside the graph.  Embedding
+        tens of thousands of records inside the graph duplicates source facts,
+        inflates VS Code messages, and makes serialization dominate analysis.
+        Small projects retain the complete inline report for compatibility.
+        """
+        report = graph.metadata.get("unknown_regions")
+        if not isinstance(report, dict):
+            return
+        regions = report.get("regions")
+        if not isinstance(regions, list) or len(regions) <= 1_000:
+            return
+        artifact_path = Path(self.project_path) / ".impact_engine" / "unknown_regions.json"
+        try:
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
+            graph.metadata["unknown_regions"] = {
+                "status": report.get("status"),
+                "policy": report.get("policy"),
+                "counts": report.get("counts", {}),
+                "research_selection": report.get("research_selection", {}),
+                "resolved_by_support_pack_count": report.get("resolved_by_support_pack_count", 0),
+                "region_count": len(regions),
+                "regions": regions[:200],
+                "metadata_truncated": True,
+                "full_report_path": str(artifact_path.resolve()),
+            }
+            requests = graph.metadata.get("unknown_region_research_requests")
+            if isinstance(requests, list):
+                graph.metadata["unknown_region_research_requests"] = {
+                    "count": len(requests),
+                    "sample": requests[:20],
+                    "full_requests_path": graph.metadata.get("unknown_region_tasks_path"),
+                    "metadata_truncated": len(requests) > 20,
+                }
+        except Exception as exc:
+            self.diagnostics.add(
+                "unknown_regions_compaction_error",
+                str(exc),
+                component="unknown_regions.storage",
                 severity="warning",
                 actionable=True,
             )
@@ -349,7 +490,7 @@ class AnalysisPipeline:
             return None
 
     def _refresh_changed_files(self, cached: GraphDocument, languages: list[str]) -> list[GraphDocument]:
-        from impact_engine.incremental import project_snapshot
+        from impact_engine.incremental import project_file_count
 
         changed = {str(item).replace("\\", "/") for item in self.options.changed_files or []}
         node_ids_to_remove: set[str] = set()
@@ -381,7 +522,7 @@ class AnalysisPipeline:
         if tree_sitter_languages:
             self._extract_tree_sitter(refreshed, tree_sitter_languages, list(changed))
         self.extractors_used.append("incremental_raw_cache")
-        total_files = len(project_snapshot(self.project_path))
+        total_files = project_file_count(self.project_path)
         self.incremental_cache_stats = {
             "files_total": total_files,
             "files_reused": max(0, total_files - len(changed)),
@@ -653,6 +794,7 @@ def analyze_project_core(
     changed_files: list[str] | None = None,
     raw_graph_cache_path: str | None = None,
     progress_callback=None,
+    force_full_resolution: bool = False,
 ) -> dict[str, Any]:
     """Backward-compatible analysis entrypoint used by CLI, MCP, and tests."""
     options = AnalysisOptions(
@@ -666,5 +808,6 @@ def analyze_project_core(
         changed_files=changed_files,
         raw_graph_cache_path=raw_graph_cache_path,
         progress_callback=progress_callback,
+        force_full_resolution=force_full_resolution,
     )
     return AnalysisPipeline(options).run().to_dict()

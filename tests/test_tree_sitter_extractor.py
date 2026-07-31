@@ -61,6 +61,53 @@ def test_extract_ts_project():
     assert json.loads(graph.to_json()) is not None
 
 
+@pytest.mark.parametrize("fallback", [False, True])
+def test_extract_js_bound_callable_with_source_range(tmp_path: Path, monkeypatch, fallback: bool):
+    """Assignment/arrow bindings must be diff-addressable in both parser paths."""
+    source = tmp_path / "app.js"
+    source.write_text(
+        """const handler = (value) => { return normalize(value); };
+app.set = function set(setting, value) {
+  return handler(value);
+};
+""",
+        encoding="utf-8",
+    )
+    if fallback:
+        import impact_engine.extractors.tree_sitter.adapter as adapter
+
+        monkeypatch.setattr(adapter, "is_tree_sitter_available", lambda: False)
+
+    graph = extract_tree_sitter_project(tmp_path, languages=["javascript"])
+    bound = [node for node in graph.nodes if node.kind == "METHOD" and node.name == "app.set"]
+
+    assert len(bound) == 1
+    assert bound[0].properties["file"] == "app.js"
+    assert bound[0].properties["line"] == 2
+    assert bound[0].properties["end_line"] >= 4
+
+
+@pytest.mark.parametrize(("language", "filename", "source", "method"), [
+    ("rust", "service.rs", "pub struct Service; impl Service { pub fn run(&self) { helper(); } } fn helper() {}", "run"),
+    ("csharp", "Service.cs", "using System; class Service { void Run() { Helper(); } void Helper() {} }", "Run"),
+    ("php", "service.php", "<?php class Service { public function run() { helper(); } } function helper() {}", "run"),
+    ("ruby", "service.rb", "class Service\n def run\n helper()\n end\nend\ndef helper; end", "run"),
+])
+def test_extract_generic_native_languages_with_declarations_and_calls(tmp_path: Path, language: str, filename: str, source: str, method: str):
+    """New language support is parser-backed, not a filename-only claim."""
+    (tmp_path / filename).write_text(source, encoding="utf-8")
+
+    graph = extract_tree_sitter_project(tmp_path, languages=[language])
+    methods = [node for node in graph.nodes if node.kind == "METHOD" and node.name == method]
+    calls = [edge for edge in graph.edges if edge.kind == "CALLS" and edge.from_node in {node.id for node in methods}]
+
+    assert methods
+    assert methods[0].properties["end_line"] >= methods[0].properties["line"]
+    assert calls
+    assert calls[0].properties["extractor_id"] == "tree_sitter_generic"
+    assert any(edge.kind == "RESOLVES_TO" and edge.from_node == methods[0].id for edge in graph.edges)
+
+
 def test_extract_go_project():
     go_project = FIXTURES_DIR / "go_basic_project"
     graph = extract_tree_sitter_project(go_project, languages=["go"])

@@ -48,3 +48,52 @@ def test_python_semantics_alias_and_self_calls():
     assert edge_alias.confidence >= 0.80
     assert len(edge_alias.evidence) > 0
     print(f"Direct persist_order_alias edge evidence: {[ev.description for ev in edge_alias.evidence]}")
+
+
+def test_python_annotated_bindings_and_local_aliases_are_resolved_conservatively(tmp_path: Path):
+    """Typed fields and aliases are common, while rebindings must not guess."""
+    (tmp_path / "domain.py").write_text(
+        """
+class PrimaryRepository:
+    def save(self, value):
+        return value
+
+
+class SecondaryRepository:
+    def save(self, value):
+        return value
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "service.py").write_text(
+        """
+from .domain import PrimaryRepository, SecondaryRepository
+
+
+class Service:
+    def __init__(self, repository: PrimaryRepository):
+        self.repository: PrimaryRepository = repository
+
+    def persist(self, value):
+        active_repository = self.repository
+        return active_repository.save(value)
+
+    def dynamically_rebound(self, value):
+        target = PrimaryRepository()
+        target = SecondaryRepository()
+        return target.save(value)
+""",
+        encoding="utf-8",
+    )
+
+    graph = resolve_graph(extract_project(tmp_path))
+    calls = {(edge.from_node, edge.to_node) for edge in graph.edges if edge.kind == "CALLS"}
+
+    assert (
+        "service.Service.persist",
+        "domain.PrimaryRepository.save",
+    ) in calls
+    assert not any(
+        source == "service.Service.dynamically_rebound" and target.endswith("Repository.save")
+        for source, target in calls
+    )

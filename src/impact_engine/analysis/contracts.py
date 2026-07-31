@@ -17,6 +17,7 @@ class AnalysisOptions:
     changed_files: list[str] | None = None
     raw_graph_cache_path: str | None = None
     progress_callback: Callable[[dict[str, Any]], None] | None = None
+    force_full_resolution: bool = False
 
 
 @dataclass

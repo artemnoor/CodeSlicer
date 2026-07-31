@@ -871,6 +871,11 @@ def apply_support_pack_rules(graph: GraphDocument, packs: list[SupportPack]) -> 
                                              ))
 
                 # C. Convert JS/TS local imports/calls to SUPPORT_PACK/INFERRED source
+                lexical_parents = {
+                    edge.to_node: edge.from_node
+                    for edge in graph.edges
+                    if edge.source == "EXTRACTED" and edge.kind == "CONTAINS"
+                }
                 for edge in list(graph.edges):
                     if edge.source == "EXTRACTED" and edge.kind == "CALLS":
                         from_node = next((n for n in graph.nodes if n.id == edge.from_node), None)
@@ -879,7 +884,35 @@ def apply_support_pack_rules(graph: GraphDocument, packs: list[SupportPack]) -> 
                             if any(from_file.endswith(ext) for ext in (".js", ".jsx", ".ts", ".tsx")):
                                 if edge.to_node in {"fetch", "console", "console.log", "alert"}:
                                     continue
-                                if not from_node.properties.get("react_type"):
+                                lexical_owner_id = lexical_parents.get(edge.from_node)
+                                lexical_owner = next((n for n in graph.nodes if n.id == lexical_owner_id), None)
+                                react_owner = from_node if from_node.properties.get("react_type") else lexical_owner
+                                if not react_owner or not react_owner.properties.get("react_type"):
+                                    continue
+                                if react_owner.id != edge.from_node:
+                                    edge_id = f"support_pack_edge__{library}__react_callback__{react_owner.id}__{edge.to_node}"
+                                    if not any(existing.id == edge_id for existing in graph.edges):
+                                        file_loc, line_loc = node_file_and_line(from_node, graph)
+                                        graph.add_edge(Edge(
+                                            id=edge_id,
+                                            kind="CALLS",
+                                            from_node=react_owner.id,
+                                            to_node=edge.to_node,
+                                            source="INFERRED",
+                                            confidence=0.60,
+                                            evidence=[Evidence(
+                                                file=file_loc,
+                                                line=line_loc,
+                                                description=f"React callback within {react_owner.id} calls {edge.to_node}",
+                                            )],
+                                            properties={
+                                                "support_pack_library": library,
+                                                "support_pack_id": library,
+                                                "support_pack_version": version_range,
+                                                "support_pack_rule_id": "react_callback_local_call",
+                                                "resolver_hook_name": rule_type,
+                                            },
+                                        ))
                                     continue
                                 edge.source = "INFERRED"
                                 edge.confidence = 0.60

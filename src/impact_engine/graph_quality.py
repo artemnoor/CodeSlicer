@@ -76,9 +76,11 @@ def graph_quality_report(graph: GraphDocument) -> dict[str, Any]:
         missing = [node_id for node_id in (edge.from_node, edge.to_node) if node_id not in node_ids and node_id not in aliases]
         if missing:
             dangling.append({"edge_id": edge.id, "missing_nodes": missing})
-    orphan_nodes = sorted(node_id for node_id in node_ids if not any(
-        edge.from_node == node_id or edge.to_node == node_id for edge in graph.edges
-    ))
+    # Do not scan every edge once for every node.  Real repositories commonly
+    # have tens of thousands of callsite nodes, where that implementation was
+    # quadratic and made a finished extraction appear to hang in final QA.
+    connected_nodes = {endpoint for edge in graph.edges for endpoint in (edge.from_node, edge.to_node)}
+    orphan_nodes = sorted(node_ids - connected_nodes)
     return {
         "status": "warning" if dangling or duplicate_ids else "ok",
         "node_count": len(graph.nodes),

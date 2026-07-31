@@ -105,6 +105,34 @@ JAVA_SEMANTICS = LanguageSemanticProvider(
     diagnostics_label="Java structural semantics",
 )
 
+
+def _generic_tree_sitter_semantics(language_id: str, display_name: str) -> LanguageSemanticProvider:
+    return LanguageSemanticProvider(
+        language_id=language_id,
+        provider_id=f"{language_id}_tree_sitter_generic_structural",
+        capabilities=LanguageSemanticCapabilities(
+            structural_extraction=True,
+            import_resolution=True,
+            call_resolution="limited",
+            endpoint_resolution=False,
+            framework_rules=False,
+            production_semantic_baseline=False,
+            notes=(
+                f"Native Tree-sitter structural extraction for {display_name}.",
+                "Reports declarations, source ranges, imports and direct calls; type-aware and framework-specific resolution is explicitly unavailable.",
+            ),
+        ),
+        confidence_policy="structural facts only; unresolved calls must not be presented as confirmed behavioural impact",
+        diagnostics_label=f"{display_name} structural semantics",
+    )
+
+
+RUST_SEMANTICS = _generic_tree_sitter_semantics("rust", "Rust")
+CSHARP_SEMANTICS = _generic_tree_sitter_semantics("csharp", "C#")
+KOTLIN_SEMANTICS = _generic_tree_sitter_semantics("kotlin", "Kotlin")
+PHP_SEMANTICS = _generic_tree_sitter_semantics("php", "PHP")
+RUBY_SEMANTICS = _generic_tree_sitter_semantics("ruby", "Ruby")
+
 PROVIDERS = {
     provider.language_id: provider
     for provider in (
@@ -113,6 +141,11 @@ PROVIDERS = {
         TYPESCRIPT_SEMANTICS,
         GO_SEMANTICS,
         JAVA_SEMANTICS,
+        RUST_SEMANTICS,
+        CSHARP_SEMANTICS,
+        KOTLIN_SEMANTICS,
+        PHP_SEMANTICS,
+        RUBY_SEMANTICS,
     )
 }
 

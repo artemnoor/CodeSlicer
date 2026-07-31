@@ -178,7 +178,7 @@ def apply_frontend_backend_endpoint_bridge(graph: GraphDocument) -> GraphDocumen
             added_edges += 1
     added_edges += _add_frontend_relation_edges(graph, input_data)
 
-    graph.metadata["frontend_backend_endpoint_bridge"] = {
+    bridge_metadata = {
         "status": "applied",
         "frontend_http_nodes": len(result.get("frontend_http_nodes", []) or []),
         "backend_route_nodes": len(result.get("backend_route_nodes", []) or []),
@@ -191,6 +191,15 @@ def apply_frontend_backend_endpoint_bridge(graph: GraphDocument) -> GraphDocumen
         "diagnostics": result.get("diagnostics", []),
         "unresolved": result.get("unresolved", []),
     }
+    # Preserve a representative diagnostic sample in oversized workspaces;
+    # every unresolved candidate is already present in the standalone graph
+    # facts, so duplicating all of them in metadata bloats the editor payload.
+    unresolved = bridge_metadata["unresolved"]
+    if len(graph.nodes) > 30_000 and isinstance(unresolved, list) and len(unresolved) > 200:
+        bridge_metadata["unresolved_count"] = len(unresolved)
+        bridge_metadata["unresolved"] = unresolved[:200]
+        bridge_metadata["metadata_truncated"] = True
+    graph.metadata["frontend_backend_endpoint_bridge"] = bridge_metadata
     return graph
 
 

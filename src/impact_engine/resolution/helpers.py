@@ -17,15 +17,29 @@ def get_node_location(node_id: str, doc: GraphDocument) -> Tuple[Optional[str], 
 
 
 def module_for_scope(scope: str, graph: GraphDocument) -> str:
-    longest_module = ""
-    for node in graph.nodes:
-        if node.kind == "MODULE":
-            mod_name = node.id
-            if mod_name.startswith("module:"):
-                mod_name = mod_name[7:]
-            if scope == mod_name or scope.startswith(mod_name + "."):
-                if len(mod_name) > len(longest_module):
-                    longest_module = mod_name
+    # Resolution calls this for every callsite and assignment.  Cache the
+    # result per scope and pre-sort module names once; the prior full graph
+    # scan here turned ordinary Python projects into O(calls * nodes) work.
+    cache = getattr(graph, "_module_scope_cache", None)
+    if cache is None:
+        module_names = []
+        for node in graph.nodes:
+            if node.kind != "MODULE":
+                continue
+            module_id = node.id
+            module_names.append(module_id[7:] if module_id.startswith("module:") else module_id)
+        module_names.sort(key=len, reverse=True)
+        cache = {"modules": module_names, "scopes": {}}
+        setattr(graph, "_module_scope_cache", cache)
+    scopes = cache["scopes"]
+    if scope in scopes:
+        return scopes[scope]
+    longest_module = next(
+        (module for module in cache["modules"] if scope == module or scope.startswith(module + ".")),
+        "",
+    )
     if longest_module:
-        return longest_module
-    return scope.split(".")[0]
+        scopes[scope] = longest_module
+    else:
+        scopes[scope] = scope.split(".")[0]
+    return scopes[scope]

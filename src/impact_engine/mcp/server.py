@@ -48,15 +48,17 @@ def analyze_project(
     enable_remote_registry: bool = False,
     create_research_requests: bool = True,
 ) -> Dict[str, Any]:
+    from impact_engine.analysis_lock import analysis_lock
     from impact_engine.analysis.pipeline import analyze_project_core
     try:
         _verify_path_exists(project_path)
-        res = analyze_project_core(
-            project_path,
-            out_path=out_path,
-            enable_remote_registry=enable_remote_registry,
-            create_research_requests=create_research_requests,
-        )
+        with analysis_lock(project_path, owner="mcp-analyze"):
+            res = analyze_project_core(
+                project_path,
+                out_path=out_path,
+                enable_remote_registry=enable_remote_registry,
+                create_research_requests=create_research_requests,
+            )
         return {
             "tool": "analyze_project",
             "status": res["status"],
@@ -169,6 +171,7 @@ def pr_review(
     diff_text: str | None = None,
     max_depth: int = 6,
     min_confidence: float = 0.0,
+    include_technical: bool = False,
 ) -> Dict[str, Any]:
     from impact_engine.pr_review import pr_review_core
     try:
@@ -181,6 +184,7 @@ def pr_review(
             diff_text=diff_text,
             max_depth=max_depth,
             min_confidence=min_confidence,
+            include_technical=include_technical,
         )
         return {"tool": "pr_review", "status": "ok", "project_path": project_path, "result": result}
     except Exception as e:
@@ -588,7 +592,7 @@ TOOLS = [
     },
     {
         "name": "pr_review",
-        "description": "Create a PR impact report from git diff or provided diff text.",
+        "description": "Create a compact evidence-gated PR impact report from git diff or provided diff text. Raw traversal is opt-in.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -596,7 +600,8 @@ TOOLS = [
                 "graph_path": {"type": "string", "description": "Optional path to an existing JSON impact graph"},
                 "diff_text": {"type": "string", "description": "Optional unified git diff text; current git diff is used when omitted"},
                 "max_depth": {"type": "integer", "default": 6},
-                "min_confidence": {"type": "number", "default": 0.0}
+                "min_confidence": {"type": "number", "default": 0.0},
+                "include_technical": {"type": "boolean", "default": False, "description": "Include full raw graph traversal details; default output is bounded and actionable."}
             },
             "required": ["project_path"]
         }

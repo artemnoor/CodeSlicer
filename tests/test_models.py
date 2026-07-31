@@ -151,3 +151,18 @@ def test_inferred_edge_serialization():
     assert not hasattr(edge, "target")
     assert "origin" not in serialized_edge
     assert "target" not in serialized_edge
+
+
+def test_graph_edge_provenance_merge_refreshes_indexes_without_rebuild():
+    graph = GraphDocument()
+    graph.add_edge(Edge("extracted", "CALLS", "a", "b", source="EXTRACTED", confidence=0.7))
+    graph.add_edge(Edge("inferred", "CALLS", "a", "b", source="INFERRED", confidence=0.9))
+
+    assert len(graph.edges) == 1
+    edge = graph.edges[0]
+    assert edge.source == "INFERRED"
+    assert edge.confidence == 0.9
+    assert graph._edge_index.get(edge.semantic_key(True)) is edge
+    assert all(key[-1] != "EXTRACTED" for key in graph._edge_index)
+    assert graph._incoming_index["b"] == [edge]
+    assert graph._outgoing_index["a"] == [edge]

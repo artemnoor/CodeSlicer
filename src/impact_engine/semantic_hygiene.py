@@ -56,9 +56,15 @@ def apply_post_project_hygiene(graph: GraphDocument, inventory_data: dict[str, A
 
     data = report.to_dict()
     data["stage"] = "post"
-    graph.metadata["post_project_hygiene"] = data
+    # Keep the complete report under the long-standing public key.  The
+    # compatibility alias below used to serialize the same potentially large
+    # annotation map a second time in every graph artifact.
+    graph.metadata["post_project_hygiene"] = {
+        "stage": "post",
+        "summary": data.get("summary", {}),
+    }
     graph.metadata["post_project_hygiene_status"] = "applied"
-    # Backward-compatible alias consumed by current CLI/tests.
+    # Backward-compatible canonical payload consumed by current CLI/tests.
     graph.metadata["project_hygiene"] = data
     graph.metadata["project_hygiene_status"] = "applied"
     return graph

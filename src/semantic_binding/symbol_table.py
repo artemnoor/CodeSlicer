@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, List, Optional, Set
 
 from .facts import FactSet
 from .models import ClassFact, FunctionFact, Symbol
@@ -12,18 +12,27 @@ class SymbolTable:
     def __init__(self) -> None:
         self._by_name: Dict[str, Symbol] = {}
         self._by_qualified: Dict[str, Symbol] = {}
+        # ``lookup`` is used for every call/assignment in semantic passes.
+        # Pre-index qualified suffixes instead of scanning all symbols for each
+        # unresolved short name on a large repository.
+        self._suffix_to_qualified: Dict[str, Set[str]] = {}
 
     def register(self, symbol: Symbol) -> None:
         self._by_name.setdefault(symbol.name, symbol)
         if symbol.qualified_name:
-            self._by_qualified[symbol.qualified_name] = symbol
+            qualified = symbol.qualified_name
+            self._by_qualified[qualified] = symbol
+            parts = qualified.split(".")
+            for index in range(1, len(parts)):
+                suffix = ".".join(parts[index:])
+                self._suffix_to_qualified.setdefault(suffix, set()).add(qualified)
 
     def lookup(self, name: str) -> Optional[Symbol]:
         if name in self._by_qualified:
             return self._by_qualified[name]
         if name in self._by_name:
             return self._by_name[name]
-        matches = [s for q, s in self._by_qualified.items() if q.endswith(f".{name}")]
+        matches = [self._by_qualified[q] for q in sorted(self._suffix_to_qualified.get(name, set()))]
         if len(matches) == 1:
             return matches[0]
         return None
