@@ -101,7 +101,7 @@ test("router changes real screens and routes only explicit actions to VS Code", 
 
 test("extension keeps Graphify optional and separate from the local runtime", () => {
   const source = readFileSync(join(__dirname, "../../src/extension.ts"), "utf8");
-  assert.match(source, /impact-engine-local-api/);
+  assert.match(source, /"local-api"/);
   assert.match(source, /analyzeAndShowGraph/);
   assert.doesNotMatch(source, /pip\s+install|graphifyy/u);
   assert.match(source, /"--code-only"/);

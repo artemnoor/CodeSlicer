@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { buildAnalyzeArgs, buildReviewArgs, formatCommand, runProcess, safeTestCommand } from "./cli";
 import { parseReviewJson, withReview } from "./review";
@@ -317,15 +317,9 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     }
     const executable = await this.executable(root);
     if (!executable) return;
-    const localApi = join(dirname(executable), process.platform === "win32" ? "impact-engine-local-api.exe" : "impact-engine-local-api");
-    if (!existsSync(localApi)) {
-      this.setServer("error", "The installed CodeSlicer runtime does not include impact-engine-local-api.", url.toString());
-      await vscode.window.showErrorMessage("This CodeSlicer runtime cannot start the local server. Reinstall CodeSlicer from the start screen.");
-      return;
-    }
     this.setServer("running", "Starting the local-only server…", url.toString());
-    const args = ["--host", url.hostname === "localhost" ? "127.0.0.1" : url.hostname, "--port", String(url.port ? Number(url.port) : 80), "--default-project", root];
-    const child = spawn(localApi, args, { cwd: root, shell: false, windowsHide: true });
+    const args = ["local-api", "--host", url.hostname === "localhost" ? "127.0.0.1" : url.hostname, "--port", String(url.port ? Number(url.port) : 80), "--default-project", root];
+    const child = spawn(executable, args, { cwd: root, shell: false, windowsHide: true });
     this.serverProcess = child;
     child.stdout.on("data", data => OUTPUT.append(data.toString()));
     child.stderr.on("data", data => OUTPUT.append(data.toString()));

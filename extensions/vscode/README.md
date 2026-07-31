@@ -14,7 +14,7 @@ Install the matching VSIX, open a trusted project, and select **Review current c
 
 VS Code selects platform-specific packages created with `vsce --target`. The runtime resolves in the workspace extension host, so WSL, SSH, Dev Containers, and Codespaces need the matching VSIX installed in that remote window. Unsupported hosts get a diagnostic; CodeSlicer never downloads a substitute.
 
-Each package contains `runtime/<target>/bin/{codeslicer,impact-engine-local-api}`, a manifest with version/platform/architecture/SHA-256 data, and embedded-runtime notices/licenses. The extension verifies every file declared by that manifest before execution; an invalid checksum, missing file, or unsafe manifest path blocks the runtime.
+Each package contains one `runtime/<target>/bin/codeslicer` executable. It has explicit CLI and `local-api` modes, avoiding a duplicate embedded Python runtime while preserving the Local Hub. The manifest carries version/platform/architecture/SHA-256 data and embedded-runtime notices/licenses; the extension verifies every declared file before execution, and an invalid checksum, missing file, or unsafe manifest path blocks the runtime.
 
 ## Development and packaging
 

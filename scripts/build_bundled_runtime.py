@@ -61,25 +61,33 @@ def main() -> int:
             "datas = collect_data_files('impact_engine')\n", encoding="utf-8"
         )
         launcher = temp_path / "codeslicer_launcher.py"
-        launcher.write_text("from impact_engine.cli import main\nraise SystemExit(main())\n", encoding="utf-8")
-        local_api = temp_path / "local_api_launcher.py"
-        local_api.write_text("from impact_engine.local_api import main\nmain()\n", encoding="utf-8")
+        launcher.write_text(
+            "import sys\n"
+            "if len(sys.argv) > 1 and sys.argv[1] == 'local-api':\n"
+            "    del sys.argv[1]\n"
+            "    from impact_engine.local_api import main\n"
+            "    main()\n"
+            "else:\n"
+            "    from impact_engine.cli import main\n"
+            "    raise SystemExit(main())\n",
+            encoding="utf-8",
+        )
         common = [
             sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile",
             "--additional-hooks-dir", str(hooks), "--paths", str(root / "src"),
             "--add-data", f"{root / 'support_packs'}{';' if sys.platform == 'win32' else ':'}support_packs",
             "--add-data", f"{root / 'plugins'}{';' if sys.platform == 'win32' else ':'}plugins",
+            "--add-data", f"{root / 'frontend'}{';' if sys.platform == 'win32' else ':'}impact_engine/frontend",
             "--distpath", str(temp_path / "dist"), "--workpath", str(temp_path / "work"), "--specpath", str(temp_path),
         ]
-        for name, entry in (("codeslicer", launcher), ("impact-engine-local-api", local_api)):
-            subprocess.run([*common, "--name", name, str(entry)], check=True, cwd=root)
-            built = temp_path / "dist" / (f"{name}.exe" if sys.platform == "win32" else name)
-            destination = runtime / "bin"
-            destination.mkdir(exist_ok=True)
-            executable = destination / built.name
-            shutil.copy2(built, executable)
-            if sys.platform != "win32":
-                executable.chmod(executable.stat().st_mode | 0o111)
+        subprocess.run([*common, "--name", "codeslicer", str(launcher)], check=True, cwd=root)
+        built = temp_path / "dist" / ("codeslicer.exe" if sys.platform == "win32" else "codeslicer")
+        destination = runtime / "bin"
+        destination.mkdir(exist_ok=True)
+        executable = destination / built.name
+        shutil.copy2(built, executable)
+        if sys.platform != "win32":
+            executable.chmod(executable.stat().st_mode | 0o111)
 
     notices = runtime / "THIRD_PARTY_NOTICES_RUNTIME.md"
     distributions = []
