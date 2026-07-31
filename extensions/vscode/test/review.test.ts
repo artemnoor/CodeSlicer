@@ -21,7 +21,7 @@ test("cockpit separates review, results, tests, technologies, history, architect
   assert.match(html, /Проверяйте изменения до commit и merge/);
   assert.match(html, /class="app-shell"/);
   assert.match(html, /--cs-bg: #000000/);
-  assert.match(html, /--cs-green: #43f065/);
+  assert.match(html, /--cs-green: #4db866/);
   assert.doesNotMatch(html, /gradient|--cs-warn|--cs-danger|rgb\(|hsl\(/i);
   assert.match(html, /\[hidden\] \{ display: none !important; \}/);
   assert.match(html, /class="rail-nav"/);

@@ -114,19 +114,19 @@ export function renderCockpit(state: CockpitState, language: Language = "en"): s
 const style = String.raw`
 :root {
   --cs-bg: #000000;
-  --cs-raised: #020702;
-  --cs-panel: #040b04;
-  --cs-panel-strong: #071207;
-  --cs-line: #123717;
-  --cs-line-strong: #1d5a26;
-  --cs-ink: #a6ffb7;
-  --cs-muted: #68b876;
-  --cs-dim: #337a40;
-  --cs-green: #43f065;
-  --cs-green-bright: #74ff8d;
-  --cs-green-deep: #0b3212;
+  --cs-raised: #070b08;
+  --cs-panel: #0b110d;
+  --cs-panel-strong: #111a13;
+  --cs-line: #24402a;
+  --cs-line-strong: #376b43;
+  --cs-ink: #d8ffe0;
+  --cs-muted: #94c79e;
+  --cs-dim: #5c8b65;
+  --cs-green: #4db866;
+  --cs-green-bright: #72d889;
+  --cs-green-deep: #123d1f;
   --cs-green-ink: #000000;
-  --cs-focus: #74ff8d;
+  --cs-focus: #9be8aa;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
