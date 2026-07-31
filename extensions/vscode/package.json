@@ -2,7 +2,7 @@
   "name": "codeslicer-impact-cockpit",
   "displayName": "CodeSlicer",
   "description": "See the risk, evidence, and tests behind your local Git changes before review.",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "publisher": "CodeSlicer",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/artemnoor/CodeSlicer.git" },
@@ -41,7 +41,12 @@
       { "command": "codeslicer.openLocalHub", "title": "CodeSlicer: Open Local Hub" },
       { "command": "codeslicer.startLocalServer", "title": "CodeSlicer: Start local server" },
       { "command": "codeslicer.refresh", "title": "CodeSlicer: Refresh" },
-      { "command": "codeslicer.runRecommendedTest", "title": "CodeSlicer: Run recommended test" }
+      { "command": "codeslicer.runRecommendedTest", "title": "CodeSlicer: Run recommended test" },
+      { "command": "codeslicer.gitCreateBranch", "title": "CodeSlicer: Create Git branch" },
+      { "command": "codeslicer.gitSwitchBranch", "title": "CodeSlicer: Switch Git branch" },
+      { "command": "codeslicer.gitPreviewPush", "title": "CodeSlicer: Preview Git push" },
+      { "command": "codeslicer.gitPushBranch", "title": "CodeSlicer: Push Git branch" },
+      { "command": "codeslicer.configureGitHubToken", "title": "CodeSlicer: Store GitHub token securely" }
     ],
     "configuration": {
       "title": "CodeSlicer",

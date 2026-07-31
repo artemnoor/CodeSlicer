@@ -16,8 +16,8 @@ test("parses compatible ReviewReport fields and uses projection tests without ex
   assert.equal(review.tests[0].file, "tests/test_orders.py");
 });
 
-test("cockpit separates review, results, tests, technologies, history, and architecture", () => {
-  const html = renderCockpit({ ...INITIAL_STATE, runtime: { ...INITIAL_STATE.runtime, status: "found" }, codeGraph: { status: "ready", nodes: [{ id: "a", label: "entry", kind: "FUNCTION" }], edges: [], totalNodes: 1, totalEdges: 0, message: "Ready" }, gitGraph: { status: "ready", commits: [{ id: "123456789", parents: [], refs: "HEAD -> main", subject: "Initial" }], message: "Ready" } }, "ru");
+test("cockpit separates review, results, tests, technologies, history, architecture, and Git", () => {
+  const html = renderCockpit({ ...INITIAL_STATE, runtime: { ...INITIAL_STATE.runtime, status: "found" }, codeGraph: { status: "ready", nodes: [{ id: "a", label: "entry", kind: "FUNCTION" }], edges: [], totalNodes: 1, totalEdges: 0, message: "Ready" }, gitGraph: { status: "ready", commits: [{ id: "123456789", parents: [], refs: "HEAD -> main", subject: "Initial" }], branches: [], remotes: [], message: "Ready" } }, "ru");
   assert.match(html, /Проект готов к проверке/);
   assert.match(html, /data-tab="review"/);
   assert.match(html, /data-tab="results"/);
@@ -25,21 +25,35 @@ test("cockpit separates review, results, tests, technologies, history, and archi
   assert.match(html, /data-tab="tech"/);
   assert.match(html, /data-tab="history"/);
   assert.match(html, /data-tab="architecture"/);
+  assert.match(html, /data-tab="git"/);
   assert.match(html, /data-language="ru"/);
   assert.match(html, /data-language="en"/);
   assert.match(html, /data-action="showGraph"/);
   assert.match(html, /data-action="review"/);
   assert.match(html, /data-action="showGit"/);
+  assert.match(html, /data-action="createBranch"/);
+  assert.match(html, /data-action="previewPush"/);
+  assert.match(html, /data-action="configureGitHubToken"/);
   assert.match(html, /data-action="configureGraphify"/);
-  assert.match(html, /пакеты можно получать только из настроенного/i);
+  assert.match(html, /Дополнительные пакеты можно получать только из подписанного registry/i);
   assert.match(html, /class="node-grid"/);
+});
+
+test("start screen gives safe next steps for an empty folder and a project without Git", () => {
+  const empty = renderCockpit({ ...INITIAL_STATE, project: { ...INITIAL_STATE.project, readiness: "empty" } }, "ru");
+  assert.match(empty, /Эта папка пока пуста/);
+  assert.match(empty, /data-action="openProject"/);
+  assert.match(empty, /data-action="importGit"/);
+  const noGit = renderCockpit({ ...INITIAL_STATE, project: { ...INITIAL_STATE.project, readiness: "project", gitStatus: "missing" } }, "ru");
+  assert.match(noGit, /Git ещё не подключён/);
+  assert.match(noGit, /data-action="initGit"/);
 });
 
 test("router changes real screens and routes only explicit actions to VS Code", () => {
   const elements = new Map<string, any>(), messages: unknown[] = [], listeners: Record<string, (event: any) => void> = {};
   const makeElement = (): any => ({ hidden: false, dataset: {}, attributes: {}, setAttribute(name: string, value: string) { this.attributes[name] = value; }, focus() {} });
   const get = (id: string) => { if (!elements.has(id)) elements.set(id, makeElement()); return elements.get(id); };
-  const tabs = ["start", "review", "results", "tests", "tech", "history", "architecture", "settings"].map(tab => ({ ...makeElement(), dataset: { tab } }));
+  const tabs = ["start", "review", "results", "tests", "tech", "history", "architecture", "git", "settings"].map(tab => ({ ...makeElement(), dataset: { tab } }));
   const documentStub: any = { getElementById: get, querySelectorAll: (selector: string) => selector === "[role=tab]" ? tabs : [], querySelector: (selector: string) => tabs.find(tab => selector.includes(tab.dataset.tab)), addEventListener: (type: string, listener: (event: any) => void) => { listeners[type] = listener; } };
   new Function("document", "acquireVsCodeApi", clientRouter)(documentStub, () => ({ getState: () => undefined, setState() {}, postMessage: (message: unknown) => messages.push(message) }));
   const click = (dataset: Record<string, string>) => listeners.click({ target: { dataset, closest() { return this; } } });

@@ -13,6 +13,7 @@ import { parseJsonLineProgress } from "./progress";
 import { GitHubReviewService } from "./github";
 import { CockpitState, INITIAL_STATE, ProjectState, ReviewHistoryEntry, ReviewState, ReviewSourceMode, TestRecommendation, UiLanguage } from "./types";
 import { renderCockpit } from "./webview";
+import { buildPushArgs, isPlausibleGitRemote, parseGitBranches, parseGitRemotes, PushPreview } from "./git";
 
 const OUTPUT = vscode.window.createOutputChannel("CodeSlicer");
 const graphPath = (root: string) => join(root, ".impact_engine", "graph.json");
@@ -63,7 +64,8 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       const ignored = new Set([".git", ".vscode", ".impact_engine", ".codeslicer", ".venv", "venv", "env", "node_modules", "__pycache__"]);
       const entries = await readdir(root, { withFileTypes: true });
       const readiness = entries.some(entry => !ignored.has(entry.name)) ? "project" : "empty";
-      this.state = { ...this.state, project: { ...this.state.project, workspace: root, readiness } };
+      const hasGitDirectory = entries.some(entry => entry.name === ".git");
+      this.state = { ...this.state, project: { ...this.state.project, workspace: root, readiness, gitStatus: readiness === "empty" ? "unknown" : hasGitDirectory ? "ready" : "missing", gitMessage: readiness === "empty" ? "Open or create a project first." : hasGitDirectory ? "Git repository detected; refresh to read branches." : "Git is not initialized in this folder." } };
       this.render();
     } catch {
       this.state = { ...this.state, project: { ...this.state.project, workspace: root, readiness: "unknown" } };
@@ -142,16 +144,24 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   }
 
   private async projectState(root: string): Promise<ProjectState> {
+    const repository = await runProcess("git", ["rev-parse", "--is-inside-work-tree"], root, 15_000);
+    this.log(repository);
+    const configuredGraphify = this.config<string>("graphifyGraphPath");
+    const architectureGraph = graphifyPath(root, configuredGraphify);
+    if (repository.exitCode !== 0 || repository.stdout.trim() !== "true") return {
+      workspace: root, readiness: this.state.project.readiness === "unknown" ? "project" : this.state.project.readiness,
+      gitStatus: "missing", gitMessage: "Git is not initialized in this folder. Initialize Git to review changes and manage branches.",
+      graphStatus: existsSync(graphPath(root)) ? "present" : "missing", freshness: existsSync(graphPath(root)) ? "Graph file found; freshness is verified by Review." : "No .impact_engine/graph.json",
+      graphifyAvailable: existsSync(architectureGraph), graphifyPath: architectureGraph
+    };
     const branchResult = await runProcess("git", ["branch", "--show-current"], root, 15_000);
     this.log(branchResult);
-    const branch = branchResult.exitCode === 0 ? branchResult.stdout.trim() || "detached HEAD" : "Git branch unavailable";
-    const configuredGraphify = this.config<string>("graphifyGraphPath");
     const base = await detectBaseSelection(root, this.config<string>("baseRef"));
-    const architectureGraph = graphifyPath(root, configuredGraphify);
     return {
       workspace: root,
       readiness: this.state.project.readiness === "unknown" ? "project" : this.state.project.readiness,
-      branch,
+      gitStatus: "ready", gitMessage: "Git repository is ready. Nothing is sent until you explicitly confirm a push.",
+      branch: branchResult.stdout.trim() || "detached HEAD",
       baseRef: base.base,
       baseCandidates: base.candidates,
       baseStatus: base.status,
@@ -240,6 +250,17 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       await vscode.window.showErrorMessage(`VS Code could not start Git import: ${String(error)}`);
     }
+  }
+
+  async initializeGit(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    const choice = await vscode.window.showWarningMessage("Initialize a new local Git repository in this folder? This does not create a remote or send data anywhere.", { modal: true }, "Initialize Git");
+    if (choice !== "Initialize Git") return;
+    const result = await runProcess("git", ["init"], root, 30_000);
+    this.log(result);
+    if (result.exitCode !== 0) await vscode.window.showErrorMessage(result.stderr.trim() || "Git could not initialize this folder.");
+    else { await vscode.window.showInformationMessage("Local Git repository initialized. Create your first commit when ready."); await this.refresh(); }
   }
 
   async setupSkills(): Promise<void> {
@@ -376,19 +397,131 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   async showGitBranches(): Promise<void> {
     const root = await this.needWorkspace();
     if (!root || !await this.trusted()) return;
-    const result = await runProcess("git", ["log", "--all", "--date-order", "--decorate=short", "--pretty=format:%H%x09%P%x09%D%x09%s", "-n", "32"], root, 30_000);
-    this.log(result);
-    if (result.exitCode !== 0) {
-      this.state = { ...this.state, gitGraph: { status: "error", commits: [], message: result.stderr.trim() || "Git history is unavailable." } };
+    const [history, branches, remotes] = await Promise.all([
+      runProcess("git", ["log", "--all", "--date-order", "--decorate=short", "--pretty=format:%H%x09%P%x09%D%x09%s", "-n", "40"], root, 30_000),
+      runProcess("git", ["for-each-ref", "--format=%(refname:short)%x09%(upstream:short)%x09%(HEAD)%x09%(upstream:trackshort)", "refs/heads"], root, 30_000),
+      runProcess("git", ["remote", "-v"], root, 30_000)
+    ]);
+    [history, branches, remotes].forEach(result => this.log(result));
+    if (history.exitCode !== 0 || branches.exitCode !== 0) {
+      this.state = { ...this.state, gitGraph: { ...this.state.gitGraph, status: "error", commits: [], branches: [], remotes: [], message: history.stderr.trim() || branches.stderr.trim() || "Git history is unavailable." } };
       this.render();
       return;
     }
-    const commits = result.stdout.split(/\r?\n/u).flatMap(line => {
+    const commits = history.stdout.split(/\r?\n/u).flatMap(line => {
       const [id, parents = "", refs = "", subject = ""] = line.split("\t", 4);
       return id ? [{ id, parents: parents.split(" ").filter(Boolean), refs, subject }] : [];
     });
-    this.state = { ...this.state, gitGraph: { status: "ready", commits, message: `${commits.length} recent commits across local branches.` } };
+    const branchItems = parseGitBranches(branches.stdout);
+    const remoteItems = remotes.exitCode === 0 ? parseGitRemotes(remotes.stdout) : [];
+    const message = remoteItems.length ? `${branchItems.length} local branches · ${remoteItems.length} remotes · ${commits.length} recent commits.` : `${branchItems.length} local branches · no remote is configured yet.`;
+    this.state = { ...this.state, gitGraph: { status: "ready", commits, branches: branchItems, remotes: remoteItems, message } };
     this.render();
+  }
+
+  async createBranch(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    const name = await vscode.window.showInputBox({ title: "Create a new Git branch", prompt: "Branch name, for example feature/payment-review", placeHolder: "feature/my-change", ignoreFocusOut: true });
+    if (name === undefined || !name.trim()) return;
+    const checked = await runProcess("git", ["check-ref-format", "--branch", name.trim()], root, 15_000);
+    this.log(checked);
+    if (checked.exitCode !== 0) { await vscode.window.showErrorMessage("This is not a valid Git branch name."); return; }
+    const choice = await vscode.window.showWarningMessage(`Create and switch to '${name.trim()}'?`, { modal: true }, "Create branch");
+    if (choice !== "Create branch") return;
+    const result = await runProcess("git", ["switch", "-c", name.trim()], root, 30_000);
+    this.log(result);
+    if (result.exitCode !== 0) await vscode.window.showErrorMessage(result.stderr.trim() || "Git could not create this branch.");
+    else { await vscode.window.showInformationMessage(`Created and switched to ${name.trim()}.`); await this.refresh(); await this.showGitBranches(); }
+  }
+
+  async switchBranch(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    if (!this.state.gitGraph.branches.length) await this.showGitBranches();
+    const choices = this.state.gitGraph.branches.filter(branch => !branch.current).map(branch => ({ label: branch.name, description: branch.upstream ? `tracks ${branch.upstream} ${branch.tracking || ""}` : "local branch" }));
+    const picked = await vscode.window.showQuickPick(choices, { title: "Switch Git branch", placeHolder: "Uncommitted changes can prevent switching" });
+    if (!picked) return;
+    const result = await runProcess("git", ["switch", picked.label], root, 30_000);
+    this.log(result);
+    if (result.exitCode !== 0) await vscode.window.showErrorMessage(result.stderr.trim() || "Git could not switch branch. Commit, stash, or resolve conflicting changes first.");
+    else { await this.refresh(); await this.showGitBranches(); }
+  }
+
+  async addRemote(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    const name = await vscode.window.showInputBox({ title: "Add Git remote", prompt: "Remote name", value: "origin", validateInput: value => /^[A-Za-z0-9._-]+$/u.test(value.trim()) ? undefined : "Use letters, numbers, dot, underscore, or hyphen." });
+    if (!name) return;
+    const url = await vscode.window.showInputBox({ title: "Add Git remote", prompt: "HTTPS or SSH repository address", placeHolder: "https://github.com/owner/repository.git", validateInput: value => isPlausibleGitRemote(value) ? undefined : "Enter an HTTPS or SSH Git URL." });
+    if (!url) return;
+    const choice = await vscode.window.showWarningMessage(`Add remote '${name.trim()}'?\n${url.trim()}`, { modal: true }, "Add remote");
+    if (choice !== "Add remote") return;
+    const result = await runProcess("git", ["remote", "add", name.trim(), url.trim()], root, 30_000);
+    this.log(result);
+    if (result.exitCode !== 0) await vscode.window.showErrorMessage(result.stderr.trim() || "Git could not add this remote.");
+    else { await vscode.window.showInformationMessage(`Remote '${name.trim()}' added. No branch was pushed.`); await this.showGitBranches(); }
+  }
+
+  private async choosePushTarget(): Promise<{ source: string; remote: string; target: string; setUpstream: boolean } | undefined> {
+    const root = await this.needWorkspace();
+    if (!root) return undefined;
+    if (!this.state.gitGraph.branches.length) await this.showGitBranches();
+    const current = this.state.gitGraph.branches.find(branch => branch.current)?.name;
+    const source = await vscode.window.showQuickPick(this.state.gitGraph.branches.map(branch => ({ label: branch.name, description: branch.current ? "current branch" : "local branch" })), { title: "Choose branch to push", placeHolder: "Choose a local source branch", canPickMany: false });
+    if (!source) return undefined;
+    const remote = await vscode.window.showQuickPick(this.state.gitGraph.remotes.map(item => ({ label: item.name, description: item.pushUrl || item.fetchUrl || "remote" })), { title: "Choose destination remote", placeHolder: this.state.gitGraph.remotes.length ? "Choose remote" : "Add a remote first" });
+    if (!remote) { if (!this.state.gitGraph.remotes.length) await vscode.window.showWarningMessage("No Git remote is configured. Add one first."); return undefined; }
+    const target = await vscode.window.showInputBox({ title: "Choose destination branch", prompt: `Push ${source.label} to this branch on ${remote.label}`, value: source.label === current ? source.label : "", validateInput: value => isSafeRef(value.trim()) ? undefined : "Enter a safe Git branch name." });
+    if (!target) return undefined;
+    const known = this.state.gitGraph.branches.find(branch => branch.name === source.label);
+    return { source: source.label, remote: remote.label, target: target.trim(), setUpstream: known?.upstream !== `${remote.label}/${target.trim()}` };
+  }
+
+  private async inspectPush(root: string, source: string, remote: string, target: string): Promise<PushPreview> {
+    const remoteRef = `${remote}/${target}`;
+    const result = await runProcess("git", ["rev-list", "--left-right", "--count", `${remoteRef}...${source}`], root, 30_000);
+    this.log(result);
+    const [behindText = "0", aheadText = "0"] = result.stdout.trim().split(/\s+/u);
+    const behind = Number(behindText) || 0, ahead = Number(aheadText) || 0;
+    const canFastForward = result.exitCode === 0 ? behind === 0 : true;
+    return { source, remote, target, ahead, behind, canFastForward, message: result.exitCode === 0 ? (behind ? `Destination is ${behind} commit(s) ahead. A normal push is likely to be rejected; fetch/review first.` : `${ahead} commit(s) will be sent. Normal push only; force push is never used.`) : `Destination ${remoteRef} does not exist locally yet. It may be created on push; fetch first if it already exists remotely.` };
+  }
+
+  async previewPush(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    const target = await this.choosePushTarget();
+    if (!target) return;
+    const preview = await this.inspectPush(root, target.source, target.remote, target.target);
+    this.state = { ...this.state, gitGraph: { ...this.state.gitGraph, push: preview } };
+    this.render();
+  }
+
+  async pushBranch(): Promise<void> {
+    const root = await this.needWorkspace();
+    if (!root || !await this.trusted()) return;
+    const target = await this.choosePushTarget();
+    if (!target) return;
+    const preview = await this.inspectPush(root, target.source, target.remote, target.target);
+    this.state = { ...this.state, gitGraph: { ...this.state.gitGraph, push: preview } };
+    this.render();
+    if (!preview.canFastForward) { await vscode.window.showWarningMessage(preview.message); return; }
+    const choice = await vscode.window.showWarningMessage(`Push '${target.source}' to '${target.remote}/${target.target}'?\n${preview.message}\nGit will use your existing system credentials or SSH key. No force push is available.`, { modal: true }, "Push branch");
+    if (choice !== "Push branch") return;
+    const result = await runProcess("git", ["push", ...buildPushArgs(target.remote, target.source, target.target, target.setUpstream)], root, 180_000);
+    this.log(result);
+    if (result.exitCode !== 0) await vscode.window.showErrorMessage(result.stderr.trim() || "Git push failed. Check your Git Credential Manager/SSH key and CodeSlicer Output.");
+    else { await vscode.window.showInformationMessage(`Pushed ${target.source} to ${target.remote}/${target.target}.`); await this.refresh(); await this.showGitBranches(); }
+  }
+
+  async configureGitHubToken(): Promise<void> {
+    const token = await vscode.window.showInputBox({ title: "GitHub access token (optional)", prompt: "Stored in VS Code Secret Storage for future GitHub API features. Push uses Git Credential Manager or SSH instead.", password: true, ignoreFocusOut: true, validateInput: value => value.trim().length >= 20 ? undefined : "Paste a GitHub token, or cancel to keep using GitHub OAuth." });
+    if (token === undefined) return;
+    await this.context.secrets.store("codeslicer.githubToken", token.trim());
+    this.state = { ...this.state, integration: { ...this.state.integration, githubTokenConfigured: true, githubStatus: "GitHub token saved in VS Code Secret Storage. It is not added to remotes or shown in logs." } };
+    this.render();
+    await vscode.window.showInformationMessage("GitHub token saved securely. Push still uses your OS Git Credential Manager or SSH key.");
   }
 
   async installGraphify(): Promise<void> {
@@ -597,7 +730,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
         sourceCurrent: () => this.setReviewSource("current-changes"), sourceStaged: () => this.setReviewSource("staged"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
-        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), openProject: () => this.openOrCreateProject(), importGit: () => this.importFromGit(), showDemo: () => this.showDemo(), startServer: () => this.startLocalServer(), stopServer: () => this.stopLocalServer(), showGraph: () => this.analyzeAndShowGraph(), showGit: () => this.showGitBranches(), installGraphify: () => this.installGraphify(), buildGraphify: () => this.buildGraphifyGraph()
+        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), openProject: () => this.openOrCreateProject(), importGit: () => this.importFromGit(), initGit: () => this.initializeGit(), showDemo: () => this.showDemo(), startServer: () => this.startLocalServer(), stopServer: () => this.stopLocalServer(), showGraph: () => this.analyzeAndShowGraph(), showGit: () => this.showGitBranches(), createBranch: () => this.createBranch(), switchBranch: () => this.switchBranch(), addRemote: () => this.addRemote(), previewPush: () => this.previewPush(), pushBranch: () => this.pushBranch(), configureGitHubToken: () => this.configureGitHubToken(), installGraphify: () => this.installGraphify(), buildGraphify: () => this.buildGraphifyGraph()
       };
       await actions[message.action || ""]?.();
       return;
@@ -635,7 +768,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.installRuntime", () => provider.downloadCodeSlicer()], ["codeslicer.setupSkills", () => provider.setupSkills()], ["codeslicer.analyzeWorkspace", () => provider.analyze()], ["codeslicer.runtimeDoctor", () => provider.doctor()], ["codeslicer.runtimeUpdate", () => provider.runtimeAvailability()], ["codeslicer.runtimeRollback", () => provider.runtimeAvailability()],
     ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.reviewStagedChanges", async () => { await provider.setReviewSource("staged"); await provider.review(); }], ["codeslicer.reviewCompare", async () => { await provider.setReviewSource("compare"); await provider.review(); }], ["codeslicer.reviewDiffFile", async () => { await provider.setReviewSource("diff-file"); await provider.review(); }], ["codeslicer.githubSignIn", () => provider.setReviewSource("github-pr")], ["codeslicer.showReviewHistory", () => provider.showHistory()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],
     ["codeslicer.openLocalHub", () => provider.hub()], ["codeslicer.startLocalServer", () => provider.startLocalServer()], ["codeslicer.refresh", () => provider.refresh()],
-    ["codeslicer.runRecommendedTest", () => provider.runTest()]
+    ["codeslicer.runRecommendedTest", () => provider.runTest()], ["codeslicer.gitCreateBranch", () => provider.createBranch()], ["codeslicer.gitSwitchBranch", () => provider.switchBranch()], ["codeslicer.gitPreviewPush", () => provider.previewPush()], ["codeslicer.gitPushBranch", () => provider.pushBranch()], ["codeslicer.configureGitHubToken", () => provider.configureGitHubToken()]
   ] as [string, () => Promise<void>][]) context.subscriptions.push(vscode.commands.registerCommand(id, handler));
 }
 

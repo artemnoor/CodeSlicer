@@ -39,7 +39,8 @@ The webview keeps the normal path simple:
 3. **Tests** — recommendations; every real test requires a new modal confirmation.
 4. **Technologies** — built-in language coverage, graph freshness, and optional-pack status.
 5. **History** — the last local review summaries in workspace state.
-6. **Architecture** — a bounded canonical CodeSlicer slice and local Git history.
+6. **Code** — a bounded canonical CodeSlicer slice; Graphify remains an explicitly connected, separate optional engine.
+7. **Git** — a separate branch tree with current/upstream state, remotes, recent commits, branch creation/switching, and a push preflight.
 
 The interactive guide only switches these real tabs. It does not invoke Git,
 the runtime, tests, or network requests.
@@ -58,4 +59,10 @@ state.
 
 The cockpit supports analysis, working-tree/compare/diff review, risk/evidence/test recommendations, confirmed test execution, selected-symbol inspect, local history, source navigation, and the canonical architecture slice. Local Hub opens only after an explicit user action and listens on loopback.
 
-Graphify is optional and separate: CodeSlicer never downloads or installs it, and its data does not affect canonical evidence or ranking. Local Git review needs no GitHub token. GitHub PR preparation is advanced and read-only; publishing comments/checks is not implemented.
+Graphify is optional and separate: CodeSlicer never downloads or installs it, and its data does not affect canonical evidence or ranking. Local Git review needs no GitHub token.
+
+## Git cockpit and GitHub access
+
+The Git tab is intentionally explicit: it reads the local branch tree only after you select **Refresh tree**; create/switch branch and add-remote actions are each confirmed. Before a push you select the exact local source branch, remote, and destination branch. The extension shows ahead/behind status and blocks a likely non-fast-forward push. A second modal confirmation is required to push, and force-push is never offered.
+
+Push uses the Git credentials already configured for your machine (Git Credential Manager or SSH). CodeSlicer does not place a token into a remote URL, shell command, Output log, or workspace settings. The optional **Store GitHub token** control writes it only to VS Code Secret Storage for future GitHub API functionality; today GitHub PR preparation uses explicit VS Code OAuth and read-only API calls. Publishing PR comments/checks is not implemented.

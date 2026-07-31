@@ -5,14 +5,18 @@ export type ReviewSourceMode="current-changes"|"staged"|"compare"|"diff-file"|"g
 export interface ReviewSourceState{mode:ReviewSourceMode;diffFile?:string;baseRef?:string;label?:string}
 export interface ReviewHistoryEntry{createdAt:string;source:ReviewSourceMode;risk:string;affected:number}
 export type WorkspaceReadiness="unknown"|"empty"|"project";
-export interface ProjectState{workspace?:string;branch?:string;baseRef?:string;baseCandidates?:string[];baseStatus?:string;readiness:WorkspaceReadiness;graphStatus:"unknown"|"present"|"missing";freshness:string;graphifyAvailable:boolean;graphifyPath?:string}
+export type GitAvailability="unknown"|"ready"|"missing"|"error";
+export interface ProjectState{workspace?:string;branch?:string;baseRef?:string;baseCandidates?:string[];baseStatus?:string;readiness:WorkspaceReadiness;gitStatus:GitAvailability;gitMessage:string;graphStatus:"unknown"|"present"|"missing";freshness:string;graphifyAvailable:boolean;graphifyPath?:string}
 export type OperationStatus="idle"|"ready"|"running"|"error";
 export interface LocalServerState{status:OperationStatus;url:string;message:string}
 export interface GraphNodePreview{id:string;label:string;kind:string}
 export interface GraphEdgePreview{source:string;target:string}
 export interface CodeGraphState{status:OperationStatus;nodes:GraphNodePreview[];edges:GraphEdgePreview[];totalNodes:number;totalEdges:number;message:string}
 export interface GitCommitPreview{id:string;parents:string[];refs:string;subject:string}
-export interface GitGraphState{status:OperationStatus;commits:GitCommitPreview[];message:string}
+export interface GitBranchPreview{name:string;current:boolean;upstream?:string;tracking?:string}
+export interface GitRemotePreview{name:string;fetchUrl?:string;pushUrl?:string}
+export interface GitPushPreview{source:string;remote:string;target:string;ahead:number;behind:number;canFastForward:boolean;message:string}
+export interface GitGraphState{status:OperationStatus;commits:GitCommitPreview[];branches:GitBranchPreview[];remotes:GitRemotePreview[];push?:GitPushPreview;message:string}
 export interface GraphifyState{status:OperationStatus;message:string;graphPath?:string}
 export interface IntegrationState{githubTokenConfigured:boolean;githubAuthenticated?:boolean;githubStatus?:string}
 export interface EvidenceLocation{file?:string;line?:number;text?:string;provenance?:string}
@@ -23,4 +27,4 @@ export interface ReviewState{status:"idle"|"ready"|"error";riskLevel:string;risk
 export type DemoStatus="idle"|"downloaded"|"changed"|"reviewed"|"tested"|"error";
 export interface DemoState{status:DemoStatus;projectPath?:string;message?:string}
 export interface CockpitState{runtime:RuntimeState;project:ProjectState;integration:IntegrationState;reviewSource:ReviewSourceState;history:ReviewHistoryEntry[];review:ReviewState;demo:DemoState;server:LocalServerState;codeGraph:CodeGraphState;gitGraph:GitGraphState;graphify:GraphifyState}
-export const INITIAL_STATE:CockpitState={runtime:{status:"unchecked",version:"Not checked",diagnostic:"Run Refresh to validate a local CodeSlicer executable."},project:{readiness:"unknown",graphStatus:"unknown",freshness:"Not checked",graphifyAvailable:false},integration:{githubTokenConfigured:false},reviewSource:{mode:"current-changes"},history:[],review:{status:"idle",riskLevel:"—",riskConfidence:"—",riskReasons:[],limitations:[],impacts:[],chains:[],tests:[],warnings:[],localDiffNotice:"Analyzes a local Git diff only; GitHub metadata, comments, and checks are not read."},demo:{status:"idle"},server:{status:"idle",url:"http://127.0.0.1:8001/",message:"Server is not running."},codeGraph:{status:"idle",nodes:[],edges:[],totalNodes:0,totalEdges:0,message:"Build an analysis, then open the code graph."},gitGraph:{status:"idle",commits:[],message:"Open Git branches when you need them."},graphify:{status:"idle",message:"Graphify is optional and separate from CodeSlicer evidence."}};
+export const INITIAL_STATE:CockpitState={runtime:{status:"unchecked",version:"Not checked",diagnostic:"Run Refresh to validate a local CodeSlicer executable."},project:{readiness:"unknown",gitStatus:"unknown",gitMessage:"Git has not been checked yet.",graphStatus:"unknown",freshness:"Not checked",graphifyAvailable:false},integration:{githubTokenConfigured:false},reviewSource:{mode:"current-changes"},history:[],review:{status:"idle",riskLevel:"—",riskConfidence:"—",riskReasons:[],limitations:[],impacts:[],chains:[],tests:[],warnings:[],localDiffNotice:"Analyzes a local Git diff only; GitHub metadata, comments, and checks are not read."},demo:{status:"idle"},server:{status:"idle",url:"http://127.0.0.1:8001/",message:"Server is not running."},codeGraph:{status:"idle",nodes:[],edges:[],totalNodes:0,totalEdges:0,message:"Build an analysis, then open the code graph."},gitGraph:{status:"idle",commits:[],branches:[],remotes:[],message:"Open Git cockpit when you need branches or remotes."},graphify:{status:"idle",message:"Graphify is optional and separate from CodeSlicer evidence."}};
