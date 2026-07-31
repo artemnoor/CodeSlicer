@@ -86,7 +86,9 @@ def main() -> int:
     for item in sorted(metadata.distributions(), key=lambda d: d.metadata["Name"].lower() if d.metadata["Name"] else ""):
         name = item.metadata["Name"]
         if name:
-            distributions.append(f"- {name} {item.version} — {item.metadata.get('License') or 'see installed distribution metadata'}")
+            license_value = item.metadata.get("License") or ""
+            license_summary = " ".join(license_value.strip().splitlines()[0].split()) if license_value.strip() else "see installed distribution metadata"
+            distributions.append(f"- {name} {item.version} — {license_summary}")
     notices.write_text("# CodeSlicer bundled runtime notices\n\nEmbedded Python and dependency notices:\n\n" + "\n".join(distributions) + "\n", encoding="utf-8")
     shutil.copy2(root / "LICENSE", runtime / "LICENSE")
     files = {str(path.relative_to(runtime)).replace("\\", "/"): sha256(path) for path in runtime.rglob("*") if path.is_file()}
