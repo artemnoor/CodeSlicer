@@ -13,6 +13,7 @@ node_modules/**
 **/*.vsix
 **/*.log
 coverage/**
+output/**
 out/test/**
 .playwright-cli/**
 out/**/*.map

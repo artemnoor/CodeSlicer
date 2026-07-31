@@ -18,7 +18,12 @@ test("parses compatible ReviewReport fields and uses projection tests without ex
 
 test("cockpit separates review, results, tests, technologies, history, architecture, and Git", () => {
   const html = renderCockpit({ ...INITIAL_STATE, runtime: { ...INITIAL_STATE.runtime, status: "found" }, codeGraph: { status: "ready", nodes: [{ id: "a", label: "entry", kind: "FUNCTION" }], edges: [], totalNodes: 1, totalEdges: 0, message: "Ready" }, gitGraph: { status: "ready", commits: [{ id: "123456789", parents: [], refs: "HEAD -> main", subject: "Initial" }], branches: [], remotes: [], message: "Ready" } }, "ru");
-  assert.match(html, /Проект готов к проверке/);
+  assert.match(html, /Проверяйте изменения до commit и merge/);
+  assert.match(html, /class="app-shell"/);
+  assert.match(html, /--cs-bg: #060806/);
+  assert.match(html, /--cs-green: #5cf57c/);
+  assert.match(html, /\[hidden\] \{ display: none !important; \}/);
+  assert.match(html, /class="rail-nav"/);
   assert.match(html, /data-tab="review"/);
   assert.match(html, /data-tab="results"/);
   assert.match(html, /data-tab="tests"/);
@@ -26,7 +31,6 @@ test("cockpit separates review, results, tests, technologies, history, architect
   assert.match(html, /data-tab="history"/);
   assert.match(html, /data-tab="architecture"/);
   assert.match(html, /data-tab="git"/);
-  assert.match(html, /data-language="ru"/);
   assert.match(html, /data-language="en"/);
   assert.match(html, /data-action="showGraph"/);
   assert.match(html, /data-action="review"/);
@@ -36,16 +40,18 @@ test("cockpit separates review, results, tests, technologies, history, architect
   assert.match(html, /data-action="configureGitHubToken"/);
   assert.match(html, /data-action="configureGraphify"/);
   assert.match(html, /Дополнительные пакеты можно получать только из подписанного registry/i);
-  assert.match(html, /class="node-grid"/);
+  assert.match(html, /class="graph-nodes"/);
+  assert.match(html, /data-guide-handle/);
+  assert.match(renderCockpit(INITIAL_STATE, "en"), /data-language="ru"/);
 });
 
 test("start screen gives safe next steps for an empty folder and a project without Git", () => {
   const empty = renderCockpit({ ...INITIAL_STATE, project: { ...INITIAL_STATE.project, readiness: "empty" } }, "ru");
-  assert.match(empty, /Эта папка пока пуста/);
+  assert.match(empty, /Здесь пока нет проекта/);
   assert.match(empty, /data-action="openProject"/);
   assert.match(empty, /data-action="importGit"/);
   const noGit = renderCockpit({ ...INITIAL_STATE, project: { ...INITIAL_STATE.project, readiness: "project", gitStatus: "missing" } }, "ru");
-  assert.match(noGit, /Git ещё не подключён/);
+  assert.match(noGit, /Подключите Git, когда будете готовы/);
   assert.match(noGit, /data-action="initGit"/);
 });
 
