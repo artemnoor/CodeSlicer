@@ -1,11 +1,11 @@
 {
   "arch": "x64",
-  "extensionCompatibility": "0.6.7",
+  "extensionCompatibility": "0.6.8",
   "files": {
     "LICENSE": "172828ba823054666dd7b22c045315ae09961d690a917f37db7795929819c0d9",
     "THIRD_PARTY_NOTICES_RUNTIME.md": "ae75d386b5e035bcc23a9a133688409e77e9bbb7df09f1b2c3b030fab60a7cd7",
-    "bin/codeslicer.exe": "0c4eb647452e654fa1795a736c494e0f8321c7d59a33ba603a66f18e150106e5",
-    "bin/impact-engine-local-api.exe": "c24e078662bc74a7dd2870ca6b44a95360343a4f09193040bbe10e72c7c70f71"
+    "bin/codeslicer.exe": "5cfdd83298280242d0385ec638cb6c7e1f2ff71b75decd91d01c238fe4ddd22f",
+    "bin/impact-engine-local-api.exe": "66a775ba4bbe5cdd907d619f7b03bace9cc38458bf7318646c88fb25cfac7b5d"
   },
   "platform": "win32",
   "runtimeVersion": "0.5.0"

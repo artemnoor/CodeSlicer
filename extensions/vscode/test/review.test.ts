@@ -17,12 +17,13 @@ test("parses compatible ReviewReport fields and uses projection tests without ex
 });
 
 test("cockpit separates review, results, tests, technologies, history, architecture, and Git", () => {
-  const html = renderCockpit({ ...INITIAL_STATE, runtime: { ...INITIAL_STATE.runtime, status: "found" }, codeGraph: { status: "ready", nodes: [{ id: "a", label: "entry", kind: "FUNCTION" }], edges: [], totalNodes: 1, totalEdges: 0, message: "Ready" }, gitGraph: { status: "ready", commits: [{ id: "123456789", parents: [], refs: "HEAD -> main", subject: "Initial" }], branches: [], remotes: [], message: "Ready" } }, "ru");
+  const html = renderCockpit({ ...INITIAL_STATE, runtime: { ...INITIAL_STATE.runtime, status: "found" }, codeGraph: { status: "ready", nodes: [{ id: "a", label: "entry", kind: "FUNCTION" }], edges: [], totalNodes: 1, totalEdges: 0, message: "Ready" }, gitGraph: { status: "ready", commits: [{ id: "123456789", parents: [], refs: "HEAD -> main", subject: "Initial" }], branches: [{ name: "main", current: true, upstream: "origin/main", tracking: "ahead 1" }], remotes: [], message: "Ready" } }, "ru");
   assert.match(html, /Проверяйте изменения до commit и merge/);
   assert.match(html, /class="app-shell"/);
-  assert.match(html, /--cs-bg: #000000/);
-  assert.match(html, /--cs-green: #4db866/);
-  assert.doesNotMatch(html, /gradient|--cs-warn|--cs-danger|rgb\(|hsl\(/i);
+  assert.match(html, /--cs-bg: #0c0c0f/);
+  assert.match(html, /--cs-green: #8373ff/);
+  assert.match(html, /--cs-pink: #f16baa/);
+  assert.match(html, /class="branch-rail"/);
   assert.match(html, /\[hidden\] \{ display: none !important; \}/);
   assert.match(html, /class="rail-nav"/);
   assert.match(html, /data-tab="review"/);
