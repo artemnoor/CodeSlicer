@@ -80,7 +80,7 @@ test("router changes real screens and routes only explicit actions to VS Code", 
   click({ tab: "architecture" });
   assert.equal(tabs[4].attributes["aria-selected"], "true");
   click({ action: "showGraph" });
-  assert.deepEqual(messages, [{ type: "action", action: "showGraph" }]);
+  assert.deepEqual(messages, [{ type: "action", action: "showGraph", guide: undefined }]);
   click({ demoStart: "" });
   assert.equal(tabs[1].attributes["aria-selected"], "true");
   click({ demoNext: "" });
@@ -91,6 +91,8 @@ test("router changes real screens and routes only explicit actions to VS Code", 
   assert.equal(tabs[2].attributes["aria-selected"], "true");
   click({ guide: "git" });
   assert.equal(tabs[5].attributes["aria-selected"], "true");
+  click({ action: "showGit" });
+  assert.deepEqual(messages.at(-1), { type: "action", action: "showGit", guide: { id: "git", step: 0, expected: "showGit" } });
   click({ guide: "github" });
   assert.equal(tabs[9].attributes["aria-selected"], "true");
   click({ language: "en" });
@@ -104,4 +106,14 @@ test("extension keeps Graphify optional and separate from the local runtime", ()
   assert.doesNotMatch(source, /pip\s+install|graphifyy/u);
   assert.match(source, /"--code-only"/);
   assert.match(source, /\["--json", "inspect"/);
+});
+
+test("interactive guides wait for the real result of a user action", () => {
+  const extension = readFileSync(join(__dirname, "../../src/extension.ts"), "utf8");
+  assert.match(extension, /postGuideOutcome/);
+  assert.match(extension, /lastPushOutcome/);
+  assert.match(extension, /type: "guideEvent"/);
+  assert.match(clientRouter, /guideEvent/);
+  assert.match(clientRouter, /actionMatches/);
+  assert.match(clientRouter, /githubAuth/);
 });

@@ -28,6 +28,8 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   private readonly runtime: CodeSlicerRuntimeManager;
   private readonly github = new GitHubReviewService();
   private readonly status: vscode.StatusBarItem;
+  /** A guided push must use the real Git result rather than infer it from refreshed state. */
+  private lastPushOutcome: "success" | "error" | "cancelled" | undefined;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     this.runtime = new CodeSlicerRuntimeManager(context.extensionPath);
@@ -499,20 +501,21 @@ class CockpitProvider implements vscode.WebviewViewProvider {
   }
 
   async pushBranch(): Promise<void> {
+    this.lastPushOutcome = undefined;
     const root = await this.needWorkspace();
-    if (!root || !await this.trusted()) return;
+    if (!root || !await this.trusted()) { this.lastPushOutcome = "cancelled"; return; }
     const target = await this.choosePushTarget();
-    if (!target) return;
+    if (!target) { this.lastPushOutcome = "cancelled"; return; }
     const preview = await this.inspectPush(root, target.source, target.remote, target.target);
     this.state = { ...this.state, gitGraph: { ...this.state.gitGraph, push: preview } };
     this.render();
-    if (!preview.canFastForward) { await vscode.window.showWarningMessage(preview.message); return; }
+    if (!preview.canFastForward) { this.lastPushOutcome = "error"; await vscode.window.showWarningMessage(preview.message); return; }
     const choice = await vscode.window.showWarningMessage(`Push '${target.source}' to '${target.remote}/${target.target}'?\n${preview.message}\nGit will use your existing system credentials or SSH key. No force push is available.`, { modal: true }, "Push branch");
-    if (choice !== "Push branch") return;
+    if (choice !== "Push branch") { this.lastPushOutcome = "cancelled"; return; }
     const result = await runProcess("git", ["push", ...buildPushArgs(target.remote, target.source, target.target, target.setUpstream)], root, 180_000);
     this.log(result);
-    if (result.exitCode !== 0) await vscode.window.showErrorMessage(result.stderr.trim() || "Git push failed. Check your Git Credential Manager/SSH key and CodeSlicer Output.");
-    else { await vscode.window.showInformationMessage(`Pushed ${target.source} to ${target.remote}/${target.target}.`); await this.refresh(); await this.showGitBranches(); }
+    if (result.exitCode !== 0) { this.lastPushOutcome = "error"; await vscode.window.showErrorMessage(result.stderr.trim() || "Git push failed. Check your Git Credential Manager/SSH key and CodeSlicer Output."); }
+    else { this.lastPushOutcome = "success"; await vscode.window.showInformationMessage(`Pushed ${target.source} to ${target.remote}/${target.target}.`); await this.refresh(); await this.showGitBranches(); }
   }
 
   async configureGitHubToken(): Promise<void> {
@@ -692,21 +695,22 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     await vscode.env.openExternal(vscode.Uri.parse(url.toString()));
   }
 
-  async runTest(index?: number): Promise<void> {
+  async runTest(index?: number): Promise<"success" | "error" | "cancelled"> {
     const root = await this.needWorkspace();
-    if (!root || !await this.trusted()) return;
+    if (!root || !await this.trusted()) return "cancelled";
     const recommendation = index === undefined ? this.tests[0] : this.tests[index];
     const command = safeTestCommand(recommendation?.argv || recommendation?.command);
     if (!recommendation || !command) {
       await vscode.window.showWarningMessage("CodeSlicer did not provide a safe argv test command for this recommendation. No test was run.");
-      return;
+      return "error";
     }
     const choice = await vscode.window.showWarningMessage(`Run recommended test?\n${formatCommand(command)}`, { modal: true }, "Run test");
-    if (choice !== "Run test") return;
+    if (choice !== "Run test") return "cancelled";
     const result = await runProcess(command[0], command.slice(1), root, 900_000);
     this.log(result);
-    if (result.exitCode === 0) await vscode.window.showInformationMessage("Recommended test passed.");
-    else await vscode.window.showErrorMessage("Recommended test failed; see CodeSlicer Output.");
+    if (result.exitCode === 0) { await vscode.window.showInformationMessage("Recommended test passed."); return "success"; }
+    await vscode.window.showErrorMessage("Recommended test failed; see CodeSlicer Output.");
+    return "error";
   }
 
   private async setLanguage(language: unknown): Promise<void> {
@@ -723,19 +727,55 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async onMessage(message: { type: string; action?: string; entity?: string; file?: string; line?: number; index?: number; language?: unknown }): Promise<void> {
+  private guideSnapshot(): { branch?: string; remotes: number; reviewStatus: string; gitStatus: string; graphStatus: string; githubToken: boolean; source: string } {
+    return { branch: this.state.project.branch, remotes: this.state.gitGraph.remotes.length, reviewStatus: this.state.review.status, gitStatus: this.state.gitGraph.status, graphStatus: this.state.codeGraph.status, githubToken: this.state.integration.githubTokenConfigured, source: this.state.reviewSource.mode };
+  }
+
+  private postGuideOutcome(action: string, before: ReturnType<CockpitProvider["guideSnapshot"]>): void {
+    let success = false;
+    let message = "The action was cancelled or did not change the project. Read the VS Code prompt and try again.";
+    if (action.startsWith("source")) success = true;
+    else if (action === "review") { success = this.state.review.status === "ready"; if (this.state.review.status === "error") message = this.state.review.warnings[0] || "CodeSlicer could not review these changes. Check the Output channel and try again."; }
+    else if (action === "showGit") { success = this.state.gitGraph.status === "ready"; if (this.state.gitGraph.status === "error") message = this.state.gitGraph.message; }
+    else if (action === "showGraph") { success = this.state.codeGraph.status === "ready"; if (this.state.codeGraph.status === "error") message = this.state.codeGraph.message; }
+    else if (action === "createBranch" || action === "switchBranch") success = Boolean(this.state.project.branch && this.state.project.branch !== before.branch);
+    else if (action === "addRemote") success = this.state.gitGraph.remotes.length > before.remotes;
+    else if (action === "configureGitHubToken") success = this.state.integration.githubTokenConfigured;
+    else if (action === "initGit") success = this.state.project.gitStatus === "ready";
+    else if (action === "configureGraphify") success = this.state.graphify.status === "ready" || this.state.project.graphifyAvailable;
+    else if (action === "pushBranch") {
+      success = this.lastPushOutcome === "success";
+      if (this.lastPushOutcome === "cancelled") message = "The branch was not pushed. Choose a source, remote, destination branch, then confirm the push when you are ready.";
+      if (this.lastPushOutcome === "error") message = "Git rejected the push. Read CodeSlicer Output, resolve the reported Git or credential problem, then try again.";
+    }
+    this.view?.webview.postMessage({ type: "guideEvent", action, status: success ? "success" : "error", message });
+  }
+
+  private async onMessage(message: { type: string; action?: string; entity?: string; file?: string; line?: number; index?: number; language?: unknown; guide?: { id?: unknown; step?: unknown; expected?: unknown } }): Promise<void> {
     if (message.type === "setLanguage") return this.setLanguage(message.language);
     if (message.type === "action") {
+      const guided = Boolean(message.guide && typeof message.guide === "object");
+      const before = guided ? this.guideSnapshot() : undefined;
       const actions: Record<string, () => Promise<void>> = {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
         sourceCurrent: () => this.setReviewSource("current-changes"), sourceStaged: () => this.setReviewSource("staged"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
         hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), openProject: () => this.openOrCreateProject(), importGit: () => this.importFromGit(), initGit: () => this.initializeGit(), showDemo: () => this.showDemo(), startServer: () => this.startLocalServer(), stopServer: () => this.stopLocalServer(), showGraph: () => this.analyzeAndShowGraph(), showGit: () => this.showGitBranches(), createBranch: () => this.createBranch(), switchBranch: () => this.switchBranch(), addRemote: () => this.addRemote(), previewPush: () => this.previewPush(), pushBranch: () => this.pushBranch(), configureGitHubToken: () => this.configureGitHubToken(), installGraphify: () => this.installGraphify(), buildGraphify: () => this.buildGraphifyGraph()
       };
-      await actions[message.action || ""]?.();
+      try {
+        await actions[message.action || ""]?.();
+        if (guided && before) this.postGuideOutcome(message.action || "", before);
+      } catch (error) {
+        if (guided) this.view?.webview.postMessage({ type: "guideEvent", action: message.action || "", status: "error", message: String(error) });
+        else throw error;
+      }
       return;
     }
-    if (message.type === "runTest") return this.runTest(message.index);
+    if (message.type === "runTest") {
+      const outcome = await this.runTest(message.index);
+      if (message.guide) this.view?.webview.postMessage({ type: "guideEvent", action: "runTest", status: outcome === "success" ? "success" : "error", message: outcome === "cancelled" ? "The test was not started. Confirm the command when you are ready." : "The test failed. Open CodeSlicer Output, correct the problem, then try again." });
+      return;
+    }
     if (message.type === "chain") {
       const chain = this.state.review.chains[message.index || 0];
       this.view?.webview.postMessage({ type: "details", text: chain ? `${chain.nodeIds.join(" → ")}\n${chain.evidence.map(evidence => `${evidence.file || "unknown"}:${evidence.line || "?"} ${evidence.text || ""}`).join(" · ")}` : "No evidence chain." });
@@ -768,7 +808,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.installRuntime", () => provider.downloadCodeSlicer()], ["codeslicer.setupSkills", () => provider.setupSkills()], ["codeslicer.analyzeWorkspace", () => provider.analyze()], ["codeslicer.runtimeDoctor", () => provider.doctor()], ["codeslicer.runtimeUpdate", () => provider.runtimeAvailability()], ["codeslicer.runtimeRollback", () => provider.runtimeAvailability()],
     ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.reviewStagedChanges", async () => { await provider.setReviewSource("staged"); await provider.review(); }], ["codeslicer.reviewCompare", async () => { await provider.setReviewSource("compare"); await provider.review(); }], ["codeslicer.reviewDiffFile", async () => { await provider.setReviewSource("diff-file"); await provider.review(); }], ["codeslicer.githubSignIn", () => provider.setReviewSource("github-pr")], ["codeslicer.showReviewHistory", () => provider.showHistory()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],
     ["codeslicer.openLocalHub", () => provider.hub()], ["codeslicer.startLocalServer", () => provider.startLocalServer()], ["codeslicer.refresh", () => provider.refresh()],
-    ["codeslicer.runRecommendedTest", () => provider.runTest()], ["codeslicer.gitCreateBranch", () => provider.createBranch()], ["codeslicer.gitSwitchBranch", () => provider.switchBranch()], ["codeslicer.gitPreviewPush", () => provider.previewPush()], ["codeslicer.gitPushBranch", () => provider.pushBranch()], ["codeslicer.configureGitHubToken", () => provider.configureGitHubToken()]
+    ["codeslicer.runRecommendedTest", async () => { await provider.runTest(); }], ["codeslicer.gitCreateBranch", () => provider.createBranch()], ["codeslicer.gitSwitchBranch", () => provider.switchBranch()], ["codeslicer.gitPreviewPush", () => provider.previewPush()], ["codeslicer.gitPushBranch", () => provider.pushBranch()], ["codeslicer.configureGitHubToken", () => provider.configureGitHubToken()]
   ] as [string, () => Promise<void>][]) context.subscriptions.push(vscode.commands.registerCommand(id, handler));
 }
 
