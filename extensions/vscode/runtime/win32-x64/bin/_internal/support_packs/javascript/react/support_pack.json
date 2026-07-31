@@ -1,0 +1,70 @@
+{
+  "id": "react",
+  "library": "react",
+  "ecosystem": "javascript",
+  "version_range": ">=16.0.0",
+  "language": "javascript",
+  "status": "verified_on_fixture",
+  "trust_level": "verified_on_fixture",
+  "supported_versions": ["16.x", "17.x", "18.x", "19.x"],
+  "resolver_hooks": ["react_component_hook_resolver", "react_callback_propagation"],
+  "evidence_requirements": {"required": ["component", "hook_call", "client_reference"], "forbid_name_only": true},
+  "confidence_caps": {"verified_on_fixture": 0.8},
+  "rules": ["component_hook", "hook_client", "callback_client"],
+  "fixtures": [{"name": "component_hook"}, {"name": "hook_client"}, {"name": "callback_client"}, {"name": "barrel_hook_client"}],
+  "negative_cases": [{"name": "same_hook_name_other_module"}, {"name": "unrelated_callback"}],
+  "mutation_scenarios": [{"id": "remove_hook_call", "operation": "remove_binding"}, {"id": "replace_client_provider", "operation": "replace_provider"}, {"id": "add_hook_candidate", "operation": "add_second_candidate"}],
+  "coverage_limitations": [
+    "Infers hook invocation and Component -> Hook calling relations",
+    "Traces api client fetch method calls to matching backend routes",
+    "Does not resolve dynamic url parameters or complex routing packages"
+  ],
+  "examples": [
+    {
+      "code": "function useMyHook() {}"
+    }
+  ],
+  "validation_requirements": {
+    "required_hooks": ["react_resolver"]
+  },
+  "sources": [
+    {
+      "type": "documentation",
+      "url": "https://react.dev/"
+    }
+  ],
+  "patterns": [],
+  "edge_rules": [
+    {
+      "id": "react_jsx_usage",
+      "type": "standard",
+      "match": {
+        "node_kind": "CALL_EXPR"
+      },
+      "emit": {
+        "to": "react",
+        "kind": "DEPENDS_ON",
+        "confidence": 0.60,
+        "source": "SUPPORT_PACK",
+        "description": "Uses React JSX",
+        "evidence_ref": "https://react.dev"
+      }
+    },
+    {
+      "id": "react-component-hook-resolver",
+      "type": "react_resolver",
+      "match": {
+        "library": "react"
+      },
+      "emit": {
+        "kind": "CALLS",
+        "confidence": 0.65,
+        "source": "INFERRED",
+        "description": "React hook and component dependency matching",
+        "evidence_template": "Frontend Component or Hook invokes local state hooks or API client methods"
+      }
+    }
+  ],
+  "confidence_rules": [],
+  "playground_cases": []
+}

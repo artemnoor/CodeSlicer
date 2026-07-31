@@ -1,0 +1,25 @@
+{
+  "id": "python-sqlalchemy-v1",
+  "library": "sqlalchemy",
+  "ecosystem": "python",
+  "version_range": ">=1.4,<3.0",
+  "supported_versions": ["1.4", "2.x"],
+  "language": "python",
+  "status": "verified_on_fixture",
+  "trust_level": "verified_on_fixture",
+  "resolver_hooks": ["sqlalchemy_session", "sqlalchemy_model_operations"],
+  "evidence_requirements": {"required": ["import", "receiver_identity", "method_lookup"], "forbid_name_only": true},
+  "confidence_caps": {"verified_on_fixture": 0.8},
+  "rules": ["Session.add", "Session.execute", "Session.commit", "select", "relationship"],
+  "fixtures": [{"name": "session_operations", "path": "fixtures/sqlalchemy/session_operations.py"}, {"name": "repository_model", "path": "fixtures/sqlalchemy/repository_model.py"}, {"name": "relationship", "path": "fixtures/sqlalchemy/relationship.py"}, {"name": "select_execute", "path": "fixtures/sqlalchemy/select_execute.py"}],
+  "negative_cases": [{"name": "unrelated_session_name"}, {"name": "wrong_model_receiver"}],
+  "mutation_scenarios": [{"id": "remove_session_binding", "operation": "remove_binding"}, {"id": "replace_session_provider", "operation": "replace_provider"}, {"id": "add_session_candidate", "operation": "add_second_candidate"}],
+  "sources": [{"type": "official_docs", "url": "https://docs.sqlalchemy.org/"}, {"type": "official_repository", "url": "https://github.com/sqlalchemy/sqlalchemy"}],
+  "patterns": [],
+  "edge_rules": [
+    {"id": "sqlalchemy-session-methods", "type": "method_call_alias", "match": {"method": ["add", "add_all", "execute", "commit", "flush", "refresh"], "receiver_type": "sqlalchemy.orm.Session", "imported_library": "sqlalchemy"}, "emit": {"kind": "DEPENDS_ON", "source": "SUPPORT_PACK", "confidence": 0.78, "description": "SQLAlchemy Session operation", "evidence_ref": "https://docs.sqlalchemy.org/orm/session_api.html"}},
+    {"id": "sqlalchemy-select", "type": "method_call_alias", "match": {"receiver": "sqlalchemy", "method": ["select"], "imported_library": "sqlalchemy"}, "emit": {"kind": "DEPENDS_ON", "source": "SUPPORT_PACK", "confidence": 0.75, "description": "SQLAlchemy select query", "evidence_ref": "https://docs.sqlalchemy.org/20/core/selectable.html"}}
+  ],
+  "confidence_rules": [],
+  "playground_cases": []
+}

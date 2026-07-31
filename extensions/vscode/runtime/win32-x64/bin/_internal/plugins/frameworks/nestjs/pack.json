@@ -1,0 +1,8 @@
+{
+  "id": "framework.typescript.nestjs", "kind": "framework", "language": "typescript", "version": "1.0.0",
+  "manifest_files": ["package.json", "nest-cli.json"], "supported_versions": [">=8,<12"],
+  "activation": {"dependencies": ["@nestjs/common", "@nestjs/core"], "imports": ["@nestjs/common"], "compat_source": "support_packs/typescript/nestjs/support_pack.json"},
+  "capabilities": {"declarative_rules": true, "optional_hook": true, "hook_entrypoints": {"nestjs_routes": "nestjs_routes"}, "hook_phases": {"nestjs_routes": "pre_resolution"}},
+  "phases": ["resolve", "validate"], "entrypoint": "impact_engine.plugin_architecture.manifest_runtime:create_framework_plugin", "cache_key": "framework.typescript.nestjs-v1",
+  "allowed_edge_kinds": ["ROUTE_HANDLES"], "confidence_policy": {"default": "evidence_capped"}, "evidence_requirements": {"requires_locations": true}, "fixtures": [], "local_first": true
+}

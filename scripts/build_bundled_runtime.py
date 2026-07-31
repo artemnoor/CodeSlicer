@@ -62,7 +62,12 @@ def main() -> int:
         )
         launcher = temp_path / "codeslicer_launcher.py"
         launcher.write_text(
+            "from multiprocessing import freeze_support\n"
             "import sys\n"
+            # Framework hooks may run in a sandbox child process. PyInstaller
+            # passes internal `parent_pid` arguments to that child; without
+            # freeze_support it re-enters the CLI and waits forever.
+            "freeze_support()\n"
             "if len(sys.argv) > 1 and sys.argv[1] == 'local-api':\n"
             "    del sys.argv[1]\n"
             "    from impact_engine.local_api import main\n"
@@ -73,7 +78,13 @@ def main() -> int:
             encoding="utf-8",
         )
         common = [
-            sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile",
+            # A one-file PyInstaller executable extracts a complete Python
+            # environment into a temporary directory on every invocation.
+            # On Windows that can be delayed indefinitely by endpoint
+            # scanners and leaves an analysis lock behind when the editor
+            # cancels it. A self-contained one-directory runtime is still
+            # bundled in the VSIX, but starts deterministically in place.
+            sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir",
             "--additional-hooks-dir", str(hooks), "--paths", str(root / "src"),
             "--add-data", f"{root / 'support_packs'}{';' if sys.platform == 'win32' else ':'}support_packs",
             "--add-data", f"{root / 'plugins'}{';' if sys.platform == 'win32' else ':'}plugins",
@@ -81,11 +92,10 @@ def main() -> int:
             "--distpath", str(temp_path / "dist"), "--workpath", str(temp_path / "work"), "--specpath", str(temp_path),
         ]
         subprocess.run([*common, "--name", "codeslicer", str(launcher)], check=True, cwd=root)
-        built = temp_path / "dist" / ("codeslicer.exe" if sys.platform == "win32" else "codeslicer")
+        built = temp_path / "dist" / "codeslicer" / ("codeslicer.exe" if sys.platform == "win32" else "codeslicer")
         destination = runtime / "bin"
-        destination.mkdir(exist_ok=True)
+        shutil.copytree(built.parent, destination)
         executable = destination / built.name
-        shutil.copy2(built, executable)
         if sys.platform != "win32":
             executable.chmod(executable.stat().st_mode | 0o111)
 

@@ -1,0 +1,11 @@
+{
+  "id": "scip",
+  "display_name": "SCIP Semantic Index",
+  "version": "1.0",
+  "execution": "local-artifact",
+  "network_default": "disabled",
+  "inputs": [".scip"],
+  "evidence_class": "SEMANTIC_INDEX",
+  "resource_profile": "optional",
+  "affects_review_ranking": false
+}

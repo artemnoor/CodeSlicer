@@ -1,0 +1,5 @@
+{
+  "id": "framework.go.fiber", "kind": "framework", "language": "go", "version": "1.0.0", "manifest_files": ["go.mod"], "supported_versions": [">=2,<4"],
+  "activation": {"dependencies": ["github.com/gofiber/fiber/v2", "github.com/gofiber/fiber/v3", "github.com/gofiber/fiber"], "imports": ["github.com/gofiber/fiber/v2", "github.com/gofiber/fiber/v3", "github.com/gofiber/fiber"], "compat_source": "support_packs/go/fiber/support_pack.json"},
+  "capabilities": {"declarative_rules": true, "optional_hook": true, "hook_entrypoints": {"fiber_routes": "fiber_routes"}, "hook_phases": {"fiber_routes": "pre_resolution"}}, "phases": ["resolve", "validate"], "entrypoint": "impact_engine.plugin_architecture.manifest_runtime:create_framework_plugin", "cache_key": "framework.go.fiber-v1", "allowed_edge_kinds": ["ROUTE_HANDLES"], "confidence_policy": {"default": "evidence_capped"}, "evidence_requirements": {"requires_locations": true}, "fixtures": [], "local_first": true
+}

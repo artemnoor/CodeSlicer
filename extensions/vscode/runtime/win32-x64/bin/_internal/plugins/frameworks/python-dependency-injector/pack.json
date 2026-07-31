@@ -1,0 +1,19 @@
+{
+  "id": "framework.python.dependency-injector",
+  "kind": "framework",
+  "language": "python",
+  "version": "1.0.0",
+  "file_extensions": [],
+  "manifest_files": ["pyproject.toml", "requirements.txt"],
+  "supported_versions": ["4.x"],
+  "activation": {"dependencies": ["dependency_injector"], "imports": ["dependency_injector"], "compat_source": "support_packs/python/dependency_injector/support_pack.json"},
+  "capabilities": {"declarative_rules": true, "optional_hook": true, "hook_entrypoints": {"dependency_resolver": "dependency_resolver"}, "handled_rule_types": ["dependency_injector_resolver"], "handled_rule_ids": ["dependency-injector-resolver-rule"]},
+  "phases": ["resolve", "validate"],
+  "entrypoint": "impact_engine.plugin_architecture.manifest_runtime:create_framework_plugin",
+  "cache_key": "framework.python.dependency-injector-v1",
+  "allowed_edge_kinds": ["DEPENDS_ON", "CALLS"],
+  "confidence_policy": {"default": "evidence_capped"},
+  "evidence_requirements": {"requires_locations": true},
+  "fixtures": ["tests/fixtures/frameworks/dependency_injector_realistic"],
+  "local_first": true
+}

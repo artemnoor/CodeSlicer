@@ -1,0 +1,20 @@
+{
+  "id": "gin",
+  "library": "gin",
+  "ecosystem": "go",
+  "language": "go",
+  "version_range": ">=1.0,<2.0",
+  "supported_versions": [">=1.0,<2.0"],
+  "status": "verified_on_fixture",
+  "trust_level": "verified_on_fixture",
+  "resolver_hooks": ["gin_route_resolver"],
+  "evidence_requirements": {"required": ["decorator", "path", "method"], "forbid_name_only": true},
+  "confidence_caps": {"verified_on_fixture": 0.8},
+  "rules": ["Engine.GET", "Engine.POST", "Group"],
+  "edge_rules": [],
+  "patterns": [], "confidence_rules": [], "playground_cases": [],
+  "fixtures": [{"name": "get_handler"}, {"name": "group_prefix"}],
+  "negative_cases": [{"name": "wrong_method"}, {"name": "same_path_other_service"}],
+  "mutation_scenarios": [{"id": "remove_route", "operation": "remove_binding"}, {"id": "replace_handler", "operation": "replace_provider"}, {"id": "second_candidate", "operation": "add_second_candidate"}],
+  "sources": [{"type": "documentation", "url": "https://gin-gonic.com/docs/"}, {"type": "official_repository", "url": "https://github.com/gin-gonic/gin"}]
+}

@@ -64,6 +64,15 @@ def test_quality_report_finds_orphans_without_quadratic_edge_scans():
     assert report["orphan_nodes"] == ["orphan"]
 
 
+def test_quality_report_warns_when_a_large_graph_is_mostly_orphaned():
+    graph = GraphDocument(nodes=[Node(f"orphan-{index}", "FUNCTION", "orphan") for index in range(10)])
+    report = graph_quality_report(graph)
+    assert report["status"] == "warning"
+    assert report["high_orphan_ratio"] is True
+    assert report["orphan_ratio"] == 1.0
+    assert report["warnings"]
+
+
 def test_quality_guard_quarantines_dangling_edge_from_impact():
     graph = make_graph()
     graph.add_edge(Edge("bad", "CALLS", "a", "missing", confidence=0.99, evidence=[Evidence("external")]))

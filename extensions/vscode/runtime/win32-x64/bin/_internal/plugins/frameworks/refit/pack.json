@@ -1,0 +1,5 @@
+{
+  "id": "framework.csharp.refit", "kind": "framework", "language": "csharp", "version": "1.0.0", "manifest_files": [".csproj", ".sln", ".slnx"], "supported_versions": [">=6,<8"],
+  "activation": {"dependencies": ["Refit"], "imports": ["Refit"], "compat_source": "support_packs/csharp/refit/support_pack.json"},
+  "capabilities": {"declarative_rules": true, "optional_hook": true, "hook_entrypoints": {"refit_contracts": "refit_contracts"}, "hook_phases": {"refit_contracts": "pre_resolution"}}, "phases": ["resolve", "validate"], "entrypoint": "impact_engine.plugin_architecture.manifest_runtime:create_framework_plugin", "cache_key": "framework.csharp.refit-v1", "allowed_edge_kinds": ["HTTP_CALLS"], "confidence_policy": {"default": "evidence_capped"}, "evidence_requirements": {"requires_locations": true}, "fixtures": [], "local_first": true
+}

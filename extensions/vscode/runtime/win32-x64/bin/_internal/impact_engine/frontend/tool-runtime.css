@@ -1,0 +1,8 @@
+.tool-navigation{display:grid;gap:3px;margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
+.tool-navigation:before{content:"ПОДКЛЮЧЁННЫЕ ИНСТРУМЕНТЫ";color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.13em}
+.tool-navigation a{display:flex;align-items:center;gap:9px;padding:9px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:12px}
+.tool-navigation a:hover,.tool-navigation a.active{background:var(--green-dim);color:var(--text)}
+.tool-navigation .nav-index{color:var(--green)}
+.tool-workspace{display:grid;gap:16px;max-width:1100px}.tool-workspace .panel{padding:18px}
+.tool-command-input{width:100%;min-height:110px;resize:vertical;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface-2);padding:10px;color:var(--text);font:12px ui-monospace,Consolas,monospace}
+.tool-doc-list{display:grid;gap:8px}.tool-doc{width:100%;display:grid;gap:3px;text-align:left;border:1px solid var(--line);border-radius:7px;background:var(--surface-3);padding:10px}.tool-doc strong{font-size:12px}.tool-doc small{color:var(--muted);font:10px ui-monospace,Consolas,monospace}

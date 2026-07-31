@@ -1,0 +1,5 @@
+{
+  "id": "framework.java.jaxrs", "kind": "framework", "language": "java", "version": "1.0.0", "manifest_files": ["pom.xml", "build.gradle"], "supported_versions": ["2.x", "3.x"],
+  "activation": {"dependencies": ["jakarta.ws.rs", "javax.ws.rs"], "imports": ["jakarta.ws.rs", "javax.ws.rs"], "compat_source": "support_packs/java/jaxrs/support_pack.json"},
+  "capabilities": {"declarative_rules": true, "optional_hook": true, "hook_entrypoints": {"jaxrs_routes": "jaxrs_routes"}, "hook_phases": {"jaxrs_routes": "pre_resolution"}}, "phases": ["resolve", "validate"], "entrypoint": "impact_engine.plugin_architecture.manifest_runtime:create_framework_plugin", "cache_key": "framework.java.jaxrs-v1", "allowed_edge_kinds": ["ROUTE_HANDLES"], "confidence_policy": {"default": "evidence_capped"}, "evidence_requirements": {"requires_locations": true}, "fixtures": [], "local_first": true
+}

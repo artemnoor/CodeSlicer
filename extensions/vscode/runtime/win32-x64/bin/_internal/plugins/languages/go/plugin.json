@@ -1,0 +1,19 @@
+{
+  "id": "language.go",
+  "kind": "language",
+  "language": "go",
+  "version": "1.1.0",
+  "file_extensions": [".go"],
+  "manifest_files": ["go.mod"],
+  "supported_versions": [],
+  "activation": {"extensions": [".go"]},
+  "capabilities": {"structural_extraction": true},
+  "phases": ["extract", "resolve", "validate"],
+  "entrypoint": "plugins.languages.go.plugin:create_plugin",
+  "cache_key": "tree-sitter-go-local-semantics-v2",
+  "allowed_edge_kinds": ["DECLARES", "IMPORTS", "CALLS", "DEPENDS_ON"],
+  "confidence_policy": {"default": "limited"},
+  "evidence_requirements": {"requires_locations": true},
+  "fixtures": [],
+  "local_first": true
+}

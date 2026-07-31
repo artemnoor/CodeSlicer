@@ -1,0 +1,130 @@
+{
+  "id": "fastapi",
+  "library": "fastapi",
+  "ecosystem": "python",
+  "version_range": ">=0.60.0",
+  "language": "python",
+  "status": "verified_on_fixture",
+  "trust_level": "verified_on_fixture",
+  "supported_versions": ["0.60+"],
+  "resolver_hooks": ["fastapi_router_resolver", "fastapi_depends_resolver"],
+  "evidence_requirements": {"required": ["decorator", "router_prefix", "import"], "forbid_name_only": true},
+  "confidence_caps": {"verified_on_fixture": 0.8},
+  "rules": ["APIRouter", "GET", "POST", "PUT", "DELETE", "include_router", "Depends", "dependency_overrides"],
+  "fixtures": [{"name": "route_handler"}, {"name": "nested_prefix"}, {"name": "depends"}, {"name": "override"}],
+  "negative_cases": [{"name": "wrong_router"}, {"name": "unrelated_decorator"}],
+  "mutation_scenarios": [{"id": "remove_router_prefix", "operation": "remove_binding"}, {"id": "replace_router_provider", "operation": "replace_provider"}, {"id": "add_router_candidate", "operation": "add_second_candidate"}],
+  "coverage_limitations": [
+    "Supports decorator_entrypoint for @app and @router HTTP methods",
+    "Composes APIRouter prefixes and include_router prefix calls",
+    "Resolves Depends parameters to their provider functions",
+    "Does not resolve dynamic prefix composition or router factories"
+  ],
+  "examples": [
+    {
+      "code": "@router.post('/')\ndef create(): pass"
+    }
+  ],
+  "validation_requirements": {
+    "required_hooks": ["fastapi_router_resolver", "fastapi_depends_resolver"]
+  },
+  "sources": [
+    {
+      "type": "documentation",
+      "url": "https://fastapi.tiangolo.com/"
+    }
+  ],
+  "patterns": [],
+  "edge_rules": [
+    {
+      "id": "fastapi-post-route",
+      "type": "decorator_entrypoint",
+      "match": {
+        "decorator": "@app.post"
+      },
+      "emit": {
+        "from": "HTTP POST {path}",
+        "to": "{scope}",
+        "kind": "ROUTE_HANDLES",
+        "confidence": 0.85,
+        "source": "SUPPORT_PACK",
+        "evidence_ref": "https://fastapi.tiangolo.com/"
+      }
+    },
+    {
+      "id": "fastapi-get-route",
+      "type": "decorator_entrypoint",
+      "match": {
+        "decorator": "@app.get"
+      },
+      "emit": {
+        "from": "HTTP GET {path}",
+        "to": "{scope}",
+        "kind": "ROUTE_HANDLES",
+        "confidence": 0.85,
+        "source": "SUPPORT_PACK",
+        "evidence_ref": "https://fastapi.tiangolo.com/"
+      }
+    },
+    {
+      "id": "fastapi-router-post-route",
+      "type": "decorator_entrypoint",
+      "match": {
+        "decorator": "@router.post"
+      },
+      "emit": {
+        "from": "HTTP POST {path}",
+        "to": "{scope}",
+        "kind": "ROUTE_HANDLES",
+        "confidence": 0.85,
+        "source": "SUPPORT_PACK",
+        "evidence_ref": "https://fastapi.tiangolo.com/"
+      }
+    },
+    {
+      "id": "fastapi-router-get-route",
+      "type": "decorator_entrypoint",
+      "match": {
+        "decorator": "@router.get"
+      },
+      "emit": {
+        "from": "HTTP GET {path}",
+        "to": "{scope}",
+        "kind": "ROUTE_HANDLES",
+        "confidence": 0.85,
+        "source": "SUPPORT_PACK",
+        "evidence_ref": "https://fastapi.tiangolo.com/"
+      }
+    },
+    {
+      "id": "fastapi-router-prefix-resolver-rule",
+      "type": "fastapi_router_resolver",
+      "match": {
+        "library": "fastapi"
+      },
+      "emit": {
+        "kind": "ROUTE_HANDLES",
+        "confidence": 0.90,
+        "source": "INFERRED",
+        "description": "Resolved composed FastAPI router prefixes",
+        "evidence_template": "Composed path matches include_router and APIRouter prefix assignments"
+      }
+    },
+    {
+      "id": "fastapi-depends-resolver-rule",
+      "type": "fastapi_depends_resolver",
+      "match": {
+        "library": "fastapi"
+      },
+      "emit": {
+        "kind": "CALLS",
+        "confidence": 0.85,
+        "source": "INFERRED",
+        "description": "Resolved Depends parameter injection",
+        "evidence_template": "Handler parameter defaults define implicit dependency injection"
+      }
+    }
+  ],
+  "confidence_rules": [],
+  "playground_cases": []
+}

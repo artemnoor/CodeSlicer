@@ -1,0 +1,1 @@
+"""Go language plugin."""

@@ -85,16 +85,27 @@ def graph_quality_report(graph: GraphDocument) -> dict[str, Any]:
         for endpoint in (edge.from_node, edge.to_node)
     }
     orphan_nodes = sorted(node_ids - connected_nodes)
+    orphan_ratio = (len(orphan_nodes) / len(graph.nodes)) if graph.nodes else 0.0
+    # A handful of isolated declarations is normal.  Once a meaningful graph
+    # has at least half of its nodes disconnected, however, saying merely
+    # "ok" makes the coverage look stronger than it is.
+    high_orphan_ratio = len(graph.nodes) >= 10 and orphan_ratio >= 0.5
+    warnings: list[str] = []
+    if high_orphan_ratio:
+        warnings.append(f"{orphan_ratio:.0%} of nodes are orphaned; impact coverage may be incomplete")
     return {
-        "status": "warning" if dangling or duplicate_ids else "ok",
+        "status": "warning" if dangling or duplicate_ids or high_orphan_ratio else "ok",
         "node_count": len(graph.nodes),
         "edge_count": len(graph.edges),
         "orphan_node_count": len(orphan_nodes),
+        "orphan_ratio": round(orphan_ratio, 6),
+        "high_orphan_ratio": high_orphan_ratio,
         "orphan_nodes": orphan_nodes[:100],
         "dangling_edge_count": len(dangling),
         "dangling_edges": dangling[:100],
         "duplicate_node_id_count": len(duplicate_ids),
         "duplicate_node_ids": sorted(set(duplicate_ids))[:100],
+        "warnings": warnings,
         "fingerprint": graph_fingerprint(graph),
     }
 

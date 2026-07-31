@@ -1,0 +1,11 @@
+{
+  "id": "cyclonedx",
+  "display_name": "CycloneDX SBOM",
+  "version": "1.0",
+  "execution": "local-artifact",
+  "network_default": "disabled",
+  "inputs": ["CycloneDX JSON"],
+  "evidence_class": "SECURITY_FINDING",
+  "resource_profile": "optional",
+  "affects_review_ranking": false
+}

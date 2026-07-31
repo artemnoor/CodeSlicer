@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080808">
+  <meta name="color-scheme" content="dark">
+  <title>CodeSlicer — проверка изменений</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="simple.css">
+</head>
+<body class="simple-hub">
+  <!-- Advanced CLI/MCP retains Security / SBOM integrations; the minimal map UI
+       deliberately does not duplicate those expert controls. -->
+  <a class="skip-link" href="#main">Перейти к проверке</a>
+  <header class="simple-topbar">
+    <button class="brand" type="button" data-route="review" aria-label="Открыть проверку изменений">
+      <span class="cs-logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>CodeSlicer</span>
+    </button>
+    <nav class="simple-nav" aria-label="Основная навигация">
+      <a href="#review" data-route="review">Проверка изменений</a>
+      <a href="#map" data-route="map">Карта проекта</a>
+      <a href="#sources" data-route="sources">Локальные источники</a>
+      <a href="#graphify" data-route="graphify">Graphify</a>
+    </nav>
+    <div class="simple-project-picker">
+      <label class="sr-only" for="projectPath">Путь к локальному проекту</label>
+      <input id="projectPath" type="text" placeholder="Путь к локальному проекту" autocomplete="off" spellcheck="false">
+      <button class="button primary" id="analyzeButton" type="button">Построить карту</button>
+      <button class="button secondary" id="cancelAnalyzeButton" type="button" hidden>Отменить</button>
+    </div>
+  </header>
+
+  <main class="simple-main" id="main">
+    <div id="globalState" class="simple-status" aria-live="polite">Проверяю локальный API…</div>
+
+    <section id="onboarding" class="simple-onboarding" hidden>
+      <span class="eyebrow">НАЧАТЬ</span>
+      <h1>Постройте карту проекта</h1>
+      <p>Укажите папку с кодом. CodeSlicer построит локальный граф связей — код никуда не отправляется.</p>
+      <label for="onboardingPath">Путь к проекту</label>
+      <div class="simple-onboarding-actions">
+        <input id="onboardingPath" type="text" placeholder="C:\Projects\my-app" autocomplete="off" spellcheck="false">
+        <button class="button primary" id="onboardingAnalyze" type="button">Построить карту</button>
+      </div>
+      <div id="progressPanel" class="progress-panel" hidden>
+        <div class="progress-heading"><strong id="progressStage">Подготовка</strong><span id="progressPercent">0%</span></div>
+        <div class="progress-track"><i id="progressBar"></i></div>
+        <p id="progressMessage">Готовлю анализ…</p>
+      </div>
+      <div id="onboardingError" class="state-card error-state" hidden></div>
+    </section>
+
+    <div id="routeViews" hidden>
+      <section class="route-view" id="view-review" data-route-view="review">
+        <header class="map-heading">
+          <div>
+            <span class="eyebrow">ОСНОВНОЙ СЦЕНАРИЙ</span>
+            <h1>Проверка текущих изменений</h1>
+            <p>Что затронуто, почему это важно и какие тесты стоит запустить. Карта кода доступна для углубления.</p>
+          </div>
+          <div class="map-actions"><button class="button secondary" type="button" data-action="refresh-review">Обновить review</button></div>
+        </header>
+        <div id="reviewWarnings" aria-live="polite"></div>
+        <div id="reviewContent"><div class="state-card loading"><strong>Готовлю review…</strong><p>Проверка выполняется локально по текущему Git diff.</p></div></div>
+      </section>
+      <section class="route-view" id="view-map" data-route-view="map">
+        <header class="map-heading">
+          <div>
+            <span class="eyebrow">КАРТА ПРОЕКТА</span>
+            <h1 id="mapTitle">Как устроен проект</h1>
+            <p id="mapDescription">Точки — части кода. Линии — подтверждённые связи между ними. Выберите точку, чтобы понять её роль.</p>
+          </div>
+          <div class="map-actions">
+            <label class="sr-only" for="graphViewSelect">Какую карту показать</label>
+            <select id="graphViewSelect">
+              <option value="impact">Карта CodeSlicer</option>
+              <option value="graphify">Открыть Graphify (оригинал)</option>
+            </select>
+            <label class="sr-only" for="graphScopeSelect">Сколько связей показать</label>
+            <select id="graphScopeSelect" title="Полная карта может отрисовываться дольше на больших проектах">
+              <option value="overview">Обзор связей</option>
+              <option value="all">Показать все связи</option>
+            </select>
+            <button class="button secondary" id="mapRefresh" type="button">Обновить</button>
+          </div>
+        </header>
+        <div class="graph-notice" id="graphProjectionState" aria-live="polite">
+          <span id="graphProjectionStatus">Загружаю карту…</span>
+        </div>
+        <section class="map-metrics" aria-label="Сводка выбранной карты">
+          <div class="map-metric">
+            <span>КАРТА</span>
+            <strong id="mapWorkspaceMetric">—</strong>
+          </div>
+          <div class="map-metric">
+            <span>УЗЛЫ</span>
+            <strong id="mapNodeMetric">—</strong>
+          </div>
+          <div class="map-metric">
+            <span>СВЯЗИ</span>
+            <strong id="mapEdgeMetric">—</strong>
+          </div>
+          <div class="map-meter-wrap">
+            <div class="map-meter" aria-hidden="true"><i id="mapMeterPrimary"></i><i id="mapMeterSecondary"></i></div>
+            <p id="mapMeterLabel">Ожидаю данные выбранной карты.</p>
+          </div>
+        </section>
+        <div class="simple-map-layout">
+          <div class="simple-graph-surface">
+            <div class="graph-toolbar" aria-label="Управление картой">
+              <span class="graph-toolbar-hint">Тяните пустое место · колесо — масштаб</span>
+              <div class="graph-toolbar-actions">
+                <button class="graph-tool-button" id="graphZoomOut" type="button" aria-label="Уменьшить карту">−</button>
+                <output id="graphZoomLevel" aria-live="polite">100%</output>
+                <button class="graph-tool-button" id="graphZoomIn" type="button" aria-label="Увеличить карту">+</button>
+                <button class="graph-tool-button graph-reset-button" id="graphResetView" type="button">Сбросить вид</button>
+              </div>
+            </div>
+            <div id="graphProjectionContent"></div>
+          </div>
+          <aside class="node-card" id="mapInspector" aria-live="polite">
+            <span class="eyebrow">ВЫБЕРИТЕ ТОЧКУ</span>
+            <h2>Начните с карты</h2>
+            <p>Наведите на точку, чтобы подсветить её связи. Нажмите, чтобы увидеть роль, связи и доступные evidence.</p>
+          </aside>
+        </div>
+        <p class="map-footnote">CodeSlicer строит основную карту. Graphify подключается отдельно и показывает свою архитектурную карту, не изменяя выводы CodeSlicer.</p>
+        <select id="graphWorkspaceSource" hidden aria-hidden="true" tabindex="-1"></select>
+        <input id="graphProjectionQuery" hidden aria-hidden="true" tabindex="-1" value="">
+        <button id="graphProjectionButton" hidden type="button" tabindex="-1">Показать граф</button>
+      </section>
+
+      <section class="route-view" id="view-graphify" data-route-view="graphify">
+        <header class="map-heading">
+          <div>
+            <span class="eyebrow">ДОПОЛНИТЕЛЬНАЯ КАРТА</span>
+            <h1>Graphify</h1>
+            <p>Подключите Graphify, если нужна отдельная широкая карта архитектуры. Основная карта CodeSlicer от этого не меняется.</p>
+          </div>
+        </header>
+        <div id="graphifyContent" class="graphify-content"></div>
+      </section>
+
+      <section class="route-view" id="view-sources" data-route-view="sources">
+        <header class="map-heading">
+          <div>
+            <span class="eyebrow">ЛОКАЛЬНЫЕ ИСТОЧНИКИ</span>
+            <h1>Семантика и дополнительный контекст</h1>
+            <p>Подключайте только уже установленные на компьютере инструменты. Запуск языка и прогрев LSP требуют явного действия.</p>
+          </div>
+        </header>
+        <div id="sourcesContent" class="sources-content" aria-live="polite"></div>
+      </section>
+    </div>
+  </main>
+
+  <div id="modalBackdrop" class="overlay" aria-hidden="true" hidden><div id="modal" class="modal" role="dialog" aria-modal="true" tabindex="-1"><h2 id="modalTitle">Сообщение</h2><div id="modalContent"></div><div id="modalActions"></div></div></div>
+  <script src="api-client.js"></script><script src="app.js"></script>
+</body>
+</html>

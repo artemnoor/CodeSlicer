@@ -1,0 +1,31 @@
+{
+  "library": "example_library",
+  "version_range": ">=0.1",
+  "language": "python",
+  "status": "experimental",
+  "sources": [
+    {
+      "type": "official_docs",
+      "url": "https://example.com/docs"
+    }
+  ],
+  "patterns": [],
+  "edge_rules": [
+    {
+      "id": "demo-rule-1",
+      "match": {
+        "node_kind": "CALL_EXPR",
+        "call_name": "example_library.do_work"
+      },
+      "emit": {
+        "kind": "DEPENDS_ON",
+        "to": "external:example_library.do_work",
+        "source": "SUPPORT_PACK",
+        "confidence": 0.8,
+        "description": "example_library.do_work dependency from support pack"
+      }
+    }
+  ],
+  "confidence_rules": [],
+  "playground_cases": []
+}

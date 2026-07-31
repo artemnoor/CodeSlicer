@@ -587,6 +587,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       const result = await runProcess(executable, buildAnalyzeArgs(root), root, { timeoutMs: 900_000, signal: controller.signal, onStderrLine: line => parseJsonLineProgress(line).forEach(event => { const next = event.overall_percent || previous; progress.report({ message: event.message, increment: Math.max(0, next - previous) }); previous = next; }) });
       this.log(result);
       if (result.cancelled) throw new Error("Analysis cancelled. Existing cache and graph were left unchanged.");
+      if (result.timedOut) throw new Error("Analysis timed out. CodeSlicer stopped its process tree; the next run will recover any stale analysis lock automatically.");
       if (result.exitCode !== 0) throw new Error(result.stderr || "CodeSlicer analysis failed.");
     });
     await this.refresh();
@@ -639,6 +640,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         const result = await runProcess(executable, buildReviewArgs(root, source, base), root, { timeoutMs: 900_000, signal: controller.signal });
         this.log(result);
         if (result.cancelled) throw new Error("Review cancelled. Existing cache and graph were left unchanged.");
+        if (result.timedOut) throw new Error("Review timed out. CodeSlicer stopped its process tree; the next run will recover any stale analysis lock automatically.");
         if (result.exitCode !== 0) throw new Error(result.stderr || "CodeSlicer review failed.");
         const review = parseReviewJson(result.stdout);
         this.tests = review.tests;
