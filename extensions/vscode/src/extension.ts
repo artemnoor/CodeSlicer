@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { buildAnalyzeArgs, buildReviewArgs, formatCommand, runProcess, safeTestCommand } from "./cli";
@@ -13,6 +13,39 @@ import { GitHubReviewService } from "./github";
 import { CockpitState, INITIAL_STATE, ProjectState, ReviewHistoryEntry, ReviewState, ReviewSourceMode, TestRecommendation, UiLanguage } from "./types";
 import { renderCockpit } from "./webview";
 const CODESLICER_ARCHIVE = "https://github.com/artemnoor/CodeSlicer/archive/refs/heads/main.zip";
+const DEMO_COMMIT = "6e7eeab7d885e2da303d916d7b632dc00bcb22dc";
+const DEMO_ARCHIVE = `https://github.com/artemnoor/CodeSlicer/archive/${DEMO_COMMIT}.zip`;
+const DEMO_ARCHIVE_ROOT = `CodeSlicer-${DEMO_COMMIT}`;
+const DEMO_FIXTURE = ["tests", "fixtures", "service_di_project"];
+const DEMO_TEST = `import unittest
+from app.services.order_service import OrderService
+
+
+class RecordingService:
+    def __init__(self):
+        self.orders = []
+
+    def charge(self, order):
+        self.orders.append(order)
+
+    def notify_order_created(self, order):
+        self.orders.append(order)
+
+    def record(self, order):
+        self.orders.append(order)
+
+
+class OrderServiceDemoTest(unittest.TestCase):
+    def test_create_order_notifies_every_dependency(self):
+        dependency = RecordingService()
+        service = OrderService(dependency, dependency, dependency)
+        service.create_order({"id": "demo-42"})
+        self.assertEqual(dependency.orders, [{"id": "demo-42"}] * 3)
+
+
+if __name__ == "__main__":
+    unittest.main()
+`;
 
 const OUTPUT = vscode.window.createOutputChannel("CodeSlicer");
 const graphPath = (root: string) => join(root, ".impact_engine", "graph.json");
@@ -158,7 +191,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     return `'${value.replace(/'/g, "''")}'`;
   }
 
-  async downloadCodeSlicer(): Promise<void> {
+  async downloadCodeSlicer(offerSkills = true): Promise<void> {
     if (process.platform !== "win32") {
       await vscode.window.showInformationMessage("Direct download and extraction is currently available on Windows. Use the official CodeSlicer archive on macOS/Linux, then choose the installed executable here.");
       return;
@@ -197,11 +230,121 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       await this.context.globalState.update("codeslicer.managedInstallFolder", folder);
       await vscode.workspace.getConfiguration("codeslicer").update("executable", executable, vscode.ConfigurationTarget.Global);
       this.render();
-      const next = await vscode.window.showInformationMessage("CodeSlicer is installed and connected. Choose an IDE and skills now?", "Choose IDE and skills");
-      if (next === "Choose IDE and skills") await this.setupSkills();
+      if (offerSkills) {
+        const next = await vscode.window.showInformationMessage("CodeSlicer is installed and connected. Choose an IDE and skills now?", "Choose IDE and skills");
+        if (next === "Choose IDE and skills") await this.setupSkills();
+      }
     } catch (error) {
       OUTPUT.appendLine(`CodeSlicer automatic setup failed: ${String(error)}`);
       await vscode.window.showErrorMessage(`CodeSlicer automatic setup could not finish: ${String(error)}`);
+    }
+  }
+
+  private setDemo(status: CockpitState["demo"]["status"], message?: string, projectPath?: string): void {
+    this.state = { ...this.state, demo: { status, message, projectPath } };
+    this.render();
+  }
+
+  private async demoExecutable(projectPath: string): Promise<string | undefined> {
+    let executable = await this.runtime.discover(this.config<string>("executable"), projectPath);
+    if (executable) return executable;
+    await this.downloadCodeSlicer(false);
+    executable = await this.runtime.discover(this.config<string>("executable"), projectPath);
+    if (!executable) this.setDemo("error", "CodeSlicer could not be installed for the demo.");
+    return executable;
+  }
+
+  async startDemo(): Promise<void> {
+    if (process.platform !== "win32") {
+      await vscode.window.showInformationMessage("The interactive demo currently runs on Windows because it prepares the local CodeSlicer runtime automatically.");
+      return;
+    }
+    try {
+      const demoRoot = join(this.context.globalStorageUri.fsPath, "demo");
+      const downloadRoot = join(demoRoot, `source-${Date.now()}`);
+      const archive = join(downloadRoot, "codeslicer-demo.zip");
+      const extracted = join(downloadRoot, DEMO_ARCHIVE_ROOT);
+      const project = join(demoRoot, `service-di-${Date.now()}`);
+      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: preparing interactive demo", cancellable: false }, async progress => {
+        progress.report({ message: "Installing CodeSlicer if needed" });
+        if (!await this.demoExecutable(project)) throw new Error("CodeSlicer runtime is unavailable.");
+        await mkdir(downloadRoot, { recursive: true });
+        progress.report({ message: "Downloading the pinned demo project" });
+        const response = await fetch(DEMO_ARCHIVE);
+        if (!response.ok) throw new Error(`Demo download failed with HTTP ${response.status}.`);
+        await writeFile(archive, Buffer.from(await response.arrayBuffer()));
+        progress.report({ message: "Creating an isolated demo workspace" });
+        const command = `Expand-Archive -LiteralPath ${this.powershellLiteral(archive)} -DestinationPath ${this.powershellLiteral(downloadRoot)} -ErrorAction Stop`;
+        const extract = await runProcess("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command], downloadRoot, 300_000);
+        this.log(extract);
+        if (extract.exitCode !== 0) throw new Error(extract.stderr.trim() || "The demo archive could not be extracted.");
+        const fixture = join(extracted, ...DEMO_FIXTURE);
+        if (!existsSync(fixture)) throw new Error("The pinned demo fixture was not found in the downloaded archive.");
+        await cp(fixture, project, { recursive: true, filter: source => !/[\\/](?:__pycache__|\.impact_engine)(?:[\\/]|$)/u.test(source) });
+        for (const args of [["init"], ["config", "user.email", "demo@codeslicer.local"], ["config", "user.name", "CodeSlicer demo"], ["checkout", "-B", "main"], ["add", "."], ["commit", "-m", "Demo baseline"]]) {
+          const result = await runProcess("git", args, project, 30_000);
+          this.log(result);
+          if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Git ${args[0]} failed while preparing the demo.`);
+        }
+      });
+      this.setDemo("downloaded", "A pinned CodeSlicer demo project was downloaded from GitHub into VS Code private storage.", project);
+    } catch (error) {
+      OUTPUT.appendLine(`CodeSlicer demo preparation failed: ${String(error)}`);
+      this.setDemo("error", String(error));
+      await vscode.window.showErrorMessage(`CodeSlicer demo could not start: ${String(error)}`);
+    }
+  }
+
+  async applyDemoChange(): Promise<void> {
+    const project = this.state.demo.projectPath;
+    if (!project) return;
+    try {
+      const servicePath = join(project, "app", "services", "order_service.py");
+      const source = await readFile(servicePath, "utf8");
+      if (!source.includes("def cancel_order")) await writeFile(servicePath, `${source.trimEnd()}\n\n    def cancel_order(self, order):\n        self.audit_service.record(order)\n`, "utf8");
+      await mkdir(join(project, "tests"), { recursive: true });
+      await writeFile(join(project, "tests", "test_order_service.py"), DEMO_TEST, "utf8");
+      const document = await vscode.workspace.openTextDocument(vscode.Uri.file(servicePath));
+      await vscode.window.showTextDocument(document, { preview: true });
+      this.setDemo("changed", "A known demo change and its unittest were added. The new method is open in the editor.", project);
+    } catch (error) {
+      this.setDemo("error", String(error), project);
+      await vscode.window.showErrorMessage(`CodeSlicer demo change could not be prepared: ${String(error)}`);
+    }
+  }
+
+  async reviewDemo(): Promise<void> {
+    const project = this.state.demo.projectPath;
+    if (!project) return;
+    const executable = await this.demoExecutable(project);
+    if (!executable) return;
+    try {
+      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: reviewing demo change", cancellable: false }, async () => {
+        const result = await runProcess(executable, buildReviewArgs(project, { mode: "current-changes" }, "main"), project, 900_000);
+        this.log(result);
+        if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "Demo review failed.");
+        const review = parseReviewJson(result.stdout);
+        this.tests = review.tests;
+        this.state = withReview(this.state, review);
+      });
+      this.setDemo("reviewed", `Review complete: ${this.state.review.riskLevel} risk, ${this.state.review.impacts.length} affected items.`, project);
+    } catch (error) {
+      this.setDemo("error", String(error), project);
+      await vscode.window.showErrorMessage(`CodeSlicer demo review failed: ${String(error)}`);
+    }
+  }
+
+  async testDemo(): Promise<void> {
+    const project = this.state.demo.projectPath;
+    if (!project) return;
+    try {
+      const result = await runProcess("py", ["-3", "-m", "unittest", "discover", "-s", "tests", "-v"], project, 120_000);
+      this.log(result);
+      if (result.exitCode !== 0) throw new Error(result.stderr.trim() || result.stdout.trim() || "Demo test failed.");
+      this.setDemo("tested", "Demo complete: the review and the isolated unittest both passed. Your own project is unchanged.", project);
+    } catch (error) {
+      this.setDemo("error", String(error), project);
+      await vscode.window.showErrorMessage(`CodeSlicer demo test failed: ${String(error)}`);
     }
   }
 
@@ -443,7 +586,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
         sourceCurrent: () => this.setReviewSource("current-changes"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
-        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills()
+        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), startDemo: () => this.startDemo(), applyDemoChange: () => this.applyDemoChange(), reviewDemo: () => this.reviewDemo(), testDemo: () => this.testDemo()
       };
       await actions[message.action || ""]?.();
       return;

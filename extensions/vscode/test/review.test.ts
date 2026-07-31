@@ -25,6 +25,8 @@ test("first screen gives one concise path for empty folders and ready Git projec
   assert.match(html, /data-action="installRuntime"/);
   assert.match(html, /data-action="review"/);
   assert.match(html, /IDE и skills — необязательно/);
+  assert.match(html, /ИНТЕРАКТИВНОЕ ДЕМО/);
+  assert.match(html, /data-action="startDemo"/);
   assert.doesNotMatch(html, /Практикум|data-course|guide-focus/);
 });
 
@@ -65,4 +67,15 @@ test("automatic install and optional IDE picker are exposed without the former g
   assert.match(source, /managedInstallFolder/);
   assert.match(source, /-NoLaunch/);
   assert.doesNotMatch(source, /openDownloads/);
+});
+
+test("interactive demo downloads only a pinned fixture and runs a predefined unittest", () => {
+  const source = readFileSync(join(__dirname, "../../src/extension.ts"), "utf8");
+  assert.match(source, /DEMO_COMMIT = "[a-f0-9]{40}"/);
+  assert.match(source, /DEMO_ARCHIVE = `https:\/\/github\.com\/artemnoor\/CodeSlicer\/archive\/\$\{DEMO_COMMIT\}\.zip`/);
+  assert.match(source, /service_di_project/);
+  assert.match(source, /\["init"\], \["config", "user\.email"/);
+  assert.match(source, /"unittest", "discover", "-s", "tests", "-v"/);
+  assert.match(source, /projectPath/);
+  assert.doesNotMatch(source, /git clone/);
 });

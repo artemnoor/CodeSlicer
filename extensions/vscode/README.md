@@ -19,6 +19,10 @@ The view has six sections:
 
 IDE skills, Graphify, comparison, and GitHub PR review are optional advanced actions; they are not part of the first-run path.
 
+## Interactive demo
+
+**Start → Start demo** is a linear, four-click product walkthrough: it downloads a pinned, public CodeSlicer fixture into VS Code private storage, adds a known small change, runs a local impact review, and runs one predefined Python `unittest`. The fixture is from a fixed CodeSlicer Git commit, not an arbitrary Internet repository. The demo never edits the workspace currently open in VS Code.
+
 For local review the extension verifies the `origin/HEAD` branch when possible. If it cannot establish one safe base, it lists verified `main`, `master`, `develop`, or `trunk` candidates for the developer to choose. It never assumes that `main` is correct.
 
 Advanced source modes (compare refs or a diff file) are represented in the core contract. GitHub Pull Request review is available as an explicit OAuth flow: after you supply a canonical PR URL and confirm sign-in, the extension sends two read-only GitHub REST requests (metadata and diff), saves the diff only in VS Code global storage, then runs the local CLI. It never uploads source code, creates checks, or posts comments.
