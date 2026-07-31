@@ -4,7 +4,8 @@ export type UiLanguage="auto"|"ru"|"en";
 export type ReviewSourceMode="current-changes"|"compare"|"diff-file"|"github-pr";
 export interface ReviewSourceState{mode:ReviewSourceMode;diffFile?:string;baseRef?:string;label?:string}
 export interface ReviewHistoryEntry{createdAt:string;source:ReviewSourceMode;risk:string;affected:number}
-export interface ProjectState{workspace?:string;branch?:string;baseRef?:string;baseCandidates?:string[];baseStatus?:string;graphStatus:"unknown"|"present"|"missing";freshness:string;graphifyAvailable:boolean;graphifyPath?:string}
+export type WorkspaceReadiness="unknown"|"empty"|"project";
+export interface ProjectState{workspace?:string;branch?:string;baseRef?:string;baseCandidates?:string[];baseStatus?:string;readiness:WorkspaceReadiness;graphStatus:"unknown"|"present"|"missing";freshness:string;graphifyAvailable:boolean;graphifyPath?:string}
 export interface IntegrationState{githubTokenConfigured:boolean;githubAuthenticated?:boolean;githubStatus?:string}
 export interface EvidenceLocation{file?:string;line?:number;text?:string;provenance?:string}
 export interface ImpactItem{entityId:string;label:string;kind:string;confidence:string;file?:string;line?:number;reason:string;evidence:EvidenceLocation[]}
@@ -14,4 +15,4 @@ export interface ReviewState{status:"idle"|"ready"|"error";riskLevel:string;risk
 export type DemoStatus="idle"|"downloaded"|"changed"|"reviewed"|"tested"|"error";
 export interface DemoState{status:DemoStatus;projectPath?:string;message?:string}
 export interface CockpitState{runtime:RuntimeState;project:ProjectState;integration:IntegrationState;reviewSource:ReviewSourceState;history:ReviewHistoryEntry[];review:ReviewState;demo:DemoState}
-export const INITIAL_STATE:CockpitState={runtime:{status:"unchecked",version:"Not checked",diagnostic:"Run Refresh to validate a local CodeSlicer executable."},project:{graphStatus:"unknown",freshness:"Not checked",graphifyAvailable:false},integration:{githubTokenConfigured:false},reviewSource:{mode:"current-changes"},history:[],review:{status:"idle",riskLevel:"—",riskConfidence:"—",riskReasons:[],impacts:[],chains:[],tests:[],warnings:[],limitations:[],localDiffNotice:"Analyzes a local Git diff only; GitHub metadata, comments, and checks are not read."},demo:{status:"idle"}};
+export const INITIAL_STATE:CockpitState={runtime:{status:"unchecked",version:"Not checked",diagnostic:"Run Refresh to validate a local CodeSlicer executable."},project:{readiness:"unknown",graphStatus:"unknown",freshness:"Not checked",graphifyAvailable:false},integration:{githubTokenConfigured:false},reviewSource:{mode:"current-changes"},history:[],review:{status:"idle",riskLevel:"—",riskConfidence:"—",riskReasons:[],limitations:[],impacts:[],chains:[],tests:[],warnings:[],localDiffNotice:"Analyzes a local Git diff only; GitHub metadata, comments, and checks are not read."},demo:{status:"idle"}};

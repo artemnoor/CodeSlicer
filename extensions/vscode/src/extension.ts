@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { existsSync } from "node:fs";
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { buildAnalyzeArgs, buildReviewArgs, formatCommand, runProcess, safeTestCommand } from "./cli";
@@ -13,39 +13,13 @@ import { GitHubReviewService } from "./github";
 import { CockpitState, INITIAL_STATE, ProjectState, ReviewHistoryEntry, ReviewState, ReviewSourceMode, TestRecommendation, UiLanguage } from "./types";
 import { renderCockpit } from "./webview";
 const CODESLICER_ARCHIVE = "https://github.com/artemnoor/CodeSlicer/archive/refs/heads/main.zip";
+// Legacy isolated-fixture implementation retained only for backward-compatible APIs.
+// The cockpit's interactive demo is now rendered entirely in the webview and never calls it.
 const DEMO_COMMIT = "6e7eeab7d885e2da303d916d7b632dc00bcb22dc";
 const DEMO_ARCHIVE = `https://github.com/artemnoor/CodeSlicer/archive/${DEMO_COMMIT}.zip`;
 const DEMO_ARCHIVE_ROOT = `CodeSlicer-${DEMO_COMMIT}`;
 const DEMO_FIXTURE = ["tests", "fixtures", "service_di_project"];
-const DEMO_TEST = `import unittest
-from app.services.order_service import OrderService
-
-
-class RecordingService:
-    def __init__(self):
-        self.orders = []
-
-    def charge(self, order):
-        self.orders.append(order)
-
-    def notify_order_created(self, order):
-        self.orders.append(order)
-
-    def record(self, order):
-        self.orders.append(order)
-
-
-class OrderServiceDemoTest(unittest.TestCase):
-    def test_create_order_notifies_every_dependency(self):
-        dependency = RecordingService()
-        service = OrderService(dependency, dependency, dependency)
-        service.create_order({"id": "demo-42"})
-        self.assertEqual(dependency.orders, [{"id": "demo-42"}] * 3)
-
-
-if __name__ == "__main__":
-    unittest.main()
-`;
+const DEMO_TEST = "# Deprecated isolated demo fixture. The interactive cockpit demo is simulated.";
 
 const OUTPUT = vscode.window.createOutputChannel("CodeSlicer");
 const graphPath = (root: string) => join(root, ".impact_engine", "graph.json");
@@ -79,10 +53,27 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     view.webview.options = { enableScripts: true };
     view.webview.onDidReceiveMessage(message => this.onMessage(message));
     this.render();
+    void this.refreshWorkspaceReadiness();
   }
 
   private workspace(): string | undefined {
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  }
+
+  /** Read-only first-run check. It deliberately does not invoke Git or CodeSlicer. */
+  private async refreshWorkspaceReadiness(): Promise<void> {
+    const root = this.workspace();
+    if (!root) return;
+    try {
+      const ignored = new Set([".git", ".vscode", ".impact_engine", ".codeslicer", ".venv", "venv", "env", "node_modules", "__pycache__"]);
+      const entries = await readdir(root, { withFileTypes: true });
+      const readiness = entries.some(entry => !ignored.has(entry.name)) ? "project" : "empty";
+      this.state = { ...this.state, project: { ...this.state.project, workspace: root, readiness } };
+      this.render();
+    } catch {
+      this.state = { ...this.state, project: { ...this.state.project, workspace: root, readiness: "unknown" } };
+      this.render();
+    }
   }
 
   private async selectWorkspace(): Promise<string | undefined> {
@@ -136,6 +127,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     const architectureGraph = graphifyPath(root, configuredGraphify);
     return {
       workspace: root,
+      readiness: this.state.project.readiness === "unknown" ? "project" : this.state.project.readiness,
       branch,
       baseRef: base.base,
       baseCandidates: base.candidates,
@@ -345,6 +337,34 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       this.setDemo("error", String(error), project);
       await vscode.window.showErrorMessage(`CodeSlicer demo test failed: ${String(error)}`);
+    }
+  }
+
+  async openOrCreateProject(): Promise<void> {
+    const picked = await vscode.window.showOpenDialog({
+      title: "Open or create a project folder",
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      openLabel: "Open project"
+    });
+    if (picked?.[0]) await vscode.commands.executeCommand("vscode.openFolder", picked[0], false);
+  }
+
+  async importFromGit(): Promise<void> {
+    const repository = await vscode.window.showInputBox({
+      title: "Import project from Git",
+      prompt: "Repository URL, for example https://github.com/owner/project.git",
+      placeHolder: "https://github.com/owner/project.git",
+      ignoreFocusOut: true,
+      validateInput: value => /^(https?:\/\/|git@)[^\s]+$/u.test(value.trim()) ? undefined : "Enter an HTTPS URL or an SSH Git address."
+    });
+    if (!repository) return;
+    try {
+      // Delegate cloning to VS Code's Git extension. No shell command is built here.
+      await vscode.commands.executeCommand("git.clone", repository.trim());
+    } catch (error) {
+      await vscode.window.showErrorMessage(`VS Code could not start Git import: ${String(error)}`);
     }
   }
 
@@ -586,7 +606,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
         sourceCurrent: () => this.setReviewSource("current-changes"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
-        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), startDemo: () => this.startDemo(), applyDemoChange: () => this.applyDemoChange(), reviewDemo: () => this.reviewDemo(), testDemo: () => this.testDemo()
+        hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), openProject: () => this.openOrCreateProject(), importGit: () => this.importFromGit()
       };
       await actions[message.action || ""]?.();
       return;

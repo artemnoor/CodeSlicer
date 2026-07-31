@@ -1,25 +1,10 @@
 export const clientRouter = String.raw`const vscode=typeof acquireVsCodeApi==='function'?acquireVsCodeApi():{getState:()=>undefined,setState:()=>undefined,postMessage:()=>undefined};
-const tabs=['start','check','result','tests','architecture','settings'];
-const saved=vscode.getState()||{};let currentTab=tabs.includes(saved.tab)?saved.tab:'start';
-function byId(id){return document.getElementById(id)}
-function selectTab(id,moveFocus){
-  if(!tabs.includes(id))return;
-  currentTab=id;
-  document.querySelectorAll('[role=tab]').forEach(item=>{
-    const selected=item.dataset.tab===id;
-    item.setAttribute('aria-selected',String(selected));
-    const panel=byId('panel-'+item.dataset.tab);
-    if(panel)panel.hidden=!selected;
-  });
-  vscode.setState({tab:currentTab});
-  if(moveFocus){const button=document.querySelector('[data-tab="'+id+'"]');if(button)button.focus()}
-}
-document.addEventListener('click',event=>{
-  const target=event.target&&typeof event.target.closest==='function'?event.target.closest('button'):undefined;
-  if(!target)return;
-  if(target.dataset.tab){selectTab(target.dataset.tab,true);return;}
-  if(target.dataset.action){vscode.postMessage({type:'action',action:target.dataset.action});return;}
-  if(target.dataset.test!==undefined){vscode.postMessage({type:'runTest',index:Number(target.dataset.test)});return;}
-  if(target.dataset.entity){vscode.postMessage({type:'entity',entity:target.dataset.entity,file:target.dataset.file,line:Number(target.dataset.line)||undefined});}
-});
+const tabs=['start','check','result','tests','architecture','settings'];let timers=[];let currentTab=(vscode.getState()||{}).tab||'start';
+const byId=id=>document.getElementById(id);
+function selectTab(id,focus){if(!tabs.includes(id))return;currentTab=id;document.querySelectorAll('[role=tab]').forEach(tab=>{const on=tab.dataset.tab===id;tab.setAttribute('aria-selected',String(on));const panel=byId('panel-'+tab.dataset.tab);if(panel)panel.hidden=!on});vscode.setState({tab:id});if(focus)document.querySelector('[data-tab="'+id+'"]')?.focus()}
+function stopDemo(){timers.forEach(clearTimeout);timers=[];byId('demo-guide').hidden=true;byId('demo-field').hidden=true;byId('demo-result').hidden=true;byId('demo-tests').hidden=true;byId('live-result').hidden=false;byId('live-tests').hidden=false}
+function later(ms,fn){timers.push(setTimeout(fn,ms))}
+function typeValue(value){const input=byId('demo-branch-input');input.value='';[...value].forEach((char,index)=>later(index*75,()=>input.value+=char))}
+function startDemo(){stopDemo();const guide=byId('demo-guide');guide.hidden=false;const say=(title,text)=>{byId('demo-title').textContent=title;byId('demo-text').textContent=text};say('1/5 · Выбираем сравнение','Сейчас вкладка «Проверка» откроется сама, затем CodeSlicer покажет выбор base branch.');later(700,()=>{selectTab('check');byId('demo-field').hidden=false;typeValue('main');later(500,()=>byId('demo-check-status').textContent='main selected · analysing local diff…')});later(2800,()=>{say('2/5 · Находим последствия','Переходим к результату: риск, затронутые части и подтверждённые связи.');selectTab('result');byId('live-result').hidden=true;byId('demo-result').hidden=false});later(4800,()=>{say('3/5 · Подсказываем тест','Вкладка «Тесты» показывает точечную проверку, которую пользователь запускает отдельно.');selectTab('tests');byId('live-tests').hidden=true;byId('demo-tests').hidden=false;later(500,()=>byId('demo-test-status').textContent='✓ Simulated test passed — no command was run')});later(6800,()=>{say('4/5 · Отделяем архитектурную карту','Graphify остаётся отдельным: полная карта открывается только в Local Hub.');selectTab('architecture')});later(8600,()=>{say('5/5 · Где настройки','Executable и optional IDE integration находятся здесь. GitHub token для local review не нужен.');selectTab('settings')});later(10600,()=>{selectTab('start');say('Демо завершено','Вы увидели весь путь: выбор базы, impact, evidence, тесты, карту и настройки. Ваш проект не изменялся.')})}
+document.addEventListener('click',event=>{const target=event.target?.closest?.('button');if(!target)return;if(target.dataset.tab)return selectTab(target.dataset.tab,true);if(target.dataset.demoStart!==undefined)return startDemo();if(target.dataset.demoStop!==undefined)return stopDemo();if(target.dataset.action)return vscode.postMessage({type:'action',action:target.dataset.action});if(target.dataset.test!==undefined)return vscode.postMessage({type:'runTest',index:Number(target.dataset.test)});if(target.dataset.entity)return vscode.postMessage({type:'entity',entity:target.dataset.entity,file:target.dataset.file,line:Number(target.dataset.line)||undefined})});
 selectTab(currentTab,false);`;

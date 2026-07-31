@@ -16,27 +16,21 @@ test("parses compatible ReviewReport fields and uses projection tests without ex
   assert.equal(review.tests[0].file, "tests/test_orders.py");
 });
 
-test("first screen gives one concise path for empty folders and ready Git projects", () => {
-  const html = renderCockpit(INITIAL_STATE, "ru");
-  assert.match(html, /Пустая папка или новый проект/);
-  assert.match(html, /git init/);
-  assert.match(html, /первый commit/);
-  assert.match(html, /Есть Git-проект с изменениями/);
-  assert.match(html, /data-action="installRuntime"/);
-  assert.match(html, /data-action="review"/);
-  assert.match(html, /IDE и skills — необязательно/);
-  assert.match(html, /ИНТЕРАКТИВНОЕ ДЕМО/);
-  assert.match(html, /data-action="startDemo"/);
-  assert.doesNotMatch(html, /Практикум|data-course|guide-focus/);
+test("first screen reacts to an empty folder and offers safe next steps", () => {
+  const html = renderCockpit({ ...INITIAL_STATE, project: { ...INITIAL_STATE.project, readiness: "empty" } }, "ru");
+  assert.match(html, /Похоже, эта папка пока пуста/);
+  assert.match(html, /data-action="openProject"/);
+  assert.match(html, /data-action="importGit"/);
+  assert.match(html, /data-demo-start/);
+  assert.match(html, /не скачивает файлы, не запускает CLI/);
 });
 
-test("English start screen keeps advanced paths optional", () => {
+test("ready project starts with install and review instead of empty-folder actions", () => {
   const html = renderCockpit(INITIAL_STATE, "en");
-  assert.match(html, /Empty folder or a new project/);
-  assert.match(html, /initial commit/);
-  assert.match(html, /A Git project with changes/);
-  assert.match(html, /IDE and skills — optional/);
-  assert.doesNotMatch(html, /Learning|data-course/);
+  assert.match(html, /Your project is ready for review/);
+  assert.match(html, /data-action="installRuntime"/);
+  assert.match(html, /data-action="review"/);
+  assert.match(html, /safe simulation/);
 });
 
 test("router opens Start first, changes tabs, and forwards only explicit actions", () => {
@@ -69,13 +63,17 @@ test("automatic install and optional IDE picker are exposed without the former g
   assert.doesNotMatch(source, /openDownloads/);
 });
 
-test("interactive demo downloads only a pinned fixture and runs a predefined unittest", () => {
+test("demo uses the actual tab router and does not post a process action", () => {
+  assert.match(clientRouter, /selectTab\('check'\)/);
+  assert.match(clientRouter, /typeValue\('main'\)/);
+  assert.match(clientRouter, /selectTab\('result'\)/);
+  assert.match(clientRouter, /selectTab\('tests'\)/);
+  assert.match(clientRouter, /selectTab\('architecture'\)/);
+  assert.doesNotMatch(clientRouter, /postMessage\(\{type:'action',action:'(?:startDemo|applyDemoChange|reviewDemo|testDemo)'/);
+});
+
+test("empty-folder actions delegate to VS Code instead of composing a shell command", () => {
   const source = readFileSync(join(__dirname, "../../src/extension.ts"), "utf8");
-  assert.match(source, /DEMO_COMMIT = "[a-f0-9]{40}"/);
-  assert.match(source, /DEMO_ARCHIVE = `https:\/\/github\.com\/artemnoor\/CodeSlicer\/archive\/\$\{DEMO_COMMIT\}\.zip`/);
-  assert.match(source, /service_di_project/);
-  assert.match(source, /\["init"\], \["config", "user\.email"/);
-  assert.match(source, /"unittest", "discover", "-s", "tests", "-v"/);
-  assert.match(source, /projectPath/);
-  assert.doesNotMatch(source, /git clone/);
+  assert.match(source, /executeCommand\("vscode\.openFolder"/);
+  assert.match(source, /executeCommand\("git\.clone", repository\.trim\(\)\)/);
 });
