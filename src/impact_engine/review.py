@@ -89,14 +89,17 @@ def build_review_report(
     if review_source_kind == "diff-file" and diff_text is None:
         raise ValueError("--source diff-file requires --diff-file; no file or network source was inferred")
     source_contract = review_source(root, base=base, diff_file="provided" if diff_text is not None else None)
-    if review_source_kind == "compare" and not diff_text:
+    if review_source_kind == "staged" and not diff_text:
+        source_contract["kind"] = "staged"
+        source_contract["label"] = "Staged changes"
+    elif review_source_kind == "compare" and not diff_text:
         source_contract["kind"] = "compare"
         source_contract["label"] = "Compare refs"
     elif review_source_kind == "github-pr":
         source_contract["kind"] = "github_pull_request"
         source_contract["label"] = "GitHub pull request (local diff)"
     selected_base = base or source_contract["base"].get("base_ref")
-    diff, source = _resolve_diff(root, diff_text, diff_source, selected_base)
+    diff, source = _resolve_diff(root, diff_text, "staged" if review_source_kind == "staged" else diff_source, selected_base)
     if source == "project-not-a-git-repository":
         # A nested project must never inherit the parent repository's diff.
         # Keep the review honest and let the UI explain why no changed files
@@ -562,6 +565,8 @@ def _exclude_graphify_from_default_review(graph: GraphDocument, warnings: list[s
 def _resolve_diff(root: Path, diff_text: str | None, source: str | None, base: str | None) -> tuple[str, str]:
     if diff_text is not None:
         return diff_text, source or "provided"
+    if source == "staged":
+        return _git(root, ["diff", "--cached", "--unified=0"]) or "", "staged"
     if base:
         value = _git(root, ["diff", "--unified=0", f"{base}...HEAD"])
         if value is not None:

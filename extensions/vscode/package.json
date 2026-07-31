@@ -17,7 +17,7 @@
   "extensionKind": ["workspace"],
   "activationEvents": [
     "onView:codeslicer.cockpit", "onCommand:codeslicer.configureExecutable", "onCommand:codeslicer.setupSkills", "onCommand:codeslicer.analyzeWorkspace",
-    "onCommand:codeslicer.reviewCurrentChanges", "onCommand:codeslicer.explainSelectedSymbol", "onCommand:codeslicer.openLocalHub",
+    "onCommand:codeslicer.reviewCurrentChanges", "onCommand:codeslicer.reviewStagedChanges", "onCommand:codeslicer.explainSelectedSymbol", "onCommand:codeslicer.openLocalHub",
     "onCommand:codeslicer.refresh", "onCommand:codeslicer.runRecommendedTest", "onCommand:codeslicer.startLocalServer"
   ],
   "contributes": {
@@ -32,6 +32,7 @@
       { "command": "codeslicer.setupSkills", "title": "CodeSlicer: Choose IDE and install skills" },
       { "command": "codeslicer.analyzeWorkspace", "title": "CodeSlicer: Analyze workspace" },
       { "command": "codeslicer.reviewCurrentChanges", "title": "CodeSlicer: Review current changes" },
+      { "command": "codeslicer.reviewStagedChanges", "title": "CodeSlicer: Review staged changes" },
       { "command": "codeslicer.reviewCompare", "title": "CodeSlicer: Compare with base branch" },
       { "command": "codeslicer.reviewDiffFile", "title": "CodeSlicer: Review a diff file" },
       { "command": "codeslicer.showReviewHistory", "title": "CodeSlicer: Show local review history" },

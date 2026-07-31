@@ -499,7 +499,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     const executable = await this.executable(root);
     if (!executable) return;
     const source = this.state.reviewSource;
-    const base = source.mode === "github-pr" ? source.baseRef : source.mode === "diff-file" ? undefined : await this.base(root);
+    const base = source.mode === "github-pr" ? source.baseRef : (source.mode === "diff-file" || source.mode === "staged") ? undefined : await this.base(root);
     if (!source.diffFile && (source.mode === "diff-file" || source.mode === "github-pr")) return;
     if (source.mode === "current-changes" || source.mode === "compare") if (!base) return;
     try {
@@ -596,7 +596,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       const actions: Record<string, () => Promise<void>> = {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
-        sourceCurrent: () => this.setReviewSource("current-changes"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
+        sourceCurrent: () => this.setReviewSource("current-changes"), sourceStaged: () => this.setReviewSource("staged"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
         hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), openProject: () => this.openOrCreateProject(), importGit: () => this.importFromGit(), showDemo: () => this.showDemo(), startServer: () => this.startLocalServer(), stopServer: () => this.stopLocalServer(), showGraph: () => this.analyzeAndShowGraph(), showGit: () => this.showGitBranches(), installGraphify: () => this.installGraphify(), buildGraphify: () => this.buildGraphifyGraph()
       };
       await actions[message.action || ""]?.();
@@ -633,7 +633,7 @@ export function activate(context: vscode.ExtensionContext): void {
   }
   for (const [id, handler] of [
     ["codeslicer.configureExecutable", () => provider.configure()], ["codeslicer.installRuntime", () => provider.downloadCodeSlicer()], ["codeslicer.setupSkills", () => provider.setupSkills()], ["codeslicer.analyzeWorkspace", () => provider.analyze()], ["codeslicer.runtimeDoctor", () => provider.doctor()], ["codeslicer.runtimeUpdate", () => provider.runtimeAvailability()], ["codeslicer.runtimeRollback", () => provider.runtimeAvailability()],
-    ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.reviewCompare", async () => { await provider.setReviewSource("compare"); await provider.review(); }], ["codeslicer.reviewDiffFile", async () => { await provider.setReviewSource("diff-file"); await provider.review(); }], ["codeslicer.githubSignIn", () => provider.setReviewSource("github-pr")], ["codeslicer.showReviewHistory", () => provider.showHistory()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],
+    ["codeslicer.reviewCurrentChanges", () => provider.review()], ["codeslicer.reviewStagedChanges", async () => { await provider.setReviewSource("staged"); await provider.review(); }], ["codeslicer.reviewCompare", async () => { await provider.setReviewSource("compare"); await provider.review(); }], ["codeslicer.reviewDiffFile", async () => { await provider.setReviewSource("diff-file"); await provider.review(); }], ["codeslicer.githubSignIn", () => provider.setReviewSource("github-pr")], ["codeslicer.showReviewHistory", () => provider.showHistory()], ["codeslicer.explainSelectedSymbol", () => provider.explain()],
     ["codeslicer.openLocalHub", () => provider.hub()], ["codeslicer.startLocalServer", () => provider.startLocalServer()], ["codeslicer.refresh", () => provider.refresh()],
     ["codeslicer.runRecommendedTest", () => provider.runTest()]
   ] as [string, () => Promise<void>][]) context.subscriptions.push(vscode.commands.registerCommand(id, handler));

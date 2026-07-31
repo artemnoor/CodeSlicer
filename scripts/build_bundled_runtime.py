@@ -57,7 +57,7 @@ def main() -> int:
         # Dynamic language plugins and packaged support packs are intentional runtime inputs.
         (hooks / "hook-impact_engine.py").write_text(
             "from PyInstaller.utils.hooks import collect_data_files, collect_submodules\n"
-            "hiddenimports = collect_submodules('impact_engine')\n"
+            "hiddenimports = collect_submodules('impact_engine') + collect_submodules('plugins')\n"
             "datas = collect_data_files('impact_engine')\n", encoding="utf-8"
         )
         launcher = temp_path / "codeslicer_launcher.py"

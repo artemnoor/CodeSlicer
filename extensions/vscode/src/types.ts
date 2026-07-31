@@ -1,7 +1,7 @@
 export type RuntimeStatus="unchecked"|"found"|"not-configured"|"install-unavailable"|"incompatible"|"error";
 export interface RuntimeState{status:RuntimeStatus;executable?:string;version:string;diagnostic:string}
 export type UiLanguage="auto"|"ru"|"en";
-export type ReviewSourceMode="current-changes"|"compare"|"diff-file"|"github-pr";
+export type ReviewSourceMode="current-changes"|"staged"|"compare"|"diff-file"|"github-pr";
 export interface ReviewSourceState{mode:ReviewSourceMode;diffFile?:string;baseRef?:string;label?:string}
 export interface ReviewHistoryEntry{createdAt:string;source:ReviewSourceMode;risk:string;affected:number}
 export type WorkspaceReadiness="unknown"|"empty"|"project";

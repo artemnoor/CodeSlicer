@@ -299,7 +299,7 @@ def build_parser(prog: str = "impact-engine") -> argparse.ArgumentParser:
     review = sub.add_parser("review", help="Build a compact local-first daily review brief")
     review.add_argument("project_path")
     review.add_argument("--base", default=None, help="Verified local or remote base ref; omit to detect safely")
-    review.add_argument("--source", choices=["current-changes", "compare", "diff-file", "github-pr"], default="current-changes", help="Review source; github-pr is a reserved no-network contract")
+    review.add_argument("--source", choices=["current-changes", "staged", "compare", "diff-file", "github-pr"], default="current-changes", help="Review source; github-pr is a reserved no-network contract")
     review.add_argument("--deep", action="store_true")
     review.add_argument("--entity", default=None, help="Entity to inspect in explicit deep mode")
     review.add_argument("--graph", default=None)
