@@ -70,6 +70,37 @@ def edge_to_dict(edge) -> dict:
     }
 
 
+def _iter_traversal_steps(outgoing: list[Edge], incoming: list[Edge], direction: str):
+    """Yield BFS candidates in the established downstream-then-upstream order."""
+    if direction in ("downstream", "both"):
+        for edge in outgoing:
+            yield edge.to_node, edge, "downstream"
+    if direction in ("upstream", "both"):
+        for edge in incoming:
+            yield edge.from_node, edge, "upstream"
+
+
+def _materialize_impact_path(
+    target: str,
+    parents: dict[str, tuple[str, Edge, str]],
+) -> tuple[list[Edge], str]:
+    """Rebuild one reported path after traversal without carrying copies in the queue."""
+    links: list[tuple[str, Edge, str, str]] = []
+    current = target
+    while current in parents:
+        parent, edge, direction = parents[current]
+        links.append((parent, edge, direction, current))
+        current = parent
+    links.reverse()
+
+    edges = [edge for _, edge, _, _ in links]
+    parts = [links[0][0]]
+    for _, edge, direction, child in links:
+        arrow = "->" if direction == "downstream" else "<-"
+        parts.extend((arrow, f"({edge.kind}, c={edge.confidence})", arrow, child))
+    return edges, " ".join(parts)
+
+
 def impact_query(
     graph: Any,
     target: str = "",
@@ -122,6 +153,8 @@ def impact_query(
     affected_nodes = []
     affected_edges = []
     affected_edge_ids = set()
+    parents: dict[str, tuple[str, Edge, str]] = {}
+    discovered_paths: list[tuple[str, int]] = []
     explanation_chain = []
     impact_paths = []
     warnings = []
@@ -130,12 +163,12 @@ def impact_query(
 
     # Seed queue with matched node IDs
     for n in matched_nodes:
-        queue.append((n.id, 0, n.id, []))
+        queue.append((n.id, 0))
         visited_nodes.add(n.id)
 
     # Always seed the queue with the query string itself to allow traversal on non-node symbols
     if q_str and q_str not in visited_nodes:
-        queue.append((q_str, 0, q_str, []))
+        queue.append((q_str, 0))
         visited_nodes.add(q_str)
 
     # Build adjacency lists
@@ -151,18 +184,14 @@ def impact_query(
 
     # BFS Traversal
     while queue:
-        curr_id, depth, path_str, path_edges = queue.popleft()
+        curr_id, depth = queue.popleft()
 
         if max_depth is not None and depth >= max_depth:
             continue
 
-        next_edges = []
-        if direction in ("downstream", "both"):
-            next_edges.extend((e.to_node, e, "downstream") for e in out_adj.get(curr_id, []))
-        if direction in ("upstream", "both"):
-            next_edges.extend((e.from_node, e, "upstream") for e in in_adj.get(curr_id, []))
-
-        for next_id, edge, dir_type in next_edges:
+        for next_id, edge, dir_type in _iter_traversal_steps(
+            out_adj.get(curr_id, []), in_adj.get(curr_id, []), direction
+        ):
             if edge.id in affected_edge_ids:
                 continue
 
@@ -175,9 +204,6 @@ def impact_query(
             affected_edges.append(edge)
             affected_edge_ids.add(edge.id)
 
-            arrow = "->" if dir_type == "downstream" else "<-"
-            new_path_str = f"{path_str} {arrow} ({edge.kind}, c={edge.confidence}) {arrow} {next_id}"
-
             if next_id not in visited_nodes:
                 if max_nodes is not None and len(visited_nodes) >= max_nodes:
                     truncated = True
@@ -185,21 +211,28 @@ def impact_query(
                         truncation_reasons.append("max_nodes")
                     continue
                 visited_nodes.add(next_id)
-                queue.append((next_id, depth + 1, new_path_str, path_edges + [edge]))
+                queue.append((next_id, depth + 1))
+                parents[next_id] = (curr_id, edge, dir_type)
+                discovered_paths.append((next_id, depth + 1))
                 node_obj = graph._node_index.get(next_id) if isinstance(graph, GraphDocument) else next((node for node in graph.nodes if node.id == next_id), None)
                 if not node_obj:
                     # Create placeholder symbol node
                     node_obj = Node(id=next_id, name=next_id, kind="FUNCTION")
                 affected_nodes.append(node_obj)
-                explanation_chain.append(new_path_str)
-                full_path = path_edges + [edge]
-                impact_paths.append({
-                    "target": next_id,
-                    "depth": depth + 1,
-                    "status": _path_status(full_path),
-                    "confidence": min((item.confidence for item in full_path), default=1.0),
-                    "edges": [item.id for item in full_path],
-                })
+
+    # Full paths are part of the response contract. Build them once, after the
+    # traversal, rather than retaining a copied edge list and growing string for
+    # every queued node.
+    for node_id, depth in discovered_paths:
+        full_path, path_string = _materialize_impact_path(node_id, parents)
+        explanation_chain.append(path_string)
+        impact_paths.append({
+            "target": node_id,
+            "depth": depth,
+            "status": _path_status(full_path),
+            "confidence": min((item.confidence for item in full_path), default=1.0),
+            "edges": [item.id for item in full_path],
+        })
 
     # Group by kind
     grouped = {

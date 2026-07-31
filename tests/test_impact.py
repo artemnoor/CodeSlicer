@@ -54,6 +54,12 @@ def test_impact_query_deduplicates_edge_ids_and_preserves_bfs_result_order():
     assert [edge["id"] for edge in result["affected_edges"]] == [
         "left-edge", "right-edge", "end-edge", "end-edge-2"
     ]
+    assert result["explanation_chain"] == [
+        "start -> (CALLS, c=1.0) -> left",
+        "start -> (CALLS, c=1.0) -> right",
+        "start -> (CALLS, c=1.0) -> left -> (CALLS, c=1.0) -> end",
+    ]
+    assert result["impact_paths"][-1]["edges"] == ["left-edge", "end-edge"]
 
 
 def test_impact_query_uses_constant_time_bfs_queue_and_edge_membership():
@@ -65,6 +71,10 @@ def test_impact_query_uses_constant_time_bfs_queue_and_edge_membership():
     assert "queue.popleft()" in contents
     assert "affected_edge_ids = set()" in contents
     assert "if edge.id in affected_edge_ids:" in contents
+    assert "parents: dict[str, tuple[str, Edge, str]] = {}" in contents
+    assert "queue.append((next_id, depth + 1))" in contents
+    assert "path_edges + [edge]" not in contents
+    assert "next_edges = []" not in contents
 
 
 def test_explain_edge_returns_evidence_chain():
