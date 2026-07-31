@@ -20,9 +20,11 @@ test("cockpit separates review, results, tests, technologies, history, architect
   const html = renderCockpit({ ...INITIAL_STATE, runtime: { ...INITIAL_STATE.runtime, status: "found" }, codeGraph: { status: "ready", nodes: [{ id: "a", label: "entry", kind: "FUNCTION" }], edges: [], totalNodes: 1, totalEdges: 0, message: "Ready" }, gitGraph: { status: "ready", commits: [{ id: "123456789", parents: [], refs: "HEAD -> main", subject: "Initial" }], branches: [{ name: "main", current: true, upstream: "origin/main", tracking: "ahead 1" }], remotes: [], message: "Ready" } }, "ru");
   assert.match(html, /Проверяйте изменения до commit и merge/);
   assert.match(html, /class="app-shell"/);
-  assert.match(html, /--cs-bg: #0c0c0f/);
-  assert.match(html, /--cs-green: #8373ff/);
-  assert.match(html, /--cs-pink: #f16baa/);
+  assert.match(html, /--cs-bg: #0a0a0b/);
+  assert.match(html, /--cs-green: #f4f4f5/);
+  assert.match(html, /font-family: var\(--vscode-font-family, Inter/);
+  assert.match(html, /\.branch-tree::before/);
+  assert.doesNotMatch(html, /linear-gradient/);
   assert.match(html, /class="branch-rail"/);
   assert.match(html, /\[hidden\] \{ display: none !important; \}/);
   assert.match(html, /class="rail-nav"/);
