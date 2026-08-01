@@ -77,6 +77,28 @@ def test_changed_callable_downstream_calls_are_top_impacts_without_reverse_noise
     assert all(item.entity_id != "service.init" or "reverse-noise" not in item.evidence_ids for item in projection.candidates)
 
 
+def test_broad_discovery_separates_low_certainty_paths_from_review_and_tests():
+    graph = GraphDocument()
+    graph.add_node(Node("service.changed", "METHOD", "changed", {"file": "app/service.py", "line": 10}))
+    graph.add_node(Node("repo.confirmed", "METHOD", "save", {"file": "app/repo.py", "line": 5}))
+    graph.add_node(Node("client.dynamic", "CALL_EXPR", "client.call", {"file": "app/client.py", "line": 7, "boundary": True}))
+    graph.add_node(Node("repo.weak", "METHOD", "maybe_save", {"file": "app/maybe_repo.py", "line": 4}))
+    graph.add_node(Node("route.rejected", "ROUTE", "POST /rejected", {"file": "app/routes.py", "line": 3, "boundary_category": "api"}))
+    graph.add_edge(Edge("confirmed", "CALLS", "service.changed", "repo.confirmed", confidence=.96, evidence=[Evidence("resolved repository call", "app/service.py", 11)]))
+    graph.add_edge(Edge("dynamic", "CALLS", "service.changed", "client.dynamic", confidence=.42, evidence=[Evidence("dynamic receiver call", "app/service.py", 12)], properties={"resolution_status": "unresolved"}))
+    graph.add_edge(Edge("weak", "CALLS", "service.changed", "repo.weak", confidence=.62, evidence=[Evidence("partial resolver match", "app/service.py", 12)]))
+    graph.add_edge(Edge("rejected", "ROUTE_HANDLES", "route.rejected", "service.changed", confidence=.2, evidence=[Evidence("discarded candidate", "app/routes.py", 3)], properties={"status": "rejected"}))
+
+    projection = build_review_projection(graph, [{"id": "service.changed", "file": "app/service.py", "line": 10, "changed_lines": [11, 12]}], {"app/service.py"})
+
+    assert {item.entity_id for item in projection.candidates} == {"service.changed", "repo.confirmed"}
+    possible = {item.entity_id: item for item in projection.possible_candidates}
+    assert set(possible) == {"client.dynamic", "repo.weak"}
+    assert possible["client.dynamic"].discovery_reason == "unresolved dynamic call"
+    assert projection.risk["confidence"] == "high"
+    assert all(item.symbol != "client.dynamic" for item in projection.tests)
+
+
 def test_targeted_test_recommendation_has_specific_evidence_and_command():
     projection = build_review_projection(
         _graph(), [{"id": "repo.save", "kind": "METHOD", "file": "src/repo.py", "line": 4}], {"src/repo.py"}

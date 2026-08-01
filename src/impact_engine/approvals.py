@@ -90,17 +90,35 @@ class _ApprovalLock:
             alive = _pid_is_alive(pid)
         if (pid > 0 and not alive) or time.time() - created_at > self.STALE_SECONDS:
             try:
-                self.path.unlink()
+                self._unlink_when_released()
             except FileNotFoundError:
                 pass
+
+    def _unlink_when_released(self) -> None:
+        """Remove a lock after Windows has released the just-closed handle.
+
+        NTFS can transiently retain a file handle after ``close`` (for
+        example while another thread observes the lock).  Treating that
+        short window as a hard error strands an otherwise valid approval and
+        makes the one-time consume race fail for both callers.
+        """
+        deadline = time.monotonic() + 1.0
+        while True:
+            try:
+                self.path.unlink()
+                return
+            except FileNotFoundError:
+                return
+            except PermissionError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.01)
 
     def __exit__(self, *_: Any) -> None:
         if self.fd is not None:
             os.close(self.fd)
-        try:
-            self.path.unlink()
-        except FileNotFoundError:
-            pass
+            self.fd = None
+        self._unlink_when_released()
 
 
 class ApprovalStore:

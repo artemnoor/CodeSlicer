@@ -1,10 +1,10 @@
 {
   "arch": "x64",
-  "extensionCompatibility": "0.6.21",
+  "extensionCompatibility": "0.6.22",
   "files": {
     "LICENSE": "e91f21e3810727109361c9ddbfb99744ecbab78dcfa09d61181442112f724803",
     "THIRD_PARTY_NOTICES_RUNTIME.md": "ce2f77e8d9ea4181f1b90483079ac3a1de4ebd232dd19d28e38577374b5457d1",
-    "bin/codeslicer.exe": "61227452b494c1fcae85edf496e959a16bdb238dfb1cb006b2c65e775142da42"
+    "bin/codeslicer.exe": "9b4cc4273ee03e9fba5d099eae7c97ca7fff37e8538fea6031cc9ceba6d5687b"
   },
   "platform": "win32",
   "runtimeVersion": "0.5.0"

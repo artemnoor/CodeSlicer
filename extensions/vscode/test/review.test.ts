@@ -17,6 +17,14 @@ test("parses compatible ReviewReport fields and uses projection tests without ex
   assert.equal(review.tests[0].file, "tests/test_orders.py");
 });
 
+test("keeps possible impact separate from the primary review cards", () => {
+  const review = parseReviewJson(JSON.stringify({ status: "ok", risk: { level: "LOW", confidence: "high", reasons: [] }, top_impacts: [{ entity_id: "service", label: "service", kind: "FUNCTION", impact_tier: "confirmed", confidence: "confirmed" }], potential_impacts: [{ entity_id: "dynamic", label: "dynamic call", kind: "CALL_EXPR", impact_tier: "possible", confidence: "low", reason: "unresolved dynamic call" }], chains: [], test_recommendations: [], warnings: [], coverage: [] }));
+  assert.equal(review.impacts[0].tier, "confirmed");
+  assert.equal(review.potentialImpacts[0].tier, "possible");
+  assert.equal(review.potentialImpacts[0].confidence, "low");
+  assert.equal(review.potentialImpacts[0].reason, "unresolved dynamic call");
+});
+
 test("marks limited-coverage test recommendations as advisory", () => {
   const advisory = parseReviewJson(JSON.stringify({ status: "ok", risk: { level: "UNKNOWN", confidence: "low", reasons: [] }, top_impacts: [], chains: [], test_recommendations: [{ file: "tests/test_orders.py", symbol: "test_create_order", category: "symbol_call", confidence: "confirmed", reason: "confirmed path", advisory: true, safety: "advisory_limited_coverage" }], warnings: [], coverage: [] }));
   assert.equal(advisory.tests[0].advisory, true);
@@ -68,6 +76,17 @@ test("cockpit separates review, results, tests, technologies, history, architect
   assert.match(html, /class="graph-nodes"/);
   assert.match(html, /data-guide-handle/);
   assert.match(renderCockpit(INITIAL_STATE, "en"), /data-language="ru"/);
+});
+
+test("results keep broad discovery collapsed and clearly marked", () => {
+  const html = renderCockpit({ ...INITIAL_STATE, review: { ...INITIAL_STATE.review, status: "ready", impacts: [{ entityId: "confirmed", label: "save", kind: "METHOD", confidence: "confirmed", tier: "confirmed", reason: "resolved call", evidence: [] }], potentialImpacts: [{ entityId: "possible", label: "dynamic call", kind: "CALL_EXPR", confidence: "low", tier: "possible", reason: "unresolved dynamic call", evidence: [] }] } }, "en");
+  assert.match(html, /<details class="potential-impact-panel">/);
+  assert.match(html, /Show potential scope/);
+  assert.match(html, /Possible impact/);
+  assert.match(html, /Confidence: low/);
+  assert.match(html, /Reason: unresolved dynamic call/);
+  assert.match(html, /impact-card--confirmed/);
+  assert.match(html, /impact-card--possible/);
 });
 
 test("start screen gives safe next steps for an empty folder and a project without Git", () => {

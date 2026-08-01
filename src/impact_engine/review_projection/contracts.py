@@ -58,6 +58,7 @@ class ReviewCandidate:
     chain_ids: tuple[str, ...] = ()
     suppression_reason: str | None = None
     cluster: str | None = None
+    discovery_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -76,6 +77,7 @@ class ReviewCandidate:
             "chain_ids": list(self.chain_ids),
             "suppression_reason": self.suppression_reason,
             "cluster": self.cluster,
+            "discovery_reason": self.discovery_reason,
         }
 
 
@@ -114,6 +116,7 @@ class ReviewProjection:
     chains: tuple[ReviewChain, ...]
     tests: tuple[TestRecommendation, ...]
     risk: dict[str, Any]
+    possible_candidates: tuple[ReviewCandidate, ...] = ()
     suppressed_candidates: tuple[ReviewCandidate, ...] = ()
     coverage: tuple[dict[str, Any], ...] = ()
     warnings: tuple[str, ...] = ()
@@ -128,6 +131,7 @@ class ReviewProjection:
             "mode": self.mode,
             "changed_entities": list(self.changed_entities),
             "candidates": [item.to_dict() for item in self.candidates],
+            "possible_candidates": [item.to_dict() for item in self.possible_candidates],
             "suppressed_candidates": [item.to_dict() for item in self.suppressed_candidates],
             "evidence": [item.to_dict() for item in self.evidence],
             "chains": [item.to_dict() for item in self.chains],

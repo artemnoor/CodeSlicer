@@ -43,7 +43,9 @@ def _path_confidence(edges: list[Any]) -> str:
     properties = [getattr(edge, "properties", {}) or {} for edge in edges]
     if any(item.status == "suspicious" or str(props.get("resolution_status", "")).lower() in {"ambiguous", "unresolved"} for item, props in zip(qualities, properties)):
         return "unresolved"
-    if any(item.status == "rejected" or item.confidence < 0.55 for item in qualities):
+    # ``likely`` is reserved for high-probability paths.  A weak edge can be
+    # useful for broad discovery, but does not justify a concise PR claim.
+    if any(item.status in {"rejected", "weak"} or item.confidence < 0.70 for item in qualities):
         return "speculative"
     if all(item.status == "confirmed" and getattr(edge, "evidence", None) for item, edge in zip(qualities, edges)):
         return "confirmed"
@@ -58,6 +60,41 @@ def _impact_class(target: Any, edges: list[Any], depth: int, features: list[str]
     return "direct" if depth <= 1 else "transitive"
 
 
+def _broad_discovery_reason(edges: list[Any]) -> str:
+    """State why a candidate belongs to broad discovery, without inventing proof."""
+    for edge in edges:
+        properties = getattr(edge, "properties", {}) or {}
+        resolution = str(properties.get("resolution_status") or "").lower()
+        warning_text = " ".join(str(item) for item in properties.get("warnings", []) or []).lower()
+        kind = str(getattr(edge, "kind", "")).upper()
+        source = str(getattr(edge, "source", "")).upper()
+        if resolution == "unresolved" or "unresolved" in warning_text or "dynamic" in warning_text:
+            return "unresolved dynamic call"
+        if resolution == "ambiguous" or "ambiguous" in warning_text:
+            return "ambiguous resolution"
+        if kind == "IMPORTS":
+            return "indirect import"
+        if source == "SUPPORT_PACK" or "framework" in warning_text:
+            return "framework heuristic"
+    return "low-confidence inferred relationship"
+
+
+def _is_broad_discovery_edge(edge: Any) -> bool:
+    """Return only traceable low-certainty edges; rejected facts never enter review."""
+    quality = classify_edge_quality(edge)
+    if quality.status == "rejected":
+        return False
+    properties = getattr(edge, "properties", {}) or {}
+    resolution = str(properties.get("resolution_status") or "").lower()
+    source = str(getattr(edge, "source", "")).upper()
+    return (
+        quality.status == "suspicious"
+        or resolution in {"ambiguous", "unresolved"}
+        or str(getattr(edge, "kind", "")).upper() == "IMPORTS"
+        or source == "SUPPORT_PACK"
+    )
+
+
 def collect_candidates(
     graph: Any,
     changed_symbols: list[dict[str, Any]],
@@ -70,6 +107,7 @@ def collect_candidates(
     max_path_states: int = 1000,
     max_branching: int = 8,
     min_path_score: float = -80.0,
+    broad_discovery: bool = False,
 ) -> tuple[dict[str, ReviewCandidate], dict[str, ReviewEvidence], list[ReviewChain], set[str], list[str], dict[str, ReviewCandidate]]:
     """Traverse causal evidence paths while preserving the full graph.
 
@@ -98,9 +136,9 @@ def collect_candidates(
     for edge in graph.edges:
         if edge.from_node not in nodes or edge.to_node not in nodes:
             continue
-        if not deep and not edge_is_active_for_impact(edge):
+        if classify_edge_quality(edge).status == "rejected":
             continue
-        if deep and classify_edge_quality(edge).status == "rejected":
+        if not edge_is_active_for_impact(edge) and not (broad_discovery and _is_broad_discovery_edge(edge)):
             continue
         outgoing.setdefault(edge.from_node, []).append(edge)
         incoming.setdefault(edge.to_node, []).append(edge)
@@ -288,7 +326,12 @@ def collect_candidates(
                 # action, never as raw CALL_EXPR noise.  The original node
                 # and edge kind remain intact in the full graph/evidence.
                 display_kind = "BOUNDARY_CALL" if str(getattr(next_node, "kind", "")).upper() == "CALL_EXPR" and is_boundary_node(next_node) else next_node.kind
-                candidate = ReviewCandidate(next_id, display_kind, node_file(next_node), _node_label(next_node), impact_class, confidence, rank, tuple(item.id for item in evidence_items), {}, (chain_id,) if evidence_items else (), None, semantic_cluster(next_node))
+                candidate = ReviewCandidate(
+                    next_id, display_kind, node_file(next_node), _node_label(next_node), impact_class,
+                    confidence, rank, tuple(item.id for item in evidence_items), {},
+                    (chain_id,) if evidence_items else (), None, semantic_cluster(next_node),
+                    _broad_discovery_reason(edge_objects) if confidence in {"unresolved", "speculative"} else None,
+                )
                 if old is None or (candidate.rank.score, candidate.entity_id) > (old.rank.score, old.entity_id):
                     candidates[next_id] = candidate
                 elif old is not None and candidate.rank.score == old.rank.score:
@@ -367,9 +410,36 @@ def build_review_projection(
         max_branching=max_branching,
         min_path_score=min_path_score,
     )
+    # Keep the primary review strictly evidence-gated.  Broad discovery is a
+    # separate, bounded pass: it may traverse low-certainty resolver facts,
+    # but never changes the risk score, concise chains, or test plan.
+    broad_candidates, broad_evidence, _broad_chains, _broad_changed_ids, broad_warnings, _broad_suppressed = collect_candidates(
+        graph,
+        changed_symbols,
+        policy=policy,
+        deep=deep,
+        max_depth=max_depth,
+        max_nodes=max_nodes,
+        max_edges=max_edges,
+        max_path_states=max_path_states,
+        max_branching=max_branching,
+        min_path_score=min_path_score,
+        broad_discovery=True,
+    )
+    evidence.update(broad_evidence)
     coverage = coverage or []
     candidates_by_id = _dedupe_alias_candidates(candidates_by_id)
-    selected = diversify_candidates(candidates_by_id.values(), min(max_results, policy.max_results), policy)
+    broad_candidates = _dedupe_alias_candidates(broad_candidates)
+    primary_candidates = {
+        entity_id: item for entity_id, item in candidates_by_id.items()
+        if item.confidence in {"confirmed", "likely"}
+    }
+    selected = diversify_candidates(primary_candidates.values(), min(max_results, policy.max_results), policy)
+    possible = [
+        item for entity_id, item in broad_candidates.items()
+        if entity_id not in primary_candidates and item.confidence in {"unresolved", "speculative"}
+    ]
+    possible = sorted(possible, key=lambda item: (-item.rank.score, item.entity_id))[:min(50, max(0, max_results) * 5)]
     chains_by_id = {item.id: item for item in chains}
     enriched: list[ReviewCandidate] = []
     displayed_chain_ids: list[str] = []
@@ -394,10 +464,12 @@ def build_review_projection(
     impacted_ids = {item.entity_id for item in selected}
     tests = select_targeted_tests(graph, changed_ids, impacted_ids, evidence, changed_files or set(), max_results=max_results)
     risk = _risk(graph, changed_ids, enriched, tests, coverage)
+    if broad_warnings:
+        warnings.extend(f"broad_discovery:{warning}" for warning in broad_warnings)
     if not displayed_chains:
         warnings.append("no_cross_file_impact_proven")
     return ReviewProjection(
-        changed_entities=tuple(sorted(changed_ids)), candidates=tuple(enriched), suppressed_candidates=tuple(sorted(suppressed.values(), key=lambda item: item.entity_id)[:100]), evidence=tuple(sorted(evidence.values(), key=lambda item: item.id)),
+        changed_entities=tuple(sorted(changed_ids)), candidates=tuple(enriched), possible_candidates=tuple(possible), suppressed_candidates=tuple(sorted(suppressed.values(), key=lambda item: item.entity_id)[:100]), evidence=tuple(sorted(evidence.values(), key=lambda item: item.id)),
         chains=tuple(displayed_chains), tests=tuple(tests), risk=risk, coverage=tuple(coverage), warnings=tuple(sorted(set(warnings))),
         policy_version=policy.version, test_selection_policy_version=TEST_SELECTION_POLICY_VERSION, schema_version=REVIEW_SCHEMA_VERSION,
         mode="deep" if deep else "concise",

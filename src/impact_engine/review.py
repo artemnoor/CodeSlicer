@@ -225,12 +225,12 @@ def build_review_report(
     local_graph_path = Path(str(freshness.get("graph_path"))) if freshness.get("graph_path") else root / ".impact_engine" / "graph.json"
     if not local_graph_path.is_file():
         local_graph_path = root / "graph.json"
-    visible: list[dict[str, Any]] = []
-    for candidate in projection.candidates:
+    def review_item(candidate: Any, *, tier: str) -> dict[str, Any]:
         item = candidate.to_dict()
         item["entity_id"] = _review_entity_id(candidate.entity_id)
         item["label"] = candidate.symbol
         item["class"] = candidate.impact_class
+        item["impact_tier"] = tier
         item["line"] = next((ev.line for ev in projection.evidence if ev.id in candidate.evidence_ids and ev.line is not None), None)
         item["why_affected"] = candidate.why_affected
         item["why"] = {
@@ -243,9 +243,23 @@ def build_review_report(
         else:
             item["heuristic"] = False
         item["deep_action"] = f"impact-engine review {root} --deep --entity {candidate.entity_id} --graph {local_graph_path}"
-        if freshness.get("stale"):
+        if tier == "possible":
+            # The underlying resolver state remains available for diagnostics,
+            # but a broad-discovery card intentionally never reads as proof.
+            item["evidence_status"] = candidate.confidence
             item["confidence"] = "low"
-        visible.append(item)
+            item["reason"] = candidate.discovery_reason or "low-confidence inferred relationship"
+            item["why"]["reason"] = item["reason"]
+            item["why"]["summary"] = "possible impact: evidence is not sufficient for the primary review"
+        elif freshness.get("stale"):
+            item["confidence"] = "low"
+        return item
+
+    visible = [
+        review_item(candidate, tier="confirmed" if candidate.confidence == "confirmed" else "likely")
+        for candidate in projection.candidates
+    ]
+    potential_impacts = [review_item(candidate, tier="possible") for candidate in projection.possible_candidates]
 
     chains = []
     for chain in projection.chains:
@@ -357,6 +371,12 @@ def build_review_report(
         "risk": risk,
         "coverage": coverage,
         "top_impacts": visible,
+        "potential_impacts": potential_impacts,
+        "impact_summary": {
+            "confirmed": sum(item.get("impact_tier") == "confirmed" for item in visible),
+            "likely": sum(item.get("impact_tier") == "likely" for item in visible),
+            "possible": len(potential_impacts),
+        },
         "test_recommendations": test_recommendations,
         "test_plan": test_plan,
         "review_projection": projection.to_dict(),

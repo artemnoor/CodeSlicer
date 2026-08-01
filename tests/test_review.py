@@ -90,8 +90,28 @@ def test_default_projection_suppresses_technical_expression_noise(tmp_path: Path
     report = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never")
     ids = {item["entity_id"] for item in report["top_impacts"]}
     assert "call:len" not in ids
-    assert "call:api" in ids
+    assert "call:api" not in ids
+    assert "call:api" in {item["entity_id"] for item in report["potential_impacts"]}
     assert "assignment:tmp" not in ids
+
+
+def test_review_returns_potential_scope_separately_without_changing_primary_output(tmp_path: Path):
+    graph_path = _graph(tmp_path)
+    graph = GraphDocument.from_json(graph_path.read_text())
+    graph.add_node(Node("app/possible.py:dynamic_call", "FUNCTION", "dynamic_call", {"file": "app/possible.py", "line": 4}))
+    graph.add_node(Node("route:rejected", "ROUTE", "POST /rejected", {"file": "app/routes.py", "line": 7, "boundary_category": "api"}))
+    graph.add_edge(Edge("possible-dynamic", "CALLS", "app/service.py:create_order", "app/possible.py:dynamic_call", confidence=.42, evidence=[Evidence("dynamic dispatch", "app/service.py", 3)], properties={"resolution_status": "unresolved"}))
+    graph.add_edge(Edge("rejected-route", "ROUTE_HANDLES", "route:rejected", "app/service.py:create_order", confidence=.2, evidence=[Evidence("rejected route candidate", "app/routes.py", 7)], properties={"status": "rejected"}))
+
+    report = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never")
+
+    assert "app/possible.py:dynamic_call" not in {item["entity_id"] for item in report["top_impacts"]}
+    potential = {item["entity_id"]: item for item in report["potential_impacts"]}
+    assert potential["app/possible.py:dynamic_call"]["impact_tier"] == "possible"
+    assert potential["app/possible.py:dynamic_call"]["confidence"] == "low"
+    assert potential["app/possible.py:dynamic_call"]["reason"] == "unresolved dynamic call"
+    assert "route:rejected" not in potential
+    assert report["impact_summary"]["possible"] == 1
 
 
 def test_dangling_edges_are_reported_and_excluded_from_concise_review(tmp_path: Path):
@@ -408,6 +428,7 @@ def test_negative_max_results_is_empty(tmp_path: Path):
     graph = GraphDocument.from_json(_graph(tmp_path).read_text())
     report = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never", max_results=-1)
     assert report["top_impacts"] == []
+    assert report["potential_impacts"] == []
 
 
 def test_auto_refresh_uses_incremental_reuse_when_snapshot_is_current(tmp_path: Path):

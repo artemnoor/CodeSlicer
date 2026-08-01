@@ -1,7 +1,7 @@
 import { EvidenceLocation, ImpactItem, TestRecommendation } from "../../types";
 import { escapeHtml as esc } from "../state";
 
-export const impactCard = (item: ImpactItem): string => `<button class="result-card impact-card" data-entity="${esc(item.entityId)}" data-file="${esc(item.file)}" data-line="${item.line || ""}"><span class="result-card__kind">${esc(item.kind)}</span><strong>${esc(item.label)}</strong><span class="result-card__reason">${esc(item.reason || item.kind)}</span><small>${esc(item.file || "")}${item.line ? `:${item.line}` : ""} · ${esc(item.confidence)}</small></button>`;
+export const impactCard = (item: ImpactItem, labels: { confirmed: string; likely: string; possible: string; confidenceLow: string; reason: string }): string => {const possible=item.tier==="possible";const tier=possible?labels.possible:item.tier==="likely"?labels.likely:labels.confirmed;return `<button class="result-card impact-card impact-card--${esc(item.tier)}" data-entity="${esc(item.entityId)}" data-file="${esc(item.file)}" data-line="${item.line || ""}"><span class="result-card__kind">${esc(tier)} · ${esc(item.kind)}</span><strong>${esc(item.label)}</strong><span class="result-card__reason">${possible?`${esc(labels.reason)}: `:""}${esc(item.reason || item.kind)}</span><small>${esc(item.file || "")}${item.line ? `:${item.line}` : ""} · ${possible?esc(labels.confidenceLow):esc(item.confidence)}</small></button>`;};
 
 export const evidenceCard = (item: EvidenceLocation): string => `<li><strong>${esc(item.file || "Unknown location")}${item.line ? `:${item.line}` : ""}</strong>${item.text ? `<span>${esc(item.text)}</span>` : ""}${item.provenance ? `<em>${esc(item.provenance)}</em>` : ""}</li>`;
 
