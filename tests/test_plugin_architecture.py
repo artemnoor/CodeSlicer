@@ -40,6 +40,11 @@ def _subprocess_plugin_hook(context, graph):
     return PluginResult(graph=graph)
 
 
+def _metadata_plugin_hook(context, graph):
+    graph.metadata["sandbox_transport"] = "preserved"
+    return PluginResult(graph=graph)
+
+
 def test_pipeline_accepts_registry_diagnostics_as_dicts(tmp_path):
     """Registry diagnostics may come from JSON compatibility manifests."""
     project = tmp_path / "project"
@@ -246,6 +251,26 @@ def test_plugin_hook_is_local_only_and_timeout_is_enforced(tmp_path):
     with pytest.raises(TimeoutError):
         execute_plugin_hook(_sleeping_plugin_hook, context, GraphDocument(), timeout_seconds=0.1)
     assert time.perf_counter() - started < 1.5
+
+
+def test_plugin_sandbox_transfers_large_graph_through_local_cache_without_data_loss(tmp_path):
+    """The spawn control channel stays small even when a graph is sizeable."""
+    graph = GraphDocument(metadata={"large_metadata": "x" * 131072})
+    for index in range(300):
+        graph.add_node(Node(f"node:{index}", "FUNCTION", f"node_{index}"))
+    for index in range(299):
+        graph.add_edge(Edge(
+            f"edge:{index}", "CALLS", f"node:{index}", f"node:{index + 1}",
+            source="EXTRACTED", evidence=[Evidence(description="preserved evidence")],
+        ))
+
+    result = execute_plugin_hook(_metadata_plugin_hook, PluginContext(tmp_path, _inventory()), graph, timeout_seconds=5.0)
+
+    assert result.graph.metadata["large_metadata"] == "x" * 131072
+    assert result.graph.metadata["sandbox_transport"] == "preserved"
+    assert result.graph.to_dict()["edges"] == graph.to_dict()["edges"]
+    transport_root = tmp_path / ".impact_engine" / "plugin-sandbox"
+    assert not transport_root.exists() or not any(transport_root.iterdir())
 
 
 @pytest.mark.parametrize("hook", [_network_plugin_hook, _subprocess_plugin_hook, _outside_write_plugin_hook])

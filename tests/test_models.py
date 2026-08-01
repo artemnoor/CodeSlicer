@@ -156,12 +156,16 @@ def test_inferred_edge_serialization():
 def test_graph_edge_provenance_merge_refreshes_indexes_without_rebuild():
     graph = GraphDocument()
     graph.add_edge(Edge("extracted", "CALLS", "a", "b", source="EXTRACTED", confidence=0.7))
+    assert graph.has_edge_id("extracted")
+    assert not graph.has_edge_id("missing")
     graph.add_edge(Edge("inferred", "CALLS", "a", "b", source="INFERRED", confidence=0.9))
 
     assert len(graph.edges) == 1
     edge = graph.edges[0]
     assert edge.source == "INFERRED"
     assert edge.confidence == 0.9
+    assert graph.has_edge_id("extracted")
+    assert not graph.has_edge_id("inferred")
     assert graph._edge_index.get(edge.semantic_key(True)) is edge
     assert all(key[-1] != "EXTRACTED" for key in graph._edge_index)
     assert graph._incoming_index["b"] == [edge]

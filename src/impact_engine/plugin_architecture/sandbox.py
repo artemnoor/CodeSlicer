@@ -10,6 +10,7 @@ import builtins
 import ctypes
 import importlib.util
 import io
+import json
 import multiprocessing
 import os
 import shutil
@@ -17,6 +18,7 @@ import socket
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -279,14 +281,30 @@ def _plugin_worker(payload: dict[str, Any], connection) -> None:
             tuple(payload.get("selected_plugins", ())),
             timeout_seconds=float(payload.get("timeout_seconds", 30.0)),
         )
-        graph = GraphDocument.from_dict(payload["graph"])
+        # Do not send a complete GraphDocument through multiprocessing's
+        # bootstrap pipe.  On Windows, ``spawn`` serializes that payload before
+        # the child can begin reading it; a production graph can be tens of MB
+        # once evidence and hygiene metadata are attached.  This made a small
+        # hook wait minutes before its own code was reached.  The parent places
+        # the graph in the already-authorized local cache and the child returns
+        # its result there as well.  The control pipe now carries only a small
+        # status envelope.
+        graph_input = Path(payload["graph_input_path"])
+        graph_output = Path(payload["graph_output_path"])
+        graph = GraphDocument.from_json(graph_input.read_text(encoding="utf-8"))
         result = hook(context, graph)
         if not isinstance(result, PluginResult):
             raise TypeError("plugin hook must return PluginResult")
+        output_graph = result.graph or graph
+        output_partial = graph_output.with_suffix(".partial")
+        output_partial.write_text(
+            json.dumps(output_graph.to_dict(), ensure_ascii=False, separators=(",", ":"), sort_keys=True),
+            encoding="utf-8",
+        )
+        output_partial.replace(graph_output)
         response = {
             "ok": True,
             "result": {
-                "graph": (result.graph or graph).to_dict(),
                 "facts": dict(result.facts),
                 "diagnostics": [item.to_dict() for item in result.diagnostics],
                 "provenance": dict(result.provenance),
@@ -321,23 +339,40 @@ def execute_in_process(
     if not module_name or not qualname or "<locals>" in qualname:
         raise TypeError("plugin hooks must be module-level callables")
 
+    project_path = context.project_path.resolve()
+    cache_root = (project_path / ".impact_engine").resolve()
+    transport_root = (cache_root / "plugin-sandbox").resolve()
+    transport_dir = (transport_root / uuid.uuid4().hex).resolve()
+    # The location is generated here, never accepted from a plugin.  Keep the
+    # defensive containment check next to the cleanup below: a timeout must
+    # never turn into a broad delete.
+    if transport_root not in transport_dir.parents:
+        raise RuntimeError("invalid plugin sandbox transport path")
+    transport_dir.mkdir(parents=True, exist_ok=False)
+    graph_input = transport_dir / "graph-input.json"
+    graph_output = transport_dir / "graph-output.json"
+    graph_input.write_text(
+        json.dumps(graph.to_dict(), ensure_ascii=False, separators=(",", ":"), sort_keys=True),
+        encoding="utf-8",
+    )
     multiprocessing_context = multiprocessing.get_context("spawn")
     parent, child = multiprocessing_context.Pipe(duplex=False)
     payload = {
         "module_name": module_name,
         "module_file": module_file,
         "qualname": qualname,
-        "project_path": str(context.project_path),
+        "project_path": str(project_path),
         "inventory": dict(context.inventory),
         "selected_plugins": list(context.selected_plugins),
         "timeout_seconds": timeout_seconds,
-        "graph": graph.to_dict(),
+        "graph_input_path": str(graph_input),
+        "graph_output_path": str(graph_output),
     }
     process = multiprocessing_context.Process(target=_plugin_worker, args=(payload, child))
     started = time.perf_counter()
-    process.start()
-    child.close()
     try:
+        process.start()
+        child.close()
         while True:
             if parent.poll(0.05):
                 message = parent.recv()
@@ -347,8 +382,10 @@ def execute_in_process(
                         raise PluginSandboxViolation(message.get("error", "plugin sandbox violation"), code=code or "sandbox_violation")
                     raise RuntimeError(message.get("error", "plugin hook failed"))
                 data = message["result"]
+                if not graph_output.is_file():
+                    raise RuntimeError("plugin hook completed without a graph result")
                 return PluginResult(
-                    graph=GraphDocument.from_dict(data["graph"]),
+                    graph=GraphDocument.from_json(graph_output.read_text(encoding="utf-8")),
                     facts=data.get("facts", {}),
                     diagnostics=[PluginDiagnostic(**item) for item in data.get("diagnostics", [])],
                     provenance=data.get("provenance", {}),
@@ -362,3 +399,7 @@ def execute_in_process(
             process.terminate()
         process.join(timeout=0.5)
         parent.close()
+        # This directory contains only the generated transport files above and
+        # is strictly inside this workspace's cache.
+        if transport_root in transport_dir.parents and transport_dir.exists():
+            shutil.rmtree(transport_dir, ignore_errors=True)

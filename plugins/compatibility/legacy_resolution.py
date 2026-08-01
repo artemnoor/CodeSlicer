@@ -929,7 +929,14 @@ def apply_support_pack_rules(graph: GraphDocument, packs: list[SupportPack]) -> 
                     description = emit.get("description", "Dependency resolved from support pack")
                     edge_id = f"support_pack::{library}::{rule_id}::{from_node}::{to_node}::{kind}"
 
-                    if any(e.id == edge_id for e in graph.edges):
+                    # ``GraphDocument`` maintains an id index as edges are
+                    # added or merged.  This matcher can inspect thousands of
+                    # nodes against several support-pack rules; scanning every
+                    # existing edge here turned a deterministic duplicate check
+                    # into quadratic work on large projects.  Query the same
+                    # canonical id, just through the maintained index, so the
+                    # emitted evidence and merge behaviour stay unchanged.
+                    if graph.has_edge_id(edge_id):
                         continue
 
                     try:

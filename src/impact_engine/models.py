@@ -270,6 +270,17 @@ class GraphDocument:
         self._incoming_index.setdefault(edge.to_node, []).append(edge)
         self._outgoing_index.setdefault(edge.from_node, []).append(edge)
 
+    def has_edge_id(self, edge_id: str) -> bool:
+        """Return whether a concrete edge id is already present in O(1).
+
+        Support-pack rules commonly emit one deterministic id per matched
+        source fact.  Keeping this lookup on the model lets compatibility
+        adapters avoid re-scanning a growing edge list without relying on
+        private index fields.
+        """
+        self._ensure_indexes()
+        return str(edge_id) in self._edge_id_index
+
     def _rebuild_edge_indexes(self) -> None:
         self._edge_index = {edge.semantic_key(True): edge for edge in self.edges}
         self._edge_base_index = {edge.semantic_key(False): edge for edge in self.edges}
