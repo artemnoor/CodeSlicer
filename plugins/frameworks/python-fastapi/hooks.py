@@ -1,8 +1,36 @@
 """FastAPI pack hooks; loaded only after dependency/import activation."""
-import re
+import ast
 
 from impact_engine.models import Edge, Evidence, Node
 from impact_engine.plugin_architecture.contracts import PluginResult
+
+
+def _depends_provider(default_value: object) -> str | None:
+    """Return the explicit provider from a statically readable ``Depends`` call.
+
+    ``ast.unparse`` keeps optional FastAPI arguments such as ``use_cache``.
+    Parsing the expression instead of splitting its text prevents
+    ``Depends(get_service, use_cache=False)`` from being resolved as a fake
+    symbol named ``"get_service, use_cache=False"``.  Dynamic expressions stay
+    unresolved deliberately: this hook must not manufacture an edge from a
+    name-only guess.
+    """
+    try:
+        expression = ast.parse(str(default_value), mode="eval").body
+    except (SyntaxError, TypeError, ValueError):
+        return None
+    if not isinstance(expression, ast.Call):
+        return None
+    function_name = expression.func.id if isinstance(expression.func, ast.Name) else expression.func.attr if isinstance(expression.func, ast.Attribute) else None
+    if function_name != "Depends":
+        return None
+    provider = expression.args[0] if expression.args else next(
+        (keyword.value for keyword in expression.keywords if keyword.arg == "dependency"),
+        None,
+    )
+    if not isinstance(provider, (ast.Name, ast.Attribute)):
+        return None
+    return ast.unparse(provider)
 
 
 def backend_route_source_composer(context, graph):
@@ -88,7 +116,7 @@ def backend_route_source_composer(context, graph):
 
 def dependency_resolver(context, graph):
     """Resolve Depends defaults without entering the legacy rule dispatcher."""
-    from impact_engine.resolution.engine import build_symbol_index, get_node_location, module_for_scope, resolve_class_name
+    from impact_engine.resolution.engine import build_symbol_index, get_node_location, module_for_scope
 
     index = build_symbol_index(graph)
     existing = {edge.id for edge in graph.edges}
@@ -97,14 +125,19 @@ def dependency_resolver(context, graph):
             continue
         scope = str(node.properties.get("scope") or node.id)
         for key, value in node.properties.items():
-            if not str(key).startswith("param_default:") or "Depends(" not in str(value):
+            if not str(key).startswith("param_default:"):
                 continue
-            match = re.search(r"Depends\(([^)]+)\)", str(value))
-            if not match:
+            provider = _depends_provider(value)
+            if not provider:
                 continue
-            provider = match.group(1).strip()
             current_module = module_for_scope(scope, graph)
-            resolved = resolve_class_name(provider, current_module, index) or f"{current_module}.{provider}"
+            # ``Depends`` receives a callable, not a class.  Use the same
+            # exact import-aware function resolver as ordinary Python calls;
+            # the former class resolver made an imported provider look local
+            # and could create a dangling, misleading edge.
+            resolved = index.resolve_function_name(provider, current_module, scope.rsplit(".", 1)[0])
+            if not resolved:
+                continue
             edge_id = f"plugin_fastapi_depends__{scope}__{resolved}"
             if edge_id in existing:
                 continue

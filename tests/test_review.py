@@ -235,8 +235,28 @@ def test_stale_snapshot_is_not_silently_cleared(tmp_path: Path):
     graph = GraphDocument.from_json(graph_path.read_text())
     report = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never")
     assert report["graph_freshness"]["stale"] is True
+    assert report["risk"]["level"] == "UNKNOWN"
     assert report["risk"]["confidence"] == "low"
+    assert report["risk"]["reason"] == "graph freshness is not verified"
     assert all(item["confidence"] == "low" for item in report["top_impacts"])
+
+
+def test_review_cache_does_not_reuse_a_stale_verdict_after_refresh(tmp_path: Path):
+    graph_path = _graph(tmp_path)
+    snapshot = graph_path.parent / "project.snapshot.json"
+    snapshot.write_text(json.dumps({"app/service.py": "old-hash"}), encoding="utf-8")
+    graph = GraphDocument.from_json(graph_path.read_text())
+    stale = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never")
+    assert stale["graph_freshness"]["stale"] is True
+    assert stale["risk"]["level"] == "UNKNOWN"
+
+    from impact_engine.incremental import project_snapshot, save_snapshot
+
+    save_snapshot(project_snapshot(tmp_path), snapshot)
+    fresh = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never")
+    assert fresh["graph_freshness"]["stale"] is False
+    assert fresh["risk"]["level"] != "UNKNOWN"
+    assert "graph is stale; high-confidence claims are suppressed" not in fresh["warnings"]
 
 
 def test_diff_base_failure_falls_back_to_working_tree(monkeypatch, tmp_path: Path):

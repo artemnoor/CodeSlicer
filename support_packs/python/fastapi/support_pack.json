@@ -17,8 +17,8 @@
   "coverage_limitations": [
     "Supports decorator_entrypoint for @app and @router HTTP methods",
     "Composes APIRouter prefixes and include_router prefix calls",
-    "Resolves Depends parameters to their provider functions",
-    "Does not resolve dynamic prefix composition or router factories"
+    "Resolves statically named Depends parameters, including the explicit use_cache option, to their provider functions",
+    "Does not resolve dynamic prefix composition, router factories, or dynamic dependency expressions"
   ],
   "examples": [
     {

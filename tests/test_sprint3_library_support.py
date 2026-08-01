@@ -65,6 +65,35 @@ def test_library_support_packs_emit_provenance_and_cross_library_edges(tmp_path:
     assert not any(edge.get("to") == "external:celery.task:api.missing" for edge in edges)
 
 
+def test_fastapi_depends_options_resolve_only_the_static_provider(tmp_path: Path):
+    (tmp_path / "dependencies.py").write_text(
+        "def get_service():\n    return object()\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "api.py").write_text(
+        """
+from fastapi import Depends, FastAPI
+from dependencies import get_service
+
+app = FastAPI()
+
+@app.get('/orders')
+def list_orders(service = Depends(get_service, use_cache=False)):
+    return service
+""",
+        encoding="utf-8",
+    )
+    result = analyze_project_core(str(tmp_path))
+    edges = result["graph"]["edges"]
+    depends_edge = next(
+        edge for edge in edges
+        if edge.get("properties", {}).get("support_pack_rule_id") == "fastapi-depends-resolver-rule"
+    )
+    assert depends_edge["from"] == "api.list_orders"
+    assert depends_edge["to"] == "dependencies.get_service"
+    assert "use_cache" not in depends_edge["to"]
+
+
 def test_draft_library_pack_does_not_participate_in_normal_analysis(tmp_path: Path):
     _write_library_fixture(tmp_path)
     draft = {

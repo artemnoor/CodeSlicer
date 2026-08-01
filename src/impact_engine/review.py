@@ -127,6 +127,17 @@ def build_review_report(
         "mode": "review",
         "mode_contract_version": MODE_CONTRACT_VERSION,
         "graph_fingerprint": graph_key,
+        # Freshness changes the safety verdict itself (a stale graph is
+        # UNKNOWN, not LOW/HIGH).  Reusing a projection computed under a
+        # different freshness state and replacing only the envelope produced
+        # self-contradictory reports: ``fresh`` metadata with stale warnings
+        # and UNKNOWN risk, or the reverse.  Keep the fast cache, but make
+        # freshness part of its semantic identity.
+        "freshness_state": {
+            "status": freshness.get("status"),
+            "stale": bool(freshness.get("stale")),
+            "verified": freshness.get("verified"),
+        },
         "diff_fingerprint": hashlib.sha256(diff.encode("utf-8")).hexdigest(),
         "scope": scope or ".",
         "ranking_policy_version": DEFAULT_RANKING_POLICY.version,
@@ -246,7 +257,12 @@ def build_review_report(
     risk["confidence"] = "low" if freshness.get("stale") else risk.get("confidence", "medium")
     if freshness.get("stale"):
         risk["reasons"].append("graph is stale; high-confidence claims are suppressed")
-        risk["score"] = max(0, int(risk["score"]) - 1)
+        # A graph that is known not to represent the reviewed source cannot
+        # support a safety verdict.  Lowering a numeric score still left a
+        # prominent LOW headline, which reads as an approval in a PR flow.
+        # Preserve evidence for investigation, but require a refresh before a
+        # risk level can be asserted.
+        risk.update({"level": "UNKNOWN", "confidence": "low", "reason": "graph freshness is not verified"})
     warnings.extend(_coverage_warnings(coverage))
     incomplete_coverage = any(
         item["status"] in {"unsupported", "limited"}
