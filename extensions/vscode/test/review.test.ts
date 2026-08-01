@@ -6,6 +6,7 @@ import { parseReviewJson } from "../src/review";
 import { INITIAL_STATE } from "../src/types";
 import { renderCockpit } from "../src/webview";
 import { clientRouter } from "../src/webview/router";
+import { riskTone } from "../src/webview/state";
 
 const payload = JSON.stringify({ status: "ok", risk: { level: "HIGH", confidence: "high", reasons: ["route crosses service boundary"] }, top_impacts: [{ entity_id: "app/service.py:create_order", label: "create_order", kind: "FUNCTION", confidence: "high", file: "app/service.py", line: 3, why: { evidence_locations: [{ file: "app/service.py", line: 3, text: "service calls repository", provenance: "python_ast" }] } }], chains: [], test_recommendations: [], review_projection: { tests: [{ file: "tests/test_orders.py", symbol: "tests/test_orders.py:test_create_order", category: "symbol_call", confidence: "high", reason: "test covers service", command: ["py", "-3", "-m", "pytest", "tests/test_orders.py"] }] }, warnings: [], coverage: [] });
 
@@ -14,6 +15,17 @@ test("parses compatible ReviewReport fields and uses projection tests without ex
   assert.equal(review.riskLevel, "HIGH");
   assert.equal(review.impacts[0].evidence[0].provenance, "python_ast");
   assert.equal(review.tests[0].file, "tests/test_orders.py");
+});
+
+test("marks limited-coverage test recommendations as advisory", () => {
+  const advisory = parseReviewJson(JSON.stringify({ status: "ok", risk: { level: "UNKNOWN", confidence: "low", reasons: [] }, top_impacts: [], chains: [], test_recommendations: [{ file: "tests/test_orders.py", symbol: "test_create_order", category: "symbol_call", confidence: "confirmed", reason: "confirmed path", advisory: true, safety: "advisory_limited_coverage" }], warnings: [], coverage: [] }));
+  assert.equal(advisory.tests[0].advisory, true);
+  assert.equal(advisory.tests[0].safety, "advisory_limited_coverage");
+});
+
+test("does not present unknown risk as a safe green result", () => {
+  assert.equal(riskTone("UNKNOWN"), "neutral");
+  assert.equal(riskTone("LOW"), "good");
 });
 
 test("cockpit separates review, results, tests, technologies, history, architecture, and Git", () => {
@@ -74,11 +86,13 @@ test("router changes real screens and routes only explicit actions to VS Code", 
   const get = (id: string) => { if (!elements.has(id)) elements.set(id, makeElement()); return elements.get(id); };
   const tabs = ["start", "review", "results", "tests", "architecture", "git", "guides", "tech", "history", "settings"].map(tab => ({ ...makeElement(), dataset: { tab } }));
   const documentStub: any = { getElementById: get, querySelectorAll: (selector: string) => selector === "[role=tab]" ? tabs : [], querySelector: (selector: string) => { const match = selector.match(/\[data-tab="([^"]+)"\]/u); return match ? tabs.find(tab => tab.dataset.tab === match[1]) : undefined; }, addEventListener: (type: string, listener: (event: any) => void) => { listeners[type] = listener; } };
-  new Function("document", "acquireVsCodeApi", clientRouter)(documentStub, () => ({ getState: () => undefined, setState() {}, postMessage: (message: unknown) => messages.push(message) }));
+  new Function("document", "acquireVsCodeApi", "window", clientRouter)(documentStub, () => ({ getState: () => undefined, setState() {}, postMessage: (message: unknown) => messages.push(message) }), { addEventListener: (type: string, listener: (event: any) => void) => { listeners[type] = listener; } });
   const click = (dataset: Record<string, string>) => listeners.click({ target: { dataset, closest() { return this; } } });
   assert.equal(tabs[0].attributes["aria-selected"], "true");
   click({ tab: "architecture" });
   assert.equal(tabs[4].attributes["aria-selected"], "true");
+  listeners.message({ data: { type: "openTab", tab: "results" } });
+  assert.equal(tabs[2].attributes["aria-selected"], "true");
   click({ action: "showGraph" });
   assert.deepEqual(messages, [{ type: "action", action: "showGraph", guide: undefined }]);
   click({ demoStart: "" });

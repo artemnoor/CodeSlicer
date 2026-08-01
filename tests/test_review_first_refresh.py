@@ -7,7 +7,7 @@ from impact_engine.review import build_review_report
 
 
 def _git(project: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=project, check=True, capture_output=True, text=True)
+    subprocess.run(["git", *args], cwd=project, check=True, capture_output=True, text=True, timeout=30)
 
 
 def test_first_auto_review_persists_graph_and_snapshot(tmp_path: Path) -> None:

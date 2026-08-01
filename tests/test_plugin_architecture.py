@@ -18,8 +18,11 @@ import os
 import socket
 import shutil
 import subprocess
+import sys
 import threading
 import time
+
+from impact_engine.plugin_architecture.sandbox import _runtime_read_roots
 
 
 def _sleeping_plugin_hook(context, graph):
@@ -299,6 +302,30 @@ def test_pipeline_has_no_direct_compatibility_bridge_dependency():
     source = inspect.getsource(pipeline)
     assert "frontend_backend_bridge" not in source
     assert "compatibility_bridge" not in source
+
+
+def test_plugin_sandbox_allows_only_the_trusted_pyinstaller_runtime_root(tmp_path, monkeypatch):
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    monkeypatch.setattr(sys, "_MEIPASS", str(runtime_root), raising=False)
+    assert runtime_root.resolve() in _runtime_read_roots(None)
+
+
+def test_plugin_sandbox_keeps_the_application_package_root_readable():
+    from impact_engine.plugin_architecture import sandbox
+
+    assert Path(sandbox.__file__).resolve().parents[2] in _runtime_read_roots(None)
+
+
+def test_plugin_sandbox_keeps_the_active_runtime_directory_readable():
+    assert Path(sys.executable).resolve().parent in _runtime_read_roots(None)
+
+
+def test_plugin_sandbox_allows_the_bundle_root_of_a_selected_plugin_hook(tmp_path):
+    hook = tmp_path / "bundle" / "plugins" / "frameworks" / "react" / "hooks.py"
+    hook.parent.mkdir(parents=True)
+    hook.write_text("# fixture", encoding="utf-8")
+    assert (tmp_path / "bundle").resolve() in _runtime_read_roots(hook)
 
 
 def test_ambiguous_backend_routes_are_not_composed_as_confirmed_impact(tmp_path):

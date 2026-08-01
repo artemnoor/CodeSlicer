@@ -269,10 +269,32 @@ def build_review_report(
     if freshness.get("status") == "externally_supplied_unverified":
         risk["confidence"] = "low"
         risk.setdefault("reasons", []).append("external graph is not verified against the current branch")
-    test_recommendations = [] if run_tests == "none" or incomplete_coverage else [item.to_dict() for item in projection.tests]
+    test_recommendations = [] if run_tests == "none" else [item.to_dict() for item in projection.tests]
+    if incomplete_coverage:
+        # Do not turn limited-language evidence into a normal recommendation.
+        # A source-confirmed test remains useful as an explicit *advisory*: it
+        # gives the developer a concrete verification path while the report
+        # still keeps its UNKNOWN risk and withholds cross-file conclusions.
+        test_recommendations = [
+            {
+                **item,
+                "advisory": True,
+                "safety": "advisory_limited_coverage",
+                "reason": f"{item.get('reason', 'source-confirmed targeted test')} (advisory: changed language coverage is limited)",
+            }
+            for item in test_recommendations
+            # These are not fallback guesses: every selected item has a
+            # concrete graph evidence path.  Limited TypeScript coverage may
+            # still make that path "likely", so retain it only as an explicit
+            # advisory rather than silently giving the developer no next step.
+            if item.get("fallback_status") == "primary" and item.get("evidence_ids")
+        ]
     test_plan = _test_plan(test_recommendations, root, changed_symbols, visible)
     if incomplete_coverage and projection.tests:
-        warnings.append("targeted tests withheld; backend language coverage is incomplete")
+        if test_recommendations:
+            warnings.append("targeted tests are advisory because changed language coverage is incomplete")
+        else:
+            warnings.append("no source-confirmed targeted test is available because changed language coverage is incomplete")
     if suppressed:
         warnings.append(f"{suppressed} low-value entities suppressed (assignments, built-ins, libraries, or generated files)")
     warnings.extend(projection.warnings)
@@ -363,7 +385,13 @@ def _test_plan(recommendations: list[dict[str, Any]], root: Path, changed_symbol
             "runner": Path(argv[0]).name if argv else None,
             "reason": recommendation.get("reason") or "Suggested from local evidence",
             "confidence": recommendation.get("confidence", "unknown"),
-            "safety": "confirmation_required" if argv else "not_runnable_without_manual_command",
+            "safety": (
+                "advisory_confirmation_required" if recommendation.get("advisory") and argv
+                else "advisory_not_runnable_without_manual_command" if recommendation.get("advisory")
+                else "confirmation_required" if argv
+                else "not_runnable_without_manual_command"
+            ),
+            "advisory": bool(recommendation.get("advisory")),
             "covered_entities": [recommendation.get("symbol")] if recommendation.get("symbol") else [],
             "uncovered_entities": uncovered,
             "file": recommendation.get("file"),

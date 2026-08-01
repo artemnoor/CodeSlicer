@@ -652,6 +652,10 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         await this.context.workspaceState.update("codeslicer.reviewHistory", history);
       });
       this.render();
+      // A completed review is the moment the user needs the answer, not the
+      // start screen again. The webview owns its selected tab, so switch after
+      // the HTML is rebuilt rather than coupling navigation to analysis.
+      setTimeout(() => void this.view?.webview.postMessage({ type: "openTab", tab: "results" }), 0);
     } catch (error) {
       this.state = withReview(this.state, { ...INITIAL_STATE.review, status: "error", warnings: [String(error)] });
       this.render();

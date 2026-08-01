@@ -6,6 +6,7 @@ unique value all the way through the FastAPI handler and repository call.
 """
 
 from pathlib import Path
+import shutil
 
 from impact_engine.analysis.pipeline import analyze_project_core
 
@@ -16,8 +17,14 @@ HANDLER = "backend.app.api.shop.create_order"
 REPOSITORY_SAVE = "backend.app.repositories.orders.OrderRepository.save"
 
 
-def test_unique_order_value_reaches_fastapi_handler_and_repository_e2e():
-    graph = analyze_project_core(str(FIXTURE))["graph"]
+def _fresh_fixture(tmp_path: Path) -> Path:
+    target = tmp_path / "fullstack"
+    shutil.copytree(FIXTURE, target, ignore=shutil.ignore_patterns(".impact_engine", "__pycache__"))
+    return target
+
+
+def test_unique_order_value_reaches_fastapi_handler_and_repository_e2e(tmp_path):
+    graph = analyze_project_core(str(_fresh_fixture(tmp_path)))["graph"]
     edges = graph["edges"]
 
     frontend_to_handler = next(

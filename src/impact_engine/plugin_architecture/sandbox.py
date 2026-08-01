@@ -229,9 +229,31 @@ def _load_hook(module_name: str, module_file: str | None, qualname: str):
 
 
 def _runtime_read_roots(module_file: Path | None) -> tuple[Path, ...]:
-    roots: set[Path] = {Path(__file__).resolve().parents[3]}
+    sandbox_path = Path(__file__).resolve()
+    # Source checkouts use the repository root (parents[3]); one-file
+    # PyInstaller uses its extraction directory (parents[2]). Both are
+    # application-owned, read-only runtime roots, never workspace roots.
+    roots: set[Path] = {sandbox_path.parents[2], sandbox_path.parents[3]}
+    executable_path = Path(sys.executable).resolve()
+    if executable_path.exists():
+        roots.add(executable_path.parent)
+    # One-file PyInstaller executables unpack trusted application data into
+    # ``sys._MEIPASS``. Framework hooks and bundled packs live there, not next
+    # to the temporary parent directory inferred from ``__file__``. Treat this
+    # as a read-only runtime root; project writes remain restricted to cache.
+    bundled_root = getattr(sys, "_MEIPASS", None)
+    if bundled_root:
+        roots.add(Path(str(bundled_root)).resolve())
     if module_file:
         roots.add(module_file.parent)
+        # Manifest hooks are packaged below ``plugins/``.  Their trusted
+        # runtime root also contains the sibling ``impact_engine`` package
+        # they import.  This is needed in PyInstaller's spawned child, where
+        # ``_MEIPASS`` is not guaranteed to appear in ``sys.path``.
+        for parent in module_file.parents:
+            if parent.name == "plugins":
+                roots.add(parent.parent)
+                break
     for item in sys.path:
         if item:
             candidate = Path(item)

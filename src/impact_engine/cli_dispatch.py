@@ -597,7 +597,10 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
         def report_progress(event):
             stream = sys.stderr if args.json or args.progress == "jsonl" else sys.stdout
             if args.progress == "jsonl":
-                print(json.dumps({"type": "progress", **event}, ensure_ascii=False), file=stream, flush=True)
+                # JSONL is a machine protocol consumed through pipes by the
+                # VS Code extension.  Escaping keeps it byte-stable on Windows
+                # consoles that otherwise use a legacy code page.
+                print(json.dumps({"type": "progress", **event}, ensure_ascii=True), file=stream, flush=True)
             else:
                 print(
                     f"[{event['overall_percent']:>5.1f}%] {event['message']} "

@@ -98,8 +98,8 @@ def _legacy_collect_frontend_source_facts(graph: GraphDocument) -> dict[str, Any
             module_fact["functions"].append(function)
             if function.get("calls"):
                 frontend_functions.append(function)
-            _classify_frontend_function(function, module, import_map, path, components, hooks, tests)
-        _append_file_level_frontend_test_fact(path, module, import_map, text, tests)
+            _classify_frontend_function(function, module, import_map, path, root, components, hooks, tests)
+        _append_file_level_frontend_test_fact(path, root, module, import_map, text, tests)
         modules.append(module_fact)
 
     if not modules:
@@ -603,6 +603,12 @@ def _add_endpoint_edge(graph: GraphDocument, edge_data: dict[str, Any]) -> bool:
 
 def _add_frontend_relation_edges(graph: GraphDocument, input_data: dict[str, Any]) -> int:
     added = 0
+    source_files = {
+        str(item.get("id")): str(item.get("file"))
+        for group in ("components", "hooks", "tests")
+        for item in input_data.get(group, []) or []
+        if item.get("id") and item.get("file")
+    }
     for edge_data in _frontend_relation_edge_facts(input_data):
         source = edge_data["from"]
         target = edge_data["to"]
@@ -610,8 +616,8 @@ def _add_frontend_relation_edges(graph: GraphDocument, input_data: dict[str, Any
         edge_id = f"frontend_semantic_relation__{kind}__{source}__{target}"
         if any(edge.id == edge_id for edge in graph.edges):
             continue
-        _ensure_frontend_symbol_node(graph, source)
-        _ensure_frontend_symbol_node(graph, target)
+        _ensure_frontend_symbol_node(graph, source, source_file=source_files.get(source))
+        _ensure_frontend_symbol_node(graph, target, source_file=source_files.get(target))
         graph.add_edge(
             Edge(
                 id=edge_id,
@@ -633,7 +639,7 @@ def _add_frontend_relation_edges(graph: GraphDocument, input_data: dict[str, Any
             short_source = source.rsplit(".", 1)[-1]
             short_id = f"frontend_semantic_relation__{kind}__{short_source}__{target}"
             if not any(edge.id == short_id for edge in graph.edges):
-                _ensure_frontend_symbol_node(graph, short_source)
+                _ensure_frontend_symbol_node(graph, short_source, source_file=source_files.get(source))
                 graph.add_edge(Edge(
                     id=short_id,
                     kind=kind,
@@ -648,8 +654,11 @@ def _add_frontend_relation_edges(graph: GraphDocument, input_data: dict[str, Any
     return added
 
 
-def _ensure_frontend_symbol_node(graph: GraphDocument, symbol_id: str) -> None:
-    if any(node.id == symbol_id for node in graph.nodes):
+def _ensure_frontend_symbol_node(graph: GraphDocument, symbol_id: str, *, source_file: str | None = None) -> None:
+    existing = next((node for node in graph.nodes if node.id == symbol_id), None)
+    if existing is not None:
+        if source_file and not existing.properties.get("file"):
+            existing.properties["file"] = source_file
         return
     kind = "TEST" if ".test" in symbol_id or ".__tests__." in symbol_id else "FUNCTION"
     semantic_role = "function"
@@ -659,7 +668,10 @@ def _ensure_frontend_symbol_node(graph: GraphDocument, symbol_id: str) -> None:
         semantic_role = "component"
     if kind == "TEST":
         semantic_role = "test"
-    graph.add_node(Node(id=symbol_id, name=symbol_id.rsplit(".", 1)[-1], kind=kind, properties={"frontend_semantic": True, "frontend_role": semantic_role}))
+    properties = {"frontend_semantic": True, "frontend_role": semantic_role}
+    if source_file:
+        properties["file"] = source_file
+    graph.add_node(Node(id=symbol_id, name=symbol_id.rsplit(".", 1)[-1], kind=kind, properties=properties))
 
 
 def _frontend_relation_edge_facts(input_data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1106,6 +1118,7 @@ def _classify_frontend_function(
     module: str,
     import_map: dict[str, str],
     path: Path,
+    root: Path,
     components: list[dict[str, Any]],
     hooks: list[dict[str, Any]],
     tests: list[dict[str, Any]],
@@ -1134,7 +1147,7 @@ def _classify_frontend_function(
                 exposes[callee.rsplit(".", 1)[-1]] = _resolve_barrel_target(target, import_map)
             elif callee and not _is_builtin_frontend_call(callee):
                 exposes[callee.rsplit(".", 1)[-1]] = f"{module}.{callee}"
-        hooks.append({"id": function_id, "name": name, "module": module, "exposes": exposes})
+        hooks.append({"id": function_id, "name": name, "module": module, "file": path.relative_to(root).as_posix(), "exposes": exposes})
 
     if name and name[0].isupper():
         used_hooks: list[str] = []
@@ -1143,7 +1156,7 @@ def _classify_frontend_function(
             if callee.startswith("use") and len(callee) > 3 and callee[3].isupper():
                 used_hooks.append(_resolve_barrel_target(import_map.get(callee, f"{module}.{callee}"), import_map))
         if used_hooks:
-            components.append({"id": function_id, "name": name, "module": module, "uses_hooks": used_hooks})
+            components.append({"id": function_id, "name": name, "module": module, "file": path.relative_to(root).as_posix(), "uses_hooks": used_hooks})
 
     if is_test_file or name.lower().startswith(("test", "it", "should")):
         targets: list[str] = []
@@ -1154,11 +1167,12 @@ def _classify_frontend_function(
             if target:
                 targets.append(_resolve_barrel_target(target, import_map))
         if targets:
-            tests.append({"id": function_id, "name": name, "module": module, "targets": sorted(set(targets))})
+            tests.append({"id": function_id, "name": name, "module": module, "file": path.relative_to(root).as_posix(), "targets": sorted(set(targets))})
 
 
 def _append_file_level_frontend_test_fact(
     path: Path,
+    root: Path,
     module: str,
     import_map: dict[str, str],
     text: str,
@@ -1176,7 +1190,7 @@ def _append_file_level_frontend_test_fact(
         if local[:1].isupper() or local.startswith("use"):
             targets.add(_resolve_barrel_target(target, import_map))
     if targets:
-        tests.append({"id": f"{module}.__file__", "name": path.stem, "module": module, "targets": sorted(targets)})
+        tests.append({"id": f"{module}.__file__", "name": path.stem, "module": module, "file": path.relative_to(root).as_posix(), "targets": sorted(targets)})
 
 
 def _resolve_barrel_target(target: str, import_map: dict[str, str]) -> str:

@@ -6,6 +6,7 @@ import shutil
 from impact_engine.analysis.pipeline import analyze_project_core
 from impact_engine.impact import impact_query
 from impact_engine.models import GraphDocument
+from impact_engine.review import build_review_report
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "next_react_fastapi_fullstack"
@@ -17,8 +18,10 @@ def _fresh_fixture(tmp_path: Path) -> Path:
     return target
 
 
-def test_next_react_fastapi_endpoint_change_reaches_client_hook_component_and_test():
-    result = analyze_project_core(str(FIXTURE))
+def test_next_react_fastapi_endpoint_change_reaches_client_hook_component_and_test(tmp_path):
+    # A repository fixture may retain a graph from an earlier test run.  This
+    # regression must prove the cold pipeline itself creates the bridge.
+    result = analyze_project_core(str(_fresh_fixture(tmp_path)))
     graph = GraphDocument.from_dict(result["graph"])
 
     assert result["diagnostics"]["frontend_backend_endpoint_bridge_status"] == "applied"
@@ -70,3 +73,28 @@ def test_typescript_local_import_edges_are_exact_and_not_name_only(tmp_path):
         and edge.properties.get("evidence_class") == "explicit_local_import"
         for edge in graph.edges
     ), [(edge.from_node, edge.to_node) for edge in graph.edges if edge.properties.get("provider") == "typescript_local_import_resolver"]
+
+
+def test_limited_typescript_review_keeps_unknown_risk_but_returns_source_backed_advisory_test(tmp_path):
+    root = _fresh_fixture(tmp_path)
+    graph = GraphDocument.from_dict(analyze_project_core(str(root))["graph"])
+    diff_text = """diff --git a/frontend/src/api/orders.ts b/frontend/src/api/orders.ts
+--- a/frontend/src/api/orders.ts
++++ b/frontend/src/api/orders.ts
+@@ -5,0 +6 @@ export function createOrder(payload: unknown) {
++  // changed request handling
+"""
+
+    report = build_review_report(
+        str(root), graph=graph, diff_text=diff_text, diff_source="fixture",
+        refresh="never", run_tests="suggested",
+    )
+
+    assert report["risk"]["level"] == "UNKNOWN"
+    assert report["chains"] == []
+    assert report["test_recommendations"]
+    recommendation = report["test_recommendations"][0]
+    assert recommendation["advisory"] is True
+    assert recommendation["file"] == "frontend/src/__tests__/orderFlow.test.tsx"
+    assert recommendation["evidence_ids"]
+    assert report["test_plan"][0]["safety"] == "advisory_not_runnable_without_manual_command"
