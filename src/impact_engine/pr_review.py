@@ -89,6 +89,10 @@ def pr_review_core(
         "changed_files": [item.to_dict() for item in changed_files],
         "changed_symbols": changed_symbols,
         "risk": concise.get("risk", {}),
+        # Keep the same semantic-diff conclusion as `review`.  Consumers can
+        # now distinguish documentation-only changes from runtime changes
+        # without reverse-engineering warnings or test recommendations.
+        "semantic_diff": concise.get("semantic_diff", {}),
         "suggested_tests": tests,
         "top_impacts": visible,
         "test_recommendations": recommendations,

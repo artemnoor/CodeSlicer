@@ -58,7 +58,15 @@ class SymbolIndex:
         if not target_module:
             return None
         candidate = f"{target_module}.{member}"
-        return candidate if candidate in self.methods or candidate in self.functions_by_name.get(member, []) else None
+        if candidate in self.methods or candidate in self.functions_by_name.get(member, []):
+            return candidate
+        # A project may be analysed from one directory above its import root
+        # (for example `backend.app` importing `app.crud`).  Resolve that only
+        # when one workspace declaration has the exact suffix.  This is proof
+        # from the explicit import, not a same-name fallback across the graph.
+        suffix = f".{candidate}"
+        matches = [item for item in self.methods if item.endswith(suffix)]
+        return matches[0] if len(matches) == 1 else None
 
     def resolve_method_target(self, class_name: str, method_name: str) -> Optional[str]:
         direct = f"{class_name}.{method_name}"

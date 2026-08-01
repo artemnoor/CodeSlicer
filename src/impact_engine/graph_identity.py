@@ -34,10 +34,40 @@ def annotate_stable_identities(graph, project_root: str):
             "signature": node.properties.get("signature") or node.properties.get("param_order"),
             "location": {"file": str(file_path), "line": node.properties.get("line")},
         }
+    # Normalization deliberately materializes unresolved endpoints as
+    # EXTERNAL_LIBRARY nodes so every edge has a valid endpoint.  Once a
+    # matching workspace declaration is present, that placeholder is not an
+    # external library at all: it is a legacy alias for a local symbol.  Keep
+    # it suppressed in concise views, but label it accurately for identity,
+    # ranking and test-linking consumers.
+    node_by_id = {node.id: node for node in graph.nodes}
+    declarations_by_scope: dict[str, list] = {}
+    for node in graph.nodes:
+        if node.kind in {"EXTERNAL_LIBRARY", "CANONICAL_ALIAS"}:
+            continue
+        scope = str(node.properties.get("scope") or "")
+        if scope:
+            declarations_by_scope.setdefault(scope, []).append(node)
+    local_aliases = 0
+    for node in graph.nodes:
+        canonical = node_by_id.get(str(node.properties.get("canonical_alias_of") or ""))
+        if node.kind == "EXTERNAL_LIBRARY" and (node.properties.get("unresolved_endpoint") or node.properties.get("unresolved")):
+            candidates = declarations_by_scope.get(node.id, [])
+            if len(candidates) != 1:
+                continue
+            canonical = candidates[0]
+            node.kind = "CANONICAL_ALIAS"
+            node.properties["canonical_alias_of"] = canonical.id
+        if node.kind != "CANONICAL_ALIAS" or canonical is None:
+            continue
+        node.properties["canonical_identity"]["origin"] = "workspace_alias"
+        node.properties["canonical_identity"]["canonical_entity_id"] = canonical.id
+        local_aliases += 1
     graph.metadata["identity"] = {
         "strategy": "path_qualified_sha1",
         "backward_compatible_node_ids": True,
         "annotated_nodes": len(graph.nodes),
+        "workspace_aliases": local_aliases,
     }
     return graph
 

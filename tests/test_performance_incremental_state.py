@@ -126,6 +126,20 @@ def test_warm_cache_invalidates_when_plugin_registry_changes(tmp_path: Path, mon
     assert "persistent_cache" not in rebuilt["extractors_used"]
 
 
+def test_warm_cache_invalidates_when_semantic_pipeline_changes(tmp_path: Path, monkeypatch):
+    (tmp_path / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+    analyze_project_core(str(tmp_path), scope=".")
+    original = CacheMetadata.from_project
+
+    def newer_pipeline(*args, **kwargs):
+        return replace(original(*args, **kwargs), analysis_pipeline_version="semantic-evidence.next")
+
+    monkeypatch.setattr("impact_engine.analysis.pipeline.CacheMetadata.from_project", newer_pipeline)
+    rebuilt = analyze_project_core(str(tmp_path), scope=".")
+
+    assert "persistent_cache" not in rebuilt["extractors_used"]
+
+
 def test_graph_quality_orphans_are_computed_from_one_edge_index():
     """Large graphs must not perform a nodes-times-edges orphan scan."""
     graph = GraphDocument(

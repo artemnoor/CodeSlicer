@@ -155,11 +155,15 @@ def _canonicalize_scope_endpoints(graph: GraphDocument) -> None:
     node_by_id = {node.id: node for node in graph.nodes}
     aliases: dict[str, str] = {}
     for node in graph.nodes:
-        for key in ("scope", "qualified_name", "canonical_name"):
-            value = node.properties.get(key)
-            if value and str(value) not in aliases:
-                aliases[str(value)] = node.id
-        if node.name and node.name not in aliases:
+        if node.kind not in {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "CANONICAL_ALIAS", "SUPPORT_PACK"}:
+            for key in ("scope", "qualified_name", "canonical_name"):
+                value = node.properties.get(key)
+                if value and str(value) not in aliases:
+                    aliases[str(value)] = node.id
+        # An unresolved external placeholder may happen to have the same
+        # display name as a later workspace declaration.  It must never win
+        # the alias index over that declaration.
+        if node.kind != "EXTERNAL_LIBRARY" and node.name and node.name not in aliases:
             aliases[node.name] = node.id
     changed = 0
     for edge in graph.edges:
@@ -195,8 +199,25 @@ def _canonicalize_scope_endpoints(graph: GraphDocument) -> None:
                         node_ids.add(endpoint_name)
                         node_by_id[endpoint_name] = graph.get_node(endpoint_name)
                         changed += 1
+    # Earlier normalization passes may already have materialized a scope name
+    # as EXTERNAL_LIBRARY.  If that name is now proven to be one local
+    # declaration, retain it as a compatibility endpoint but do not mislabel a
+    # workspace symbol as an external dependency.
+    aliases_reclassified = 0
+    for node in graph.nodes:
+        if node.kind != "EXTERNAL_LIBRARY" or not (node.properties.get("unresolved_endpoint") or node.properties.get("unresolved")):
+            continue
+        target_id = aliases.get(node.id)
+        target = node_by_id.get(target_id) if target_id else None
+        if target is None or target.id == node.id:
+            continue
+        node.kind = "CANONICAL_ALIAS"
+        node.properties["canonical_alias_of"] = target.id
+        node.properties["scope"] = node.properties.get("scope") or str(target.properties.get("scope") or node.id)
+        aliases_reclassified += 1
     graph._rebuild_edge_indexes()
     graph.metadata["canonicalized_endpoint_rewrites"] = changed
+    graph.metadata["canonicalized_workspace_aliases"] = aliases_reclassified
 
 
 def merge_graph_documents(graphs: list[GraphDocument], source_labels: list[str] | None = None) -> GraphDocument:

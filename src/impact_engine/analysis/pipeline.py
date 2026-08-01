@@ -512,6 +512,13 @@ class AnalysisPipeline:
         )
         if metadata.get("plugin_registry_fingerprint") != current_metadata.plugin_registry_fingerprint:
             return None
+        # The fast path intentionally avoids a full plugin scan, but it must
+        # still reject a graph made by a different semantic pipeline or runtime.
+        # Without this check an upgraded CodeSlicer executable can silently
+        # serve pre-upgrade resolver results until a source file changes.
+        for key in ("engine_version", "analysis_pipeline_version", "runtime_dependency_version", "graph_schema_version"):
+            if metadata.get(key) != getattr(current_metadata, key):
+                return None
         facts_payload = loaded.artifacts.get("facts.json", {})
         facts_reused = len(facts_payload.get("facts", [])) if isinstance(facts_payload, dict) else 0
         self.profiler.add_work(files_seen=len(snapshot), files_reused=len(snapshot), facts_reused=facts_reused)

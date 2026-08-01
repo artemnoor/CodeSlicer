@@ -36,7 +36,10 @@ from impact_engine.scope import iter_project_files
 # graph. v5 records a registry fingerprint, so a warm cache can validate packs
 # without rebuilding the whole project's inventory.
 CACHE_SCHEMA_VERSION = "impact-engine.cache.v7"
-PIPELINE_VERSION = "performance-incremental.v2"
+# Bump this whenever semantic interpretation changes while the on-disk graph
+# schema remains compatible.  Otherwise a new CodeSlicer binary can present a
+# stale graph from an earlier resolver as if it were freshly analysed.
+PIPELINE_VERSION = "semantic-evidence.v3"
 MARKER_NAME = ".cache.complete"
 JOURNAL_NAME = ".cache.journal.json"
 LOCK_NAME = ".analysis.lock"

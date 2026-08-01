@@ -9,7 +9,7 @@ from pathlib import PurePosixPath
 from typing import Any
 
 
-DEFAULT_SUPPRESSED_KINDS = {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "SUPPORT_PACK", "LIBRARY"}
+DEFAULT_SUPPRESSED_KINDS = {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "CANONICAL_ALIAS", "SUPPORT_PACK", "LIBRARY"}
 BUILTIN_NAMES = {"len", "str", "int", "float", "bool", "dict", "list", "set", "tuple", "print", "range", "fetch"}
 
 
@@ -50,6 +50,8 @@ def suppression_reason(node: Any, *, allow_boundary: bool = False) -> str | None
         return "support-pack implementation"
     if properties.get("unresolved_endpoint") or properties.get("resolution_status") in {"unresolved", "ambiguous"}:
         return "unresolved or ambiguous endpoint"
+    if properties.get("canonical_alias_of") or properties.get("compatibility_alias_for"):
+        return "canonical compatibility alias"
     return None
 
 

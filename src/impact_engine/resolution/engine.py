@@ -247,12 +247,18 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
         # Resolve local/imported top-level functions only through exact symbols.
         # There is deliberately no method-name similarity fallback.
         for call in calls:
-            if call.properties.get("receiver") or call.properties.get("method_name"):
-                continue
             scope = str(call.properties.get("scope") or "")
             call_name = str(call.properties.get("call_name") or "")
-            if scope and call_name and "." not in call_name:
-                target = index.resolve_function_name(call_name, resolve_module_scope(scope), scope.rsplit(".", 1)[0])
+            if not scope or not call_name:
+                continue
+            current_module = resolve_module_scope(scope)
+            if "." not in call_name:
+                target = index.resolve_function_name(call_name, current_module, scope.rsplit(".", 1)[0])
+                if target:
+                    _add_exact_function_call(graph, call, target)
+            elif call_name.count(".") == 1:
+                alias, member = call_name.split(".", 1)
+                target = index.resolve_module_member(alias, member, current_module)
                 if target:
                     _add_exact_function_call(graph, call, target)
 

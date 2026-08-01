@@ -132,6 +132,22 @@ def test_pr_review_default_is_bounded_and_hides_full_closure(tmp_path: Path):
     assert "impact_sections" not in result
 
 
+def test_pr_review_exposes_the_same_comment_only_semantic_conclusion(tmp_path: Path):
+    _write_project(tmp_path)
+    diff = """diff --git a/app/repositories.py b/app/repositories.py
+--- a/app/repositories.py
++++ b/app/repositories.py
+@@ -3,0 +4 @@ class OrderRepository:
++        # Documents the storage choice.
+"""
+
+    result = pr_review_core(str(tmp_path), diff_text=diff)
+
+    assert result["semantic_diff"]["has_runtime_change"] is False
+    assert result["changed_symbols"] == []
+    assert result["test_recommendations"] == []
+
+
 def test_pr_review_excludes_tracked_codeslicer_artifacts(tmp_path: Path):
     _write_project(tmp_path)
     diff = """diff --git a/app/repositories.py b/app/repositories.py

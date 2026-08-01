@@ -33,7 +33,7 @@ from impact_engine.unknown_regions import analyze_unknown_regions
 from impact_engine.review_projection.filters import is_test_node
 
 
-SUPPRESSED_KINDS = {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "SUPPORT_PACK"}
+SUPPRESSED_KINDS = {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "CANONICAL_ALIAS", "SUPPORT_PACK"}
 GENERATED_MARKERS = ("/generated/", "\\generated\\", ".generated.", "/vendor/", "\\vendor\\", "/bin/", "\\bin/", "/obj/", "\\obj\\")
 BOUNDARY_KINDS = {"ROUTE"}
 BOUNDARY_CATEGORIES = {"api", "public_api", "database", "schema", "frontend_backend", "queue", "public"}
@@ -84,6 +84,7 @@ def build_inspect_report(
     entity_dict = _node_dict(resolved)
     entity_file = _node_file(resolved)
     coverage = _coverage(graph, {entity_file} if entity_file else set())
+    withheld_rejected = _rejected_inspect_edge_count(graph, resolved)
     adjacent = _inspect_adjacent_edges(graph, resolved)
     upstream = [item for item in adjacent if item["direction"] == "upstream"]
     downstream = [item for item in adjacent if item["direction"] == "downstream"]
@@ -107,6 +108,8 @@ def build_inspect_report(
     incomplete = any(item["status"] == "unsupported" for item in coverage) or bool(graph.metadata.get("incomplete"))
     if truncated:
         warnings.append("inspect context truncated to the compact context budget")
+    if withheld_rejected:
+        warnings.append(f"{withheld_rejected} rejected evidence edge(s) withheld from compact inspect results")
     warnings.extend(_coverage_warnings(coverage))
     payload = {
         "schema_version": MODE_SCHEMA_VERSION,
@@ -553,6 +556,8 @@ def _inspect_adjacent_edges(graph: GraphDocument, resolved: Node) -> list[dict[s
 
     # Direct materialized relationships and canonical CALLS aliases.
     for edge in graph.edges:
+        if classify_edge_quality(edge).status == "rejected":
+            continue
         if edge.from_node in source_ids:
             for target_id in visible_targets(edge.to_node):
                 add_edge(edge, resolved.id, target_id, derived_from=[edge.id] if edge.from_node != resolved.id or target_id != edge.to_node else None)
@@ -563,10 +568,14 @@ def _inspect_adjacent_edges(graph: GraphDocument, resolved: Node) -> list[dict[s
     # A precise method often reaches its call expression through CONTAINS;
     # follow the local RESOLVES_TO/CALLS edge to expose the called method.
     for contains in graph.edges:
+        if classify_edge_quality(contains).status == "rejected":
+            continue
         if contains.from_node not in source_ids or str(contains.kind).upper() != "CONTAINS":
             continue
         call_id = contains.to_node
         for relation in graph.edges:
+            if classify_edge_quality(relation).status == "rejected":
+                continue
             if relation.from_node != call_id or str(relation.kind).upper() not in {"RESOLVES_TO", "CALLS"}:
                 continue
             for target_id in visible_targets(relation.to_node):
@@ -584,6 +593,8 @@ def _context_visible(node: Node | None) -> bool:
     if node is None:
         return False
     if node.kind in SUPPRESSED_KINDS:
+        return False
+    if node.properties.get("canonical_alias_of") or node.properties.get("compatibility_alias_for"):
         return False
     file_name = (_node_file(node) or "").lower()
     return not any(marker in file_name for marker in GENERATED_MARKERS)
@@ -609,6 +620,8 @@ def _linked_boundary_nodes(graph: GraphDocument, node_id: str) -> tuple[list[dic
 
     seen_tests: set[tuple[str, str]] = set()
     for edge in graph.edges:
+        if classify_edge_quality(edge).status == "rejected":
+            continue
         if not target_ids.intersection({edge.from_node, edge.to_node}):
             continue
         other_id = edge.to_node if edge.from_node in target_ids else edge.from_node
@@ -625,6 +638,26 @@ def _linked_boundary_nodes(graph: GraphDocument, node_id: str) -> tuple[list[dic
         if other.kind in BOUNDARY_KINDS or str(other.properties.get("boundary_category", "")).lower() in BOUNDARY_CATEGORIES:
             routes.append(item)
     return tests, routes
+
+
+def _rejected_inspect_edge_count(graph: GraphDocument, resolved: Node) -> int:
+    """Count rejected evidence attached to an entity without exposing it as fact.
+
+    Rejected resolver output remains in the full graph for diagnostics and
+    future reconciliation.  Compact inspect is an evidence-facing view, so a
+    rejected HTTP candidate must not look like a real route or dependency.
+    """
+
+    aliases = _canonical_aliases(resolved)
+    related_ids = {
+        node.id for node in graph.nodes
+        if aliases.intersection(_canonical_aliases(node))
+    }
+    return sum(
+        1 for edge in graph.edges
+        if related_ids.intersection({edge.from_node, edge.to_node})
+        and classify_edge_quality(edge).status == "rejected"
+    )
 
 
 def _support_pack_activation(graph: GraphDocument) -> dict[str, Any]:

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, overload
 NODE_KINDS = {
     "PROJECT", "FILE", "MODULE", "CLASS", "FUNCTION", "METHOD",
     "PARAMETER", "ATTRIBUTE", "CALL_EXPR", "ASSIGNMENT", "ROUTE",
-    "TEST", "EXTERNAL_LIBRARY", "SUPPORT_PACK"
+    "TEST", "EXTERNAL_LIBRARY", "CANONICAL_ALIAS", "SUPPORT_PACK"
 }
 
 EDGE_KINDS = {

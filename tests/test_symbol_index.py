@@ -26,3 +26,15 @@ def test_symbol_index_indexing():
     
     resolved_service = index.resolve_class_name("OrderService", "app.container")
     assert resolved_service == "app.services.order_service.OrderService"
+
+
+def test_module_member_resolution_accepts_one_project_root_prefix_only():
+    graph = extract_project(FIXTURE_PATH)
+    index = build_symbol_index(graph)
+    index.import_aliases_by_module["backend.app.routes"] = {"crud": "app.crud"}
+    index.methods.add("backend.app.crud.create_user")
+
+    assert index.resolve_module_member("crud", "create_user", "backend.app.routes") == "backend.app.crud.create_user"
+
+    index.methods.add("other.app.crud.create_user")
+    assert index.resolve_module_member("crud", "create_user", "backend.app.routes") is None

@@ -96,6 +96,24 @@ def test_inspect_links_test_methods_by_confirmed_call_and_canonical_alias(tmp_pa
     assert [item["node"]["id"] for item in report["linked_tests"]] == [test.id]
 
 
+def test_inspect_withholds_rejected_route_evidence(tmp_path: Path):
+    graph = GraphDocument()
+    graph.add_node(Node("method:app.utils.process", "METHOD", "process", {"file": "app/utils.py", "scope": "app.utils.process"}))
+    graph.add_node(Node("HTTP POST /utils", "ROUTE", "HTTP POST /utils", {"boundary_category": "api"}))
+    graph.add_edge(Edge(
+        "rejected-route", "MATCHES_ENDPOINT", "HTTP POST /utils", "method:app.utils.process",
+        confidence=.2, source="INFERRED", properties={"status": "rejected"},
+    ))
+    path = tmp_path / "graph.json"
+    path.write_text(graph.to_json(), encoding="utf-8")
+
+    report = build_inspect_report(str(tmp_path), entity="method:app.utils.process", graph_path=path)
+
+    assert report["direct_upstream"] == []
+    assert report["linked_routes"] == []
+    assert any("rejected evidence edge" in warning for warning in report["warnings"])
+
+
 def test_inspect_materializes_canonical_downstream_calls(tmp_path: Path):
     project = Path(__file__).parent / "fixtures" / "realistic_impact_project"
     graph_path = tmp_path / "graph.json"

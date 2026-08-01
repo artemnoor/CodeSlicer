@@ -294,6 +294,28 @@ def test_typed_default_change_is_high_risk_and_gets_an_advisory_suite(tmp_path: 
     assert recommendation["command"] == ["pytest", "tests"]
 
 
+def test_supported_python_coverage_is_explicitly_review_usable(tmp_path: Path):
+    graph = GraphDocument(metadata={"language_semantic_capabilities": {
+        "python": {"capabilities": {"production_semantic_baseline": True, "call_resolution": "semantic"}},
+    }})
+    graph.add_node(Node("method:app.service.save", "METHOD", "save", {"file": "app/service.py", "line": 1}))
+    diff = """diff --git a/app/service.py b/app/service.py
+--- a/app/service.py
++++ b/app/service.py
+@@ -1 +1 @@
+-    return value
++    return transformed_value
+"""
+
+    report = build_review_report(str(tmp_path), graph=graph, diff_text=diff, refresh="never")
+
+    coverage = report["coverage"][0]
+    assert coverage["status"] == "supported"
+    assert coverage["review_usable"] is True
+    assert "semantic_call_resolution" in coverage["review_usable_features"]
+    assert coverage["review_usable_reason"] == "production semantic baseline with semantic call resolution"
+
+
 def test_diff_base_failure_falls_back_to_working_tree(monkeypatch, tmp_path: Path):
     from impact_engine import review as review_module
 

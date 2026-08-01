@@ -36,7 +36,7 @@ from impact_engine.review_source import review_source
 
 
 SCHEMA_VERSION = "ReviewReport/v2"
-SUPPRESSED_KINDS = {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "SUPPORT_PACK"}
+SUPPRESSED_KINDS = {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "CANONICAL_ALIAS", "SUPPORT_PACK"}
 SUPPORTED_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".cs"}
 
 
@@ -990,14 +990,34 @@ def _coverage(graph: GraphDocument, paths: set[str]) -> list[dict[str, Any]]:
             status = "supported"
         else:
             status = "limited"
+        declared_features = capability_values.get("review_usable_features", []) if isinstance(capability_values, dict) else []
+        if not isinstance(declared_features, list):
+            declared_features = []
+        if language == "csharp":
+            review_features = csharp_usable_features
+            review_usable = bool(review_features)
+            review_reason = "framework feature coverage is enabled" if review_usable else "no review-usable framework features were recorded"
+        elif "review_usable" in capability_values:
+            review_usable = bool(capability_values.get("review_usable"))
+            review_features = sorted({str(item) for item in declared_features})
+            review_reason = "declared by the language capability contract"
+        elif status == "supported":
+            review_usable = True
+            review_features = ["source_declarations", "local_imports", "semantic_call_resolution"]
+            review_reason = "production semantic baseline with semantic call resolution"
+        else:
+            review_usable = False
+            review_features = []
+            review_reason = "semantic review coverage is partial or unavailable"
         result.append({
             "language": language, "path": path, "status": status,
             "extractor": cap.get("provider_id") or cap.get("extractor") if isinstance(cap, dict) else None,
             "resolver": call_resolution,
             "production_semantic_baseline": production,
             "may_be_incomplete": status != "supported",
-            "review_usable": bool(language == "csharp" and csharp_usable_features),
-            "review_usable_features": csharp_usable_features if language == "csharp" else [],
+            "review_usable": review_usable,
+            "review_usable_features": review_features,
+            "review_usable_reason": review_reason,
         })
     return result
 
