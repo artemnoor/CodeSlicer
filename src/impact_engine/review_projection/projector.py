@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import heapq
+from collections import deque
 from dataclasses import replace
 from typing import Any
 
@@ -93,6 +94,188 @@ def _is_broad_discovery_edge(edge: Any) -> bool:
         or str(getattr(edge, "kind", "")).upper() == "IMPORTS"
         or source == "SUPPORT_PACK"
     )
+
+
+_BROAD_FILE_SCOPE_EDGE_KINDS = {
+    "AFFECTS",
+    "CALLS",
+    "CONTAINS",
+    "DECLARES",
+    "IMPORTS",
+    "INSTANCE_OF",
+    "RESOLVES_TO",
+    "ROUTE_HANDLES",
+    "TESTS",
+}
+
+
+def _normal_file_path(value: Any) -> str:
+    return str(value or "").replace("\\", "/").strip("/")
+
+
+def _node_file_path(node: Any) -> str:
+    """Return a node's project-relative file, including FILE-node fallbacks."""
+    path = _normal_file_path(node_file(node))
+    if path:
+        return path
+    node_id = str(getattr(node, "id", ""))
+    if node_id.startswith("file:"):
+        return _normal_file_path(node_id.removeprefix("file:"))
+    return ""
+
+
+def _file_scope_reason(edges: list[Any], *, anchor_file: str) -> str:
+    """Explain a broad candidate without presenting file proximity as proof."""
+    reason = _broad_discovery_reason(edges)
+    has_import = any(str(getattr(edge, "kind", "")).upper() == "IMPORTS" for edge in edges)
+    has_framework = any(
+        str(getattr(edge, "kind", "")).upper() == "ROUTE_HANDLES"
+        or str((getattr(edge, "properties", {}) or {}).get("framework") or "")
+        or str((getattr(edge, "properties", {}) or {}).get("support_pack_id") or "")
+        for edge in edges
+    )
+    if reason in {"unresolved dynamic call", "ambiguous resolution"}:
+        return reason
+    if has_import and has_framework:
+        return "indirect import and framework heuristic"
+    if has_import:
+        return "indirect import from a changed file"
+    if has_framework:
+        return "framework heuristic near the changed file"
+    return f"file-level discovery from changed file: {anchor_file}"
+
+
+def _collect_file_scope_candidates(
+    graph: Any,
+    changed_files: set[str],
+    evidence: dict[str, ReviewEvidence],
+    *,
+    max_depth: int = 3,
+    max_nodes: int = 120,
+    max_edges: int = 240,
+) -> tuple[dict[str, ReviewCandidate], list[str]]:
+    """Find bounded *possible* neighbours when symbol resolution has gaps.
+
+    A source edit can be real while a resolver has not connected that exact
+    line-level symbol to the rest of the graph yet.  This pass starts from the
+    changed *file* as an explicitly low-confidence anchor and follows only
+    structural, import, framework, route, and call relationships.  It never
+    feeds the concise review, risk score, chains, or test selection.
+    """
+    anchor_files = {_normal_file_path(path) for path in changed_files if _normal_file_path(path)}
+    if not anchor_files:
+        return {}, []
+
+    nodes = {node.id: node for node in graph.nodes}
+    adjacency: dict[str, list[Any]] = {}
+    edge_by_id = {edge.id: edge for edge in graph.edges}
+    evidence_seed_ids: set[str] = set()
+    for edge in graph.edges:
+        if edge.from_node not in nodes or edge.to_node not in nodes:
+            continue
+        if classify_edge_quality(edge).status == "rejected":
+            continue
+        kind = str(getattr(edge, "kind", "")).upper()
+        if kind not in _BROAD_FILE_SCOPE_EDGE_KINDS and not _is_broad_discovery_edge(edge):
+            continue
+        adjacency.setdefault(edge.from_node, []).append(edge)
+        adjacency.setdefault(edge.to_node, []).append(edge)
+        if any(_normal_file_path(item.file) in anchor_files for item in getattr(edge, "evidence", []) or []):
+            evidence_seed_ids.update((edge.from_node, edge.to_node))
+    for edges in adjacency.values():
+        edges.sort(key=lambda edge: (
+            -float(getattr(edge, "confidence", 0.0) or 0.0),
+            str(getattr(edge, "kind", "")),
+            str(getattr(edge, "id", "")),
+        ))
+
+    def seed_priority(node_id: str) -> tuple[int, str]:
+        node = nodes[node_id]
+        kind = str(getattr(node, "kind", "")).upper()
+        priority = {
+            "FILE": 0, "MODULE": 1, "ROUTE": 2, "HTTP_ROUTE": 2,
+            "FUNCTION": 3, "METHOD": 3, "CLASS": 4,
+        }.get(kind, 8)
+        return priority, node_id
+
+    seed_ids = {
+        node_id for node_id, node in nodes.items()
+        if _node_file_path(node) in anchor_files
+    } | evidence_seed_ids
+    if not seed_ids:
+        return {}, []
+
+    queue: deque[tuple[int, str, tuple[str, ...], str]] = deque()
+    for node_id in sorted(seed_ids, key=seed_priority)[:max_nodes]:
+        node_file_path = _node_file_path(nodes[node_id])
+        anchor = node_file_path if node_file_path in anchor_files else sorted(anchor_files)[0]
+        queue.append((0, node_id, (), anchor))
+
+    candidates: dict[str, ReviewCandidate] = {}
+    warnings: list[str] = []
+    visited: set[tuple[str, tuple[str, ...]]] = set()
+    traversed_edges = 0
+    while queue:
+        depth, current, path_edge_ids, anchor = queue.popleft()
+        if depth >= max_depth:
+            continue
+        for edge in adjacency.get(current, []):
+            traversed_edges += 1
+            if traversed_edges > max_edges:
+                warnings.append("file_scope_edge_budget_exhausted")
+                return candidates, warnings
+            next_id = edge.to_node if edge.from_node == current else edge.from_node
+            if next_id not in nodes:
+                continue
+            next_edges = path_edge_ids + (edge.id,)
+            state = (next_id, next_edges)
+            if state in visited:
+                continue
+            visited.add(state)
+            next_node = nodes[next_id]
+            next_file = _node_file_path(next_node)
+            path_edges = [edge_by_id[item] for item in next_edges if item in edge_by_id]
+            # Keep walking through technical implementation nodes, but expose
+            # only project entities or framework boundaries to the user.
+            should_show = (
+                next_id not in seed_ids
+                and (not next_file or next_file not in anchor_files or is_boundary_node(next_node))
+                and (is_actionable(next_node) or is_boundary_node(next_node))
+            )
+            if should_show:
+                evidence_items: list[ReviewEvidence] = []
+                for path_edge in path_edges:
+                    evidence_items.extend(_edge_evidence(path_edge, evidence))
+                evidence_ids = tuple(sorted({item.id for item in evidence_items}))
+                rank = ReviewRank(
+                    round(max(1.0, 70.0 - (depth * 11.0)), 6),
+                    ("broad_file_scope",),
+                    {"broad_file_scope": round(max(1.0, 70.0 - (depth * 11.0)), 6)},
+                    policy_version="review-broad-discovery/v1",
+                )
+                candidate = ReviewCandidate(
+                    next_id,
+                    "BOUNDARY_CALL" if str(getattr(next_node, "kind", "")).upper() == "CALL_EXPR" and is_boundary_node(next_node) else next_node.kind,
+                    node_file(next_node),
+                    _node_label(next_node),
+                    "broad_file_scope",
+                    "speculative",
+                    rank,
+                    evidence_ids,
+                    {},
+                    (),
+                    None,
+                    semantic_cluster(next_node),
+                    _file_scope_reason(path_edges, anchor_file=anchor),
+                )
+                old = candidates.get(next_id)
+                if old is None or candidate.rank.score > old.rank.score:
+                    candidates[next_id] = candidate
+            if len(visited) < max_nodes and next_id not in {item[1] for item in queue}:
+                queue.append((depth + 1, next_id, next_edges, anchor))
+            elif len(visited) >= max_nodes and "file_scope_node_budget_exhausted" not in warnings:
+                warnings.append("file_scope_node_budget_exhausted")
+    return candidates, warnings
 
 
 def collect_candidates(
@@ -427,6 +610,17 @@ def build_review_projection(
         broad_discovery=True,
     )
     evidence.update(broad_evidence)
+    # A resolver gap should not turn broad discovery into an empty response.
+    # File-scope candidates are deliberately speculative and only supplement
+    # weak/dynamic graph paths; primary evidence remains unchanged.
+    file_scope_candidates, file_scope_warnings = _collect_file_scope_candidates(
+        graph, changed_files or set(), evidence,
+        max_depth=min(3, max_depth), max_nodes=min(120, max_nodes), max_edges=min(240, max_edges),
+    )
+    for entity_id, candidate in file_scope_candidates.items():
+        previous = broad_candidates.get(entity_id)
+        if previous is None or candidate.rank.score > previous.rank.score:
+            broad_candidates[entity_id] = candidate
     coverage = coverage or []
     candidates_by_id = _dedupe_alias_candidates(candidates_by_id)
     broad_candidates = _dedupe_alias_candidates(broad_candidates)
@@ -466,6 +660,8 @@ def build_review_projection(
     risk = _risk(graph, changed_ids, enriched, tests, coverage)
     if broad_warnings:
         warnings.extend(f"broad_discovery:{warning}" for warning in broad_warnings)
+    if file_scope_warnings:
+        warnings.extend(f"broad_discovery:{warning}" for warning in file_scope_warnings)
     if not displayed_chains:
         warnings.append("no_cross_file_impact_proven")
     return ReviewProjection(

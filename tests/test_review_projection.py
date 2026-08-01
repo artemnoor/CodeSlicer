@@ -99,6 +99,38 @@ def test_broad_discovery_separates_low_certainty_paths_from_review_and_tests():
     assert all(item.symbol != "client.dynamic" for item in projection.tests)
 
 
+def test_broad_discovery_uses_changed_file_scope_when_symbol_edges_are_missing():
+    """A changed config symbol can reveal a route only through imports.
+
+    The route is intentionally Possible: the file relationship is useful for
+    review exploration, but it is not proof that the edited line executes on
+    that endpoint.
+    """
+    graph = GraphDocument()
+    graph.add_node(Node("method:app.config.cache_policy", "METHOD", "cache_policy", {"file": "app/config.py", "line": 3}))
+    graph.add_node(Node("module:app.config", "MODULE", "app.config", {"file": "app/config.py"}))
+    graph.add_node(Node("module:app.routers", "MODULE", "app.routers", {"file": "app/routers.py"}))
+    graph.add_node(Node("method:app.routers.create_order", "METHOD", "create_order", {"file": "app/routers.py", "line": 10}))
+    graph.add_node(Node("route:orders", "ROUTE", "POST /orders", {"boundary_category": "api"}))
+    graph.add_edge(Edge("declares-config", "DECLARES", "module:app.config", "method:app.config.cache_policy", confidence=.99, evidence=[Evidence("config declares policy", "app/config.py", 3)]))
+    graph.add_edge(Edge("import-config", "IMPORTS", "module:app.routers", "module:app.config", confidence=.99, evidence=[Evidence("router imports config", "app/routers.py", 1)]))
+    graph.add_edge(Edge("declares-route", "DECLARES", "module:app.routers", "method:app.routers.create_order", confidence=.99, evidence=[Evidence("router declares handler", "app/routers.py", 10)]))
+    graph.add_edge(Edge("route-handles", "ROUTE_HANDLES", "route:orders", "method:app.routers.create_order", confidence=.8, evidence=[Evidence("FastAPI route", "app/routers.py", 10)], properties={"framework": "fastapi", "support_pack_id": "fastapi"}))
+
+    projection = build_review_projection(
+        graph,
+        [{"id": "method:app.config.cache_policy", "file": "app/config.py", "line": 3}],
+        {"app/config.py"},
+    )
+
+    assert [item.entity_id for item in projection.candidates] == ["method:app.config.cache_policy"]
+    possible = {item.entity_id: item for item in projection.possible_candidates}
+    assert possible["module:app.routers"].discovery_reason == "indirect import from a changed file"
+    assert possible["method:app.routers.create_order"].impact_class == "broad_file_scope"
+    assert possible["route:orders"].discovery_reason == "indirect import and framework heuristic"
+    assert all(item.confidence == "speculative" for item in possible.values())
+
+
 def test_targeted_test_recommendation_has_specific_evidence_and_command():
     projection = build_review_projection(
         _graph(), [{"id": "repo.save", "kind": "METHOD", "file": "src/repo.py", "line": 4}], {"src/repo.py"}

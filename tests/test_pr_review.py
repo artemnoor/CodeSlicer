@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from impact_engine.pr_review import ChangedFile, _changed_symbols, parse_git_diff, pr_review_core
-from impact_engine.models import GraphDocument, Node
+from impact_engine.models import Edge, Evidence, GraphDocument, Node
 
 
 def _write_project(root: Path) -> None:
@@ -241,6 +241,49 @@ def test_pr_review_cli_json(tmp_path: Path):
     assert payload["full_evidence"]["status"] == "not_requested"
     assert payload["potential_impact"]["status"] == "included_on_explicit_request"
     assert len(payload["top_impacts"]) <= 10
+
+
+def test_pr_review_cli_text_shows_possible_scope(tmp_path: Path):
+    graph = GraphDocument(metadata={"project_path": str(tmp_path)})
+    graph.add_node(Node("method:app.config.cache_policy", "METHOD", "cache_policy", {"file": "app/config.py", "line": 3}))
+    graph.add_node(Node("module:app.config", "MODULE", "app.config", {"file": "app/config.py"}))
+    graph.add_node(Node("module:app.routers", "MODULE", "app.routers", {"file": "app/routers.py"}))
+    graph.add_node(Node("method:app.routers.create_order", "METHOD", "create_order", {"file": "app/routers.py", "line": 10}))
+    graph.add_node(Node("route:orders", "ROUTE", "POST /orders", {"boundary_category": "api"}))
+    graph.add_edge(Edge("declares-config", "DECLARES", "module:app.config", "method:app.config.cache_policy", confidence=.99, evidence=[Evidence("config declares policy", "app/config.py", 3)]))
+    graph.add_edge(Edge("import-config", "IMPORTS", "module:app.routers", "module:app.config", confidence=.99, evidence=[Evidence("router imports config", "app/routers.py", 1)]))
+    graph.add_edge(Edge("declares-route", "DECLARES", "module:app.routers", "method:app.routers.create_order", confidence=.99, evidence=[Evidence("router declares handler", "app/routers.py", 10)]))
+    graph.add_edge(Edge("route-handles", "ROUTE_HANDLES", "route:orders", "method:app.routers.create_order", confidence=.8, evidence=[Evidence("FastAPI route", "app/routers.py", 10)], properties={"framework": "fastapi", "support_pack_id": "fastapi"}))
+    graph_path = tmp_path / "graph.json"
+    graph_path.write_text(json.dumps(graph.to_dict()), encoding="utf-8")
+    diff_file = tmp_path / "change.diff"
+    diff_file.write_text(
+        """diff --git a/app/config.py b/app/config.py
+--- a/app/config.py
++++ b/app/config.py
+@@ -3 +3 @@
+-    use_cache: bool = True
++    use_cache: bool = False
+""",
+        encoding="utf-8",
+    )
+
+    repository_root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(repository_root / "src") + os.pathsep + environment.get("PYTHONPATH", "")
+    proc = subprocess.run(
+        [sys.executable, "-m", "impact_engine.cli", "pr-review", str(tmp_path), "--graph", str(graph_path), "--diff-file", str(diff_file), "--show-potential"],
+        cwd=repository_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    assert "Possible impact (low confidence" in proc.stdout
+    assert "POST /orders [ROUTE]" in proc.stdout
+    assert "indirect import and framework heuristic" in proc.stdout
 
 
 def test_pr_review_mcp_tool_wrapper(tmp_path: Path):

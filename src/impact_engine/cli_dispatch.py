@@ -736,6 +736,24 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                 print("  Recommended tests:")
                 for item in result.get("suggested_tests", {}).get("recommended", []):
                     print(f"    - {item.get('file') or item.get('node')} ({item.get('reason')})")
+                if args.show_potential:
+                    potential = list(result.get("potential_impacts") or [])
+                    rejected = list(result.get("rejected_relations") or [])
+                    limitations = list((result.get("potential_impact") or {}).get("limitations") or [])
+                    print("  Possible impact (low confidence; not included in risk or test recommendations):")
+                    if potential:
+                        for item in potential[:20]:
+                            print(f"    - {item.get('label') or item.get('entity_id')} [{item.get('kind')}] — {item.get('reason') or 'broad discovery'}")
+                    else:
+                        print("    - none found within the bounded broad-discovery scope")
+                    if rejected:
+                        print("  Rejected relations (diagnostic only):")
+                        for item in rejected[:20]:
+                            print(f"    - {item.get('kind')}: {item.get('from')} -> {item.get('to')} — {item.get('reason')}")
+                    if limitations:
+                        print("  Analysis limitations:")
+                        for item in limitations[:20]:
+                            print(f"    - {item.get('message') or item}")
             else:
                 print(f"  Error: {result.get('error')}")
         if result.get("status") == "error":
@@ -786,6 +804,18 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
             print("  Tests:")
             for item in result.get("test_recommendations", [])[:10]:
                 print(f"    - {item.get('file')} ({item.get('priority')})")
+            if args.show_potential:
+                potential = list(result.get("potential_impacts") or [])
+                print("  Possible impact (low confidence; excluded from risk and test recommendations):")
+                if potential:
+                    for item in potential[:20]:
+                        print(f"    - {item.get('label') or item.get('entity_id')} [{item.get('kind')}] — {item.get('reason') or 'broad discovery'}")
+                else:
+                    print("    - none found within the bounded broad-discovery scope")
+                for item in result.get("rejected_relations", [])[:20]:
+                    print(f"  Rejected relation: {item.get('kind')}: {item.get('from')} -> {item.get('to')} — {item.get('reason')}")
+                for item in (result.get("potential_impact") or {}).get("limitations", [])[:20]:
+                    print(f"  Analysis limitation: {item.get('message') or item}")
             for warning in result.get("warnings", []):
                 print(f"  Warning: {warning}")
 
