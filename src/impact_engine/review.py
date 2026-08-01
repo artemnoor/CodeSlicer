@@ -475,6 +475,11 @@ def _resolve_graph(root: Path, graph: GraphDocument | None, refresh: str, warnin
         ) if candidate.is_file()),
         None,
     )
+    # A first review has no persisted snapshot yet, but a successful full
+    # refresh must still create one.  Keep the existing-path sentinel above
+    # for freshness and incremental decisions; use this canonical destination
+    # only when persisting a newly generated snapshot.
+    snapshot_write_path = snapshot_path or root / ".impact_engine" / "project.snapshot.json"
     snapshot_changed = False
     snapshot_unverified = loaded_from_project_cache and snapshot_path is None
     refresh_status = "reused" if graph is not None else "full_refresh"
@@ -507,7 +512,7 @@ def _resolve_graph(root: Path, graph: GraphDocument | None, refresh: str, warnin
                 result = analyze_project_core(str(root), out_path=str(root / ".impact_engine" / "graph.json"))
                 if refresh == "auto":
                     from impact_engine.incremental import project_snapshot, save_snapshot
-                    save_snapshot(project_snapshot(root), snapshot_path)
+                    save_snapshot(project_snapshot(root), snapshot_write_path)
                 refresh_status = "full_refresh"
                 fallback_reason = "snapshot_missing_or_graph_missing"
             graph = GraphDocument.from_dict(result["graph"])
