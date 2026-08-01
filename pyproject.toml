@@ -57,5 +57,4 @@ plugins = ["**/*.json", "**/*.md"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 norecursedirs = ["fixtures", "tests/fixtures", "tests/corpus"]
-asyncio_default_fixture_loop_scope = "function"
 markers = ["scip_interop: opt-in tests requiring explicitly installed external SCIP tooling and materialized golden artifacts", "lsp_interop: opt-in tests requiring an explicitly installed local Language Server", "cli_installation: opt-in tests requiring a clean installed impact-engine executable", "real_server: opt-in tests that CI runs against official Agent-LSP and real language servers"]

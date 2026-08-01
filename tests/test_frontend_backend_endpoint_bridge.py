@@ -240,3 +240,35 @@ export async function fetchAdminAccount(id: string, transport: typeof fetch = fe
         and edge.to_node == "backend.app.api.v1.admin.routes.read_admin_account"
         for edge in graph.edges
     )
+
+
+def test_fastapi_source_composer_resolves_imported_static_settings_prefix(tmp_path: Path):
+    (tmp_path / "app" / "api").mkdir(parents=True)
+    (tmp_path / "app" / "core").mkdir(parents=True)
+    (tmp_path / "app" / "core" / "config.py").write_text(
+        "class Settings:\n    API_V1_STR: str = '/api/v1'\n\nsettings = Settings()\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "app" / "api" / "routes.py").write_text(
+        "from fastapi import APIRouter\nrouter = APIRouter(prefix='/items')\n@router.get('')\ndef list_items(): return []\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "app" / "api" / "main.py").write_text(
+        "from app.api.routes import router as api_router\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "app" / "main.py").write_text(
+        "from fastapi import FastAPI\nfrom app.api.main import api_router\nfrom app.core.config import settings\napp = FastAPI()\napp.include_router(api_router, prefix=settings.API_V1_STR)\n",
+        encoding="utf-8",
+    )
+
+    graph = GraphDocument(metadata={"project_path": str(tmp_path)})
+    graph = apply_frontend_backend_endpoint_bridge(graph)
+
+    assert any(
+        edge.kind == "ROUTE_HANDLES"
+        and edge.from_node == "HTTP GET /api/v1/items"
+        and edge.to_node == "app.api.routes.list_items"
+        for edge in graph.edges
+    )
+    assert graph.metadata["fastapi_route_composition"]["status"] == "applied"

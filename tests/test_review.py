@@ -259,6 +259,41 @@ def test_review_cache_does_not_reuse_a_stale_verdict_after_refresh(tmp_path: Pat
     assert "graph is stale; high-confidence claims are suppressed" not in fresh["warnings"]
 
 
+def test_comment_only_diff_does_not_promote_a_python_symbol_to_runtime_impact(tmp_path: Path):
+    graph = GraphDocument.from_json(_graph(tmp_path).read_text())
+    diff = """diff --git a/app/service.py b/app/service.py
+--- a/app/service.py
++++ b/app/service.py
+@@ -3,0 +4 @@
++    # This explains why the repository is called here.
+"""
+    report = build_review_report(str(tmp_path), graph=graph, diff_text=diff, refresh="never")
+    assert report["semantic_diff"]["has_runtime_change"] is False
+    assert report["changed"]["symbols"] == []
+    assert report["risk"]["level"] == "LOW"
+    assert any("no runtime change detected" in warning for warning in report["warnings"])
+
+
+def test_typed_default_change_is_high_risk_and_gets_an_advisory_suite(tmp_path: Path):
+    graph = GraphDocument(metadata={"project_path": str(tmp_path), "language_semantic_capabilities": {"python": {"capabilities": {"production_semantic_baseline": True, "call_resolution": "semantic"}}}})
+    graph.add_node(Node("class:app.params.Depends", "CLASS", "Depends", {"file": "app/params.py", "line": 1}))
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_params.py").write_text("def test_placeholder(): pass\n", encoding="utf-8")
+    diff = """diff --git a/app/params.py b/app/params.py
+--- a/app/params.py
++++ b/app/params.py
+@@ -2 +2 @@
+-    use_cache: bool = True
++    use_cache: bool = False
+"""
+    report = build_review_report(str(tmp_path), graph=graph, diff_text=diff, refresh="never")
+    assert report["semantic_diff"]["has_behavioral_default_change"] is True
+    assert report["risk"]["level"] == "HIGH"
+    recommendation = report["test_recommendations"][0]
+    assert recommendation["advisory"] is True
+    assert recommendation["command"] == ["pytest", "tests"]
+
+
 def test_diff_base_failure_falls_back_to_working_tree(monkeypatch, tmp_path: Path):
     from impact_engine import review as review_module
 

@@ -428,9 +428,11 @@ def _collect_fastapi_backend_routes_from_source(graph: GraphDocument) -> list[di
         return []
 
     routers: dict[str, str] = {}
-    includes: list[tuple[str, str, str]] = []
+    includes: list[tuple[str, str, str | None]] = []
     route_defs: list[dict[str, Any]] = []
     reexports: dict[str, str] = {}
+    static_strings: dict[str, str] = {}
+    parsed_modules: list[tuple[Path, str, ast.AST, dict[str, str]]] = []
 
     from impact_engine.scope import iter_project_files
     for path in iter_project_files(root, {".py"}):
@@ -443,19 +445,27 @@ def _collect_fastapi_backend_routes_from_source(graph: GraphDocument) -> list[di
             continue
         is_package_module = path.name == "__init__.py"
         import_map = _python_import_map(tree, module, is_package_module=is_package_module)
+        _collect_static_strings(tree, module, static_strings)
         reexports.update(_python_reexports(tree, module, import_map, is_package_module=is_package_module))
+        parsed_modules.append((path, module, tree, import_map))
+
+    # Resolve include prefixes only after every module has contributed its
+    # literal configuration facts.  Filesystem traversal order is not a
+    # semantic dependency order: ``main.py`` may be seen before ``config.py``.
+    for path, module, tree, import_map in parsed_modules:
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign):
                 _collect_router_assignment(node, module, routers)
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 route_defs.extend(_collect_route_decorators(node, module, path, root))
             elif isinstance(node, ast.Call):
-                include = _collect_include_router_call(node, module, import_map)
+                include = _collect_include_router_call(node, module, import_map, static_strings)
                 if include:
                     includes.append(include)
 
     includes = [(_resolve_reexport(parent, reexports, routers), _resolve_reexport(child, reexports, routers), prefix) for parent, child, prefix in includes]
     prefixes_by_router: dict[str, set[str]] = {}
+    unresolved_prefix_routers: set[str] = set()
 
     def prefixes_for(router_id: str, seen: set[str] | None = None) -> set[str]:
         if router_id in prefixes_by_router:
@@ -471,15 +481,27 @@ def _collect_fastapi_backend_routes_from_source(graph: GraphDocument) -> list[di
             return prefixes_by_router[router_id]
         result: set[str] = set()
         for parent, include_prefix in parents:
+            # A non-literal prefix changes the public endpoint identity.  Do
+            # not silently turn it into an empty prefix and publish a false
+            # route such as ``/items`` instead of ``/api/v1/items``.  A
+            # separate fully static parent may still yield a confirmed path.
+            if include_prefix is None:
+                unresolved_prefix_routers.add(router_id)
+                continue
             for parent_prefix in prefixes_for(parent, seen):
                 result.add(_join_paths(parent_prefix, include_prefix, local_prefix))
         prefixes_by_router[router_id] = result
         return result
 
     output: list[dict[str, Any]] = []
+    withheld_route_count = 0
     for route in route_defs:
         router_id = _resolve_reexport(str(route["router_id"]), reexports, routers)
-        for prefix in prefixes_for(router_id):
+        prefixes = prefixes_for(router_id)
+        if not prefixes:
+            withheld_route_count += 1
+            continue
+        for prefix in prefixes:
             output.append(
                 {
                     "method": route["method"],
@@ -493,6 +515,12 @@ def _collect_fastapi_backend_routes_from_source(graph: GraphDocument) -> list[di
                     "trailing_slash": str(route.get("path", "")).endswith("/"),
                 }
             )
+    graph.metadata["fastapi_route_composition"] = {
+        "status": "partial" if unresolved_prefix_routers else "applied",
+        "routes_emitted": len(output),
+        "routes_withheld_for_dynamic_prefix": withheld_route_count,
+        "unresolved_dynamic_prefix_routers": sorted(unresolved_prefix_routers),
+    }
     return output
 
 
@@ -832,7 +860,12 @@ def _collect_route_decorators(node: ast.FunctionDef | ast.AsyncFunctionDef, modu
     return routes
 
 
-def _collect_include_router_call(node: ast.Call, module: str, import_map: dict[str, str]) -> tuple[str, str, str] | None:
+def _collect_include_router_call(
+    node: ast.Call,
+    module: str,
+    import_map: dict[str, str],
+    static_strings: dict[str, str],
+) -> tuple[str, str, str | None] | None:
     if not isinstance(node.func, ast.Attribute) or node.func.attr != "include_router":
         return None
     parent_receiver = _expr_name(node.func.value)
@@ -844,21 +877,109 @@ def _collect_include_router_call(node: ast.Call, module: str, import_map: dict[s
     if not child_name:
         return None
     parent = f"{module}.{parent_receiver}"
-    child = import_map.get(child_name, f"{module}.{child_name}")
-    prefix = _kw_literal(node, "prefix") or ""
+    child = _resolve_imported_expression(child_name, module, import_map)
+    prefix_keyword = next((keyword for keyword in node.keywords if keyword.arg == "prefix"), None)
+    prefix = "" if prefix_keyword is None else _resolve_static_string(prefix_keyword.value, module, import_map, static_strings)
     return parent, child, prefix
+
+
+def _resolve_imported_expression(expression: str, module: str, import_map: dict[str, str]) -> str:
+    """Resolve ``items.router`` through the exact local import ``items``."""
+    root, separator, tail = expression.partition(".")
+    resolved_root = import_map.get(root, f"{module}.{root}")
+    return f"{resolved_root}{separator}{tail}" if separator else resolved_root
+
+
+def _collect_static_strings(tree: ast.AST, module: str, values: dict[str, str]) -> None:
+    """Collect local literal configuration values without evaluating Python.
+
+    FastAPI applications often keep a stable API prefix on a Pydantic settings
+    class, then pass it as ``settings.API_V1_STR`` to ``include_router``.  A
+    direct literal class attribute is static source evidence; environment-
+    computed values and expressions are deliberately excluded.
+    """
+    def add_assignment(statement: ast.stmt) -> None:
+        if isinstance(statement, ast.Assign):
+            targets = statement.targets
+            value = statement.value
+        elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+            targets = [statement.target]
+            value = statement.value
+        else:
+            return
+        if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+            return
+        for target in targets:
+            if isinstance(target, ast.Name):
+                values[f"{module}.{target.id}"] = value.value
+
+    for statement in getattr(tree, "body", []):
+        add_assignment(statement)
+        if isinstance(statement, ast.ClassDef):
+            for member in statement.body:
+                add_assignment(member)
+
+
+def _resolve_static_string(
+    expression: ast.AST,
+    module: str,
+    import_map: dict[str, str],
+    static_strings: dict[str, str],
+) -> str | None:
+    if isinstance(expression, ast.Constant) and isinstance(expression.value, str):
+        return expression.value
+    if isinstance(expression, ast.Name):
+        candidates = [import_map.get(expression.id), f"{module}.{expression.id}"]
+    elif isinstance(expression, ast.Attribute):
+        base = _expr_name(expression.value)
+        if not base:
+            return None
+        root, _, tail = base.partition(".")
+        resolved_root = import_map.get(root, f"{module}.{root}")
+        suffix = f".{tail}" if tail else ""
+        candidates = [f"{resolved_root}{suffix}.{expression.attr}"]
+    else:
+        return None
+    for candidate in candidates:
+        normalized = candidate.removeprefix("backend.")
+        variants = [candidate, normalized]
+        # ``from app.core.config import settings`` makes the expression refer
+        # to ``app.core.config.settings.API_V1_STR`` while the static evidence
+        # lives on ``Settings.API_V1_STR``.  Dropping only that imported
+        # instance segment remains tied to the exact import module.
+        for value_path in (candidate, normalized):
+            parts = value_path.split(".")
+            if len(parts) >= 2:
+                variants.append(".".join(parts[:-2] + [parts[-1]]))
+        for variant in variants:
+            value = static_strings.get(variant)
+            if value is not None:
+                return value
+    return None
 
 
 def _resolve_reexport(symbol: str, reexports: dict[str, str], routers: dict[str, str]) -> str:
     seen: set[str] = set()
+    # Some workspaces are rooted at ``backend/`` while others are rooted at
+    # the Python package itself.  Follow an exact re-export first, then use a
+    # compatibility alias only for the lookup.  Never rewrite the resolved
+    # value blindly: it may already be the canonical router ID.
     current = symbol
-    while current in reexports and current not in seen:
+    while current not in seen:
         seen.add(current)
-        current = reexports[current]
-    if current in routers:
-        return current
-    if current.startswith("backend.") and current[len("backend.") :] in routers:
-        return current[len("backend.") :]
+        aliases = [current, current.removeprefix("backend.")]
+        if not current.startswith("backend."):
+            aliases.append(f"backend.{current}")
+        next_value = next((reexports[alias] for alias in aliases if alias in reexports), None)
+        if next_value is None:
+            break
+        current = next_value
+    router_aliases = [current, current.removeprefix("backend.")]
+    if not current.startswith("backend."):
+        router_aliases.append(f"backend.{current}")
+    for candidate in router_aliases:
+        if candidate in routers:
+            return candidate
     suffix_matches = [router for router in routers if current.endswith("." + router) or router.endswith("." + current)]
     if len(suffix_matches) == 1:
         return suffix_matches[0]

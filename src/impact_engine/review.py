@@ -112,6 +112,20 @@ def build_review_report(
     changed_files = [item for item in changed_files if not is_codeslicer_artifact_path(item.path)]
     if generated_changes:
         warnings.append(f"{len(generated_changes)} generated CodeSlicer artifact changes excluded from review")
+    semantic_diff = {
+        "files": [
+            {
+                "path": item.path,
+                "status": item.semantic_status,
+                "reasons": list(item.semantic_reasons),
+            }
+            for item in changed_files
+        ],
+        "has_runtime_change": any(item.semantic_status != "no_runtime_change" for item in changed_files),
+        "has_behavioral_default_change": any(item.semantic_status == "behavioral_default_change" for item in changed_files),
+    }
+    if changed_files and not semantic_diff["has_runtime_change"]:
+        warnings.append("no runtime change detected: the diff contains only comments or docstrings")
     scope_prefix = (scope or "").replace("\\", "/").strip("/")
     if scope_prefix:
         changed_files = [
@@ -285,6 +299,16 @@ def build_review_report(
     if freshness.get("status") == "externally_supplied_unverified":
         risk["confidence"] = "low"
         risk.setdefault("reasons", []).append("external graph is not verified against the current branch")
+    if semantic_diff["has_behavioral_default_change"] and any(
+        item.get("kind") in {"CLASS", "FUNCTION", "METHOD"} for item in changed_symbols
+    ):
+        # A public default is executable API surface.  Missing downstream
+        # edges must not make the review look safer; the graph may still be
+        # incomplete, but the source diff proves a behavioural contract edit.
+        if not freshness.get("stale") and not incomplete_coverage:
+            risk["level"] = "HIGH" if risk.get("level") in {"LOW", "MEDIUM"} else risk.get("level")
+            risk["score"] = max(int(risk.get("score", 0)), 5)
+            risk.setdefault("reasons", []).append("typed default value changed on a callable or class API")
     test_recommendations = [] if run_tests == "none" else [item.to_dict() for item in projection.tests]
     if incomplete_coverage:
         # Do not turn limited-language evidence into a normal recommendation.
@@ -299,12 +323,17 @@ def build_review_report(
                 "reason": f"{item.get('reason', 'source-confirmed targeted test')} (advisory: changed language coverage is limited)",
             }
             for item in test_recommendations
-            # These are not fallback guesses: every selected item has a
-            # concrete graph evidence path.  Limited TypeScript coverage may
-            # still make that path "likely", so retain it only as an explicit
-            # advisory rather than silently giving the developer no next step.
-            if item.get("fallback_status") == "primary" and item.get("evidence_ids")
+            # A nearby-test fallback remains useful under limited language
+            # coverage when it carries a concrete source location.  It is
+            # explicitly advisory (never promoted to a confirmed TESTS edge),
+            # which keeps a comment-only TypeScript edit from claiming runtime
+            # impact while still giving the developer a practical check.
+            if item.get("evidence_ids")
         ]
+    if not test_recommendations and semantic_diff["has_behavioral_default_change"]:
+        fallback = _semantic_default_test_fallback(root, changed_symbols)
+        if fallback:
+            test_recommendations.append(fallback)
     test_plan = _test_plan(test_recommendations, root, changed_symbols, visible)
     if incomplete_coverage and projection.tests:
         if test_recommendations:
@@ -324,6 +353,7 @@ def build_review_report(
         "graph_freshness": freshness,
         "graph_integrity": graph_integrity,
         "changed": {"files": changed_dicts, "hunks": _hunks(changed_files), "symbols": changed_symbols, "symbol_confidence": "ast_or_graph_span" if changed_symbols and changed_symbols[0].get("line") is not None else "file_fallback"},
+        "semantic_diff": semantic_diff,
         "risk": risk,
         "coverage": coverage,
         "top_impacts": visible,
@@ -385,6 +415,30 @@ def _safe_argv(command: Any) -> list[str] | None:
     if not argv or any("\x00" in item or "\n" in item or "\r" in item for item in argv):
         return None
     return argv
+
+
+def _semantic_default_test_fallback(root: Path, changed_symbols: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Offer a clearly advisory suite when a public default changed.
+
+    This is not a claimed TESTS edge.  It is a conservative operational
+    fallback for a source-proven API change when graph coverage has not yet
+    reached an exact test.  The command still goes through the usual separate
+    confirmation flow.
+    """
+    test_dir = next((candidate for candidate in (root / "tests", root / "test") if candidate.is_dir()), None)
+    if test_dir is None or not any(path.suffix == ".py" for path in test_dir.rglob("*.py")):
+        return None
+    return {
+        "file": test_dir.relative_to(root).as_posix(),
+        "symbol": changed_symbols[0].get("id") if changed_symbols else None,
+        "category": "semantic_default_fallback_suite",
+        "confidence": "likely",
+        "evidence_ids": [],
+        "reason": "typed default value changed; run the local Python test suite as an advisory fallback",
+        "command": ["pytest", test_dir.relative_to(root).as_posix()],
+        "fallback_status": "semantic_advisory",
+        "advisory": True,
+    }
 
 
 def _test_plan(recommendations: list[dict[str, Any]], root: Path, changed_symbols: list[dict[str, Any]], impacts: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -22,6 +22,10 @@ class ChangedFile:
     lines: set[int] = field(default_factory=set)
     additions: int = 0
     deletions: int = 0
+    added_content: list[str] = field(default_factory=list, repr=False)
+    deleted_content: list[str] = field(default_factory=list, repr=False)
+    semantic_status: str = "runtime_change"
+    semantic_reasons: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -29,6 +33,8 @@ class ChangedFile:
             "lines": sorted(self.lines),
             "additions": self.additions,
             "deletions": self.deletions,
+            "semantic_status": self.semantic_status,
+            "semantic_reasons": list(self.semantic_reasons),
         }
 
 
@@ -164,13 +170,57 @@ def parse_git_diff(diff_text: str) -> list[ChangedFile]:
         if line.startswith("+") and not line.startswith("+++"):
             current.lines.add(new_line)
             current.additions += 1
+            current.added_content.append(line[1:])
             new_line += 1
         elif line.startswith("-") and not line.startswith("---"):
             current.deletions += 1
+            current.deleted_content.append(line[1:])
             continue
         else:
             new_line += 1
+    for changed in files:
+        _classify_changed_file_semantics(changed)
     return files
+
+
+def _classify_changed_file_semantics(changed: ChangedFile) -> None:
+    """Classify only what a unified diff proves about executable behaviour.
+
+    This is deliberately conservative.  Comment-only and single-line
+    docstring-only patches are not promoted to symbol impact, while a typed
+    default-value replacement is a behavioural change even when graph edges
+    cannot yet prove every runtime consumer.
+    """
+    values = [*changed.added_content, *changed.deleted_content]
+    if values and all(_is_non_runtime_diff_line(value) for value in values):
+        changed.semantic_status = "no_runtime_change"
+        changed.semantic_reasons = ["comments_or_docstrings_only"]
+        return
+    default_changed = any(
+        old_left == new_left and old_value != new_value and ":" in old_left
+        for old_left, old_value in (_assignment_parts(item) for item in changed.deleted_content)
+        if old_left is not None
+        for new_left, new_value in (_assignment_parts(item) for item in changed.added_content)
+        if new_left is not None
+    )
+    if default_changed:
+        changed.semantic_status = "behavioral_default_change"
+        changed.semantic_reasons = ["typed_default_value_changed"]
+
+
+def _is_non_runtime_diff_line(value: str) -> bool:
+    stripped = value.strip()
+    if not stripped or stripped.startswith(("#", "//", "/*", "*", "*/")):
+        return True
+    return (stripped.startswith(('"""', "'''")) and stripped.endswith(('"""', "'''")))
+
+
+def _assignment_parts(value: str) -> tuple[str | None, str | None]:
+    if "=" not in value:
+        return None, None
+    left, right = value.split("=", 1)
+    left, right = left.strip(), right.strip()
+    return (left, right) if left and right else (None, None)
 
 
 def score_pr_risk(
@@ -284,7 +334,7 @@ def _git_diff(root: Path) -> str:
 
 
 def _changed_symbols(graph: GraphDocument, changed_files: list[ChangedFile]) -> list[dict[str, Any]]:
-    changed_by_path = {item.path: item for item in changed_files}
+    changed_by_path = {item.path: item for item in changed_files if item.semantic_status != "no_runtime_change"}
     symbols: list[dict[str, Any]] = []
     seen = set()
     declarations: dict[str, list[tuple[Any, ChangedFile]]] = {}
@@ -335,6 +385,8 @@ def _changed_symbols(graph: GraphDocument, changed_files: list[ChangedFile]) -> 
 
     if not symbols:
         for item in changed_files:
+            if item.semantic_status == "no_runtime_change":
+                continue
             symbols.append({"id": item.path, "kind": "FILE", "file": item.path, "line": None, "changed_lines": sorted(item.lines)})
     return symbols
 
