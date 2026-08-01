@@ -78,13 +78,10 @@ def main() -> int:
             encoding="utf-8",
         )
         common = [
-            # A one-file PyInstaller executable extracts a complete Python
-            # environment into a temporary directory on every invocation.
-            # On Windows that can be delayed indefinitely by endpoint
-            # scanners and leaves an analysis lock behind when the editor
-            # cancels it. A self-contained one-directory runtime is still
-            # bundled in the VSIX, but starts deterministically in place.
-            sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir",
+            # Keep a single executable in the VSIX. The launcher calls
+            # freeze_support() above, which is the essential requirement for
+            # sandbox child processes in a frozen Windows application.
+            sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile",
             "--additional-hooks-dir", str(hooks), "--paths", str(root / "src"),
             "--add-data", f"{root / 'support_packs'}{';' if sys.platform == 'win32' else ':'}support_packs",
             "--add-data", f"{root / 'plugins'}{';' if sys.platform == 'win32' else ':'}plugins",
@@ -92,10 +89,11 @@ def main() -> int:
             "--distpath", str(temp_path / "dist"), "--workpath", str(temp_path / "work"), "--specpath", str(temp_path),
         ]
         subprocess.run([*common, "--name", "codeslicer", str(launcher)], check=True, cwd=root)
-        built = temp_path / "dist" / "codeslicer" / ("codeslicer.exe" if sys.platform == "win32" else "codeslicer")
+        built = temp_path / "dist" / ("codeslicer.exe" if sys.platform == "win32" else "codeslicer")
         destination = runtime / "bin"
-        shutil.copytree(built.parent, destination)
+        destination.mkdir(exist_ok=True)
         executable = destination / built.name
+        shutil.copy2(built, executable)
         if sys.platform != "win32":
             executable.chmod(executable.stat().st_mode | 0o111)
 

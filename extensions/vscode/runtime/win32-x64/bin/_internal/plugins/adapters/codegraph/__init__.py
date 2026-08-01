@@ -1,1 +1,0 @@
-"""CodeGraph compatibility adapter package."""

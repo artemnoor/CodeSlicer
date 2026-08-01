@@ -1,5 +1,0 @@
-{
-  "id": "framework.go.chi", "kind": "framework", "language": "go", "version": "1.0.0", "manifest_files": ["go.mod"], "supported_versions": [">=5,<6"],
-  "activation": {"dependencies": ["github.com/go-chi/chi/v5", "github.com/go-chi/chi"], "imports": ["github.com/go-chi/chi/v5", "github.com/go-chi/chi"], "compat_source": "support_packs/go/chi/support_pack.json"},
-  "capabilities": {"declarative_rules": true, "optional_hook": true, "hook_entrypoints": {"chi_routes": "chi_routes"}, "hook_phases": {"chi_routes": "pre_resolution"}}, "phases": ["resolve", "validate"], "entrypoint": "impact_engine.plugin_architecture.manifest_runtime:create_framework_plugin", "cache_key": "framework.go.chi-v1", "allowed_edge_kinds": ["ROUTE_HANDLES"], "confidence_policy": {"default": "evidence_capped"}, "evidence_requirements": {"requires_locations": true}, "fixtures": [], "local_first": true
-}

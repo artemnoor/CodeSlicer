@@ -1,1 +1,0 @@
-"""CycloneDX adapter manifest package."""

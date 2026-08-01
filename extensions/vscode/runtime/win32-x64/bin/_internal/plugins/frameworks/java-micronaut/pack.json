@@ -1,5 +1,0 @@
-{
-  "id": "framework.java.micronaut", "kind": "framework", "language": "java", "version": "1.0.0", "manifest_files": ["pom.xml", "build.gradle"], "supported_versions": [">=3,<5"],
-  "activation": {"dependencies": ["io.micronaut"], "imports": ["io.micronaut"], "compat_source": "support_packs/java/micronaut/support_pack.json"},
-  "capabilities": {"declarative_rules": true, "optional_hook": true, "hook_entrypoints": {"micronaut_routes": "micronaut_routes"}, "hook_phases": {"micronaut_routes": "pre_resolution"}}, "phases": ["resolve", "validate"], "entrypoint": "impact_engine.plugin_architecture.manifest_runtime:create_framework_plugin", "cache_key": "framework.java.micronaut-v1", "allowed_edge_kinds": ["ROUTE_HANDLES"], "confidence_policy": {"default": "evidence_capped"}, "evidence_requirements": {"requires_locations": true}, "fixtures": [], "local_first": true
-}

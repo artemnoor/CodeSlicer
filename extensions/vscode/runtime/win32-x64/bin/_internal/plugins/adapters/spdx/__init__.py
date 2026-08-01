@@ -1,1 +1,0 @@
-"""SPDX adapter manifest package."""

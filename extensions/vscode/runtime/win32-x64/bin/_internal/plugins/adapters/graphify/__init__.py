@@ -1,1 +1,0 @@
-"""Graphify adapter manifest package."""
