@@ -188,6 +188,26 @@ def test_pr_review_full_closure_requires_explicit_opt_in(tmp_path: Path):
     assert "impact_results" not in result
 
 
+def test_pr_review_potential_scope_is_independent_from_full_evidence(tmp_path: Path):
+    _write_project(tmp_path)
+    diff = """diff --git a/app/repositories.py b/app/repositories.py
+--- a/app/repositories.py
++++ b/app/repositories.py
+@@ -3 +3 @@ class OrderRepository:
+-        return order
++        return {**order, "changed": True}
+"""
+
+    closure = pr_review_core(str(tmp_path), diff_text=diff, include_full_evidence=True)
+    broad = pr_review_core(str(tmp_path), diff_text=diff, include_potential=True)
+
+    assert closure["full_evidence"]["status"] == "included_on_explicit_request"
+    assert closure["potential_impact"]["status"] == "available_on_explicit_request"
+    assert closure["potential_impacts"] == []
+    assert broad["full_evidence"]["status"] == "not_requested"
+    assert broad["potential_impact"]["status"] == "included_on_explicit_request"
+
+
 def test_pr_review_cli_json(tmp_path: Path):
     _write_project(tmp_path)
     diff_file = tmp_path / "change.diff"
@@ -206,7 +226,7 @@ def test_pr_review_cli_json(tmp_path: Path):
     environment = os.environ.copy()
     environment["PYTHONPATH"] = str(repository_root / "src") + os.pathsep + environment.get("PYTHONPATH", "")
     proc = subprocess.run(
-        [sys.executable, "-m", "impact_engine.cli", "--json", "pr-review", str(tmp_path), "--diff-file", str(diff_file)],
+        [sys.executable, "-m", "impact_engine.cli", "--json", "pr-review", str(tmp_path), "--diff-file", str(diff_file), "--show-potential"],
         cwd=repository_root,
         env=environment,
         capture_output=True,
@@ -219,6 +239,7 @@ def test_pr_review_cli_json(tmp_path: Path):
     assert payload["status"] == "ok"
     assert payload["summary"]["changed_symbols"] >= 1
     assert payload["full_evidence"]["status"] == "not_requested"
+    assert payload["potential_impact"]["status"] == "included_on_explicit_request"
     assert len(payload["top_impacts"]) <= 10
 
 

@@ -713,6 +713,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                 min_confidence=args.min_confidence,
                 max_results=args.max_results,
                 include_full_evidence=args.full_evidence,
+                include_potential=args.show_potential,
             )
         except Exception as exc:
             result = {"status": "error", "error": str(exc)}
@@ -753,6 +754,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                     "refresh": args.refresh, "max_results": args.max_results,
                     "run_tests": args.run_tests, "deep": args.deep, "entity": args.entity,
                     "scope": args.scope, "review_source_kind": args.source,
+                    "include_potential": args.show_potential,
                 })
             else:
                 graph = GraphDocument.from_json(Path(args.graph).read_text(encoding="utf-8")) if args.graph else None
@@ -761,7 +763,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                         args.project_path, graph=graph, diff_text=diff_text, base=args.base,
                         graph_path=args.graph, refresh=args.refresh, max_results=args.max_results,
                         run_tests=args.run_tests, deep=args.deep, entity=args.entity, scope=args.scope,
-                        review_source_kind=args.source,
+                        review_source_kind=args.source, include_potential=args.show_potential,
                     )
             from impact_engine.review_history import record_review
             result["review_id"] = record_review(args.project_path, result)

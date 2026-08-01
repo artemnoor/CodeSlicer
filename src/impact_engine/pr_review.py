@@ -46,6 +46,7 @@ def pr_review_core(
     min_confidence: float = 0.0,
     max_results: int = 10,
     include_full_evidence: bool = False,
+    include_potential: bool = False,
 ) -> dict[str, Any]:
     """Create a bounded PR report, with full evidence only on explicit opt-in.
 
@@ -69,6 +70,7 @@ def pr_review_core(
     concise = build_review_report(
         str(root), graph=graph, diff_text=diff, refresh="never",
         max_results=max(0, min(int(max_results), 10)), run_tests="suggested",
+        include_potential=include_potential,
     )
     parsed_changed_files = parse_git_diff(diff)
     generated_changes = [item.path for item in parsed_changed_files if is_codeslicer_artifact_path(item.path)]
@@ -95,6 +97,9 @@ def pr_review_core(
         "semantic_diff": concise.get("semantic_diff", {}),
         "suggested_tests": tests,
         "top_impacts": visible,
+        "potential_impacts": list(concise.get("potential_impacts") or []),
+        "rejected_relations": list(concise.get("rejected_relations") or []),
+        "potential_impact": dict(concise.get("potential_impact") or {}),
         "test_recommendations": recommendations,
         "chains": chains,
         "review_projection": concise.get("review_projection", {}),

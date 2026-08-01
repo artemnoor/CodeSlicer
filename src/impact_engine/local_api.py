@@ -585,6 +585,7 @@ class LocalApiHandler(SimpleHTTPRequestHandler):
                     run_tests=str(body.get("run_tests") or "suggested"),
                     deep=bool(body.get("deep", False)),
                     entity=str(body.get("entity")) if body.get("entity") else None,
+                    include_potential=bool(body.get("include_potential", False)),
                 )
                 # Metadata only: external graph overlays are never fed back
                 # into review scoring, impact ranking, or test selection.

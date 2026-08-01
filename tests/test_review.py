@@ -87,7 +87,7 @@ def test_default_projection_suppresses_technical_expression_noise(tmp_path: Path
     graph.add_node(Node("call:api", "CALL_EXPR", "client.get", {"file": "app/service.py", "line": 5, "boundary": True}))
     graph.add_edge(Edge("e4", "CALLS", "app/service.py:create_order", "call:len", confidence=.99))
     graph.add_edge(Edge("e5", "CALLS", "app/service.py:create_order", "call:api", confidence=.99))
-    report = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never")
+    report = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never", include_potential=True)
     ids = {item["entity_id"] for item in report["top_impacts"]}
     assert "call:len" not in ids
     assert "call:api" not in ids
@@ -103,15 +103,22 @@ def test_review_returns_potential_scope_separately_without_changing_primary_outp
     graph.add_edge(Edge("possible-dynamic", "CALLS", "app/service.py:create_order", "app/possible.py:dynamic_call", confidence=.42, evidence=[Evidence("dynamic dispatch", "app/service.py", 3)], properties={"resolution_status": "unresolved"}))
     graph.add_edge(Edge("rejected-route", "ROUTE_HANDLES", "route:rejected", "app/service.py:create_order", confidence=.2, evidence=[Evidence("rejected route candidate", "app/routes.py", 7)], properties={"status": "rejected"}))
 
-    report = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never")
+    concise = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never")
+    report = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never", include_potential=True)
 
     assert "app/possible.py:dynamic_call" not in {item["entity_id"] for item in report["top_impacts"]}
+    assert concise["potential_impacts"] == []
+    assert concise["potential_impact"]["status"] == "available_on_explicit_request"
+    assert concise["potential_impact"]["count"] == 1
     potential = {item["entity_id"]: item for item in report["potential_impacts"]}
     assert potential["app/possible.py:dynamic_call"]["impact_tier"] == "possible"
     assert potential["app/possible.py:dynamic_call"]["confidence"] == "low"
     assert potential["app/possible.py:dynamic_call"]["reason"] == "unresolved dynamic call"
     assert "route:rejected" not in potential
     assert report["impact_summary"]["possible"] == 1
+    assert report["potential_impact"]["status"] == "included_on_explicit_request"
+    assert report["rejected_relations"][0]["kind"] == "ROUTE_HANDLES"
+    assert "explicit resolver status: rejected" in report["rejected_relations"][0]["reason"]
 
 
 def test_dangling_edges_are_reported_and_excluded_from_concise_review(tmp_path: Path):

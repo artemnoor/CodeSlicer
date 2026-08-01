@@ -79,12 +79,14 @@ test("cockpit separates review, results, tests, technologies, history, architect
 });
 
 test("results keep broad discovery collapsed and clearly marked", () => {
-  const html = renderCockpit({ ...INITIAL_STATE, review: { ...INITIAL_STATE.review, status: "ready", impacts: [{ entityId: "confirmed", label: "save", kind: "METHOD", confidence: "confirmed", tier: "confirmed", reason: "resolved call", evidence: [] }], potentialImpacts: [{ entityId: "possible", label: "dynamic call", kind: "CALL_EXPR", confidence: "low", tier: "possible", reason: "unresolved dynamic call", evidence: [] }] } }, "en");
+  const html = renderCockpit({ ...INITIAL_STATE, review: { ...INITIAL_STATE.review, status: "ready", impacts: [{ entityId: "confirmed", label: "save", kind: "METHOD", confidence: "confirmed", tier: "confirmed", reason: "resolved call", evidence: [] }], potentialImpacts: [{ entityId: "possible", label: "dynamic call", kind: "CALL_EXPR", confidence: "low", tier: "possible", reason: "unresolved dynamic call", evidence: [] }], rejectedRelations: [{ from: "HTTP POST /orders", to: "create_order", kind: "ROUTE_HANDLES", reason: "explicit resolver status: rejected", evidence: [] }], potentialLimitations: ["The analysis graph may not match the current project."] } }, "en");
   assert.match(html, /<details class="potential-impact-panel">/);
   assert.match(html, /Show potential scope/);
   assert.match(html, /Possible impact/);
   assert.match(html, /Confidence: low/);
   assert.match(html, /Reason: unresolved dynamic call/);
+  assert.match(html, /Rejected relations/);
+  assert.match(html, /Analysis limitations/);
   assert.match(html, /impact-card--confirmed/);
   assert.match(html, /impact-card--possible/);
 });

@@ -45,6 +45,17 @@ The webview keeps the normal path simple:
 The interactive guide only switches these real tabs. It does not invoke Git,
 the runtime, tests, or network requests.
 
+### Broad discovery is explicit
+
+The primary review contains only **Confirmed** and **Likely** impact. Select
+**Show potential scope** in the Results view (the extension requests
+`codeslicer review --show-potential`) to inspect a separate, collapsed safety
+layer: **Possible** low-confidence candidates, **Rejected** resolver
+relationships, and graph/coverage limitations. This layer never changes the
+risk score or adds tests to the recommended test plan. In CLI and MCP the
+same contract is explicit through `--show-potential` / `include_potential`;
+`--full-evidence` remains exclusively the complete proven impact closure.
+
 ## Optional language packs
 
 Core language coverage is bundled for offline use. Additional language packs

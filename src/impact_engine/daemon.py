@@ -83,6 +83,7 @@ class _Daemon:
                 refresh=params.get("refresh", "auto"), max_results=int(params.get("max_results", 10)),
                 run_tests=params.get("run_tests", "suggested"), deep=bool(params.get("deep", False)),
                 entity=params.get("entity"), scope=scope,
+                include_potential=bool(params.get("include_potential", False)),
             )
         if method == "impact":
             from impact_engine.impact import impact_query

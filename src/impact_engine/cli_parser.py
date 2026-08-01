@@ -296,6 +296,7 @@ def build_parser(prog: str = "impact-engine") -> argparse.ArgumentParser:
     pr_review.add_argument("--min-confidence", type=float, default=0.0)
     pr_review.add_argument("--max-results", type=int, default=10, help="Maximum concise impact entities (capped at 10)")
     pr_review.add_argument("--full-evidence", action="store_true", help="Explicitly include the complete impact closure for investigation")
+    pr_review.add_argument("--show-potential", action="store_true", help="Explicitly include possible impact candidates, rejected relations, and coverage limitations")
 
     review = sub.add_parser("review", help="Build a compact local-first daily review brief")
     review.add_argument("project_path")
@@ -308,6 +309,7 @@ def build_parser(prog: str = "impact-engine") -> argparse.ArgumentParser:
     review.add_argument("--refresh", choices=["auto", "never", "force"], default="auto")
     review.add_argument("--max-results", type=int, default=10)
     review.add_argument("--run-tests", choices=["none", "suggested"], default="suggested")
+    review.add_argument("--show-potential", action="store_true", help="Explicitly include possible impact candidates, rejected relations, and coverage limitations")
     review.add_argument("--json", action="store_true", dest="local_json")
     review.add_argument("--scope", default=None)
     review.add_argument("--no-daemon", action="store_true")

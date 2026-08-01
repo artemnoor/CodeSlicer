@@ -18,7 +18,7 @@ from typing import Any
 
 from impact_engine.graph_quality import graph_fingerprint
 from impact_engine.impact import impact_query
-from impact_engine.edge_quality import edge_is_active_for_impact
+from impact_engine.edge_quality import classify_edge_quality, edge_is_active_for_impact
 from impact_engine.models import GraphDocument
 from impact_engine.persistence import write_json_atomic
 from impact_engine.profiling import AnalysisProfiler
@@ -65,6 +65,7 @@ def build_review_report(
     entity: str | None = None,
     scope: str | None = None,
     review_source_kind: str = "current-changes",
+    include_potential: bool = False,
 ) -> dict[str, Any]:
     """Build a deterministic, bounded daily review report.
 
@@ -165,6 +166,7 @@ def build_review_report(
         "review_source_kind": review_source_kind,
         "selected_base": selected_base,
         "run_tests": run_tests,
+        "include_potential": include_potential,
     }, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
     review_cache_path = root / ".impact_engine" / "review.json"
     if refresh != "force" and not deep and not entity and review_cache_path.is_file():
@@ -259,7 +261,11 @@ def build_review_report(
         review_item(candidate, tier="confirmed" if candidate.confidence == "confirmed" else "likely")
         for candidate in projection.candidates
     ]
-    potential_impacts = [review_item(candidate, tier="possible") for candidate in projection.possible_candidates]
+    all_potential_impacts = [review_item(candidate, tier="possible") for candidate in projection.possible_candidates]
+    # Broad discovery is intentionally a separate opt-in.  It is useful when
+    # investigating a PR, but must never make the concise review look more
+    # certain or noisier than the evidence supports.
+    potential_impacts = all_potential_impacts if include_potential else []
 
     chains = []
     for chain in projection.chains:
@@ -357,6 +363,9 @@ def build_review_report(
     if suppressed:
         warnings.append(f"{suppressed} low-value entities suppressed (assignments, built-ins, libraries, or generated files)")
     warnings.extend(projection.warnings)
+    limitations = _limitations(freshness, coverage, warnings)
+    all_rejected_relations = _rejected_relations(graph, changed_symbols)
+    rejected_relations = all_rejected_relations if include_potential else []
 
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -372,10 +381,20 @@ def build_review_report(
         "coverage": coverage,
         "top_impacts": visible,
         "potential_impacts": potential_impacts,
+        "potential_impact": {
+            "status": "included_on_explicit_request" if include_potential else "available_on_explicit_request",
+            "count": len(all_potential_impacts),
+            "rejected_count": len(all_rejected_relations),
+            "limitation_count": len(limitations),
+            "hint": "Pass include_potential=true (or --show-potential) to include possible impacts, rejected relations, and limitations.",
+            "limitations": limitations if include_potential else [],
+        },
+        "rejected_relations": rejected_relations,
         "impact_summary": {
             "confirmed": sum(item.get("impact_tier") == "confirmed" for item in visible),
             "likely": sum(item.get("impact_tier") == "likely" for item in visible),
-            "possible": len(potential_impacts),
+            "possible": len(all_potential_impacts),
+            "rejected": len(all_rejected_relations),
         },
         "test_recommendations": test_recommendations,
         "test_plan": test_plan,
@@ -388,7 +407,7 @@ def build_review_report(
             "count": len(chains),
         },
         "warnings": sorted(set(warnings)),
-        "limitations": _limitations(freshness, coverage, warnings),
+        "limitations": limitations,
         "summary": _summary(risk, changed_dicts, visible, test_plan),
         "impact_groups": _impact_groups(visible),
         "areas": _areas(changed_dicts, visible),
@@ -488,6 +507,41 @@ def _test_plan(recommendations: list[dict[str, Any]], root: Path, changed_symbol
             "category": recommendation.get("category"),
         })
     return plan
+
+
+def _rejected_relations(graph: GraphDocument, changed_symbols: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return explicitly rejected relations near the changed source.
+
+    Rejected candidates are diagnostics, never impact.  Keeping them in an
+    opt-in category makes a framework heuristic auditable without accidentally
+    promoting a rejected route or call into filtering, ranking, or test
+    selection.
+    """
+    changed_ids = {str(item.get("id") or "") for item in changed_symbols}
+    changed_files = {str(item.get("file") or "").replace("\\", "/") for item in changed_symbols if item.get("file")}
+    if not changed_ids and not changed_files:
+        return []
+    relations: list[dict[str, Any]] = []
+    for edge in graph.edges:
+        quality = classify_edge_quality(edge)
+        evidence_files = {
+            str(item.file or "").replace("\\", "/")
+            for item in edge.evidence
+            if item.file
+        }
+        touches_changed_source = bool({edge.from_node, edge.to_node} & changed_ids) or bool(evidence_files & changed_files)
+        if quality.status != "rejected" or not touches_changed_source:
+            continue
+        relations.append({
+            "edge_id": edge.id,
+            "from": edge.from_node,
+            "to": edge.to_node,
+            "kind": edge.kind,
+            "confidence": "none",
+            "reason": "; ".join(quality.reasons) or "explicitly rejected relationship",
+            "evidence_locations": [item.to_dict() for item in edge.evidence[:4]],
+        })
+    return sorted(relations, key=lambda item: (str(item["from"]), str(item["to"]), str(item["edge_id"])))[:50]
 
 
 def _limitations(freshness: dict[str, Any], coverage: list[dict[str, Any]], warnings: list[str]) -> list[dict[str, str]]:

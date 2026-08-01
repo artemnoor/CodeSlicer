@@ -395,6 +395,7 @@ def pr_review(
     min_confidence: float = 0.0,
     max_results: int = 10,
     include_full_evidence: bool = False,
+    include_potential: bool = False,
 ) -> Dict[str, Any]:
     from impact_engine.pr_review import pr_review_core
     try:
@@ -409,6 +410,7 @@ def pr_review(
             min_confidence=min_confidence,
             max_results=max_results,
             include_full_evidence=include_full_evidence,
+            include_potential=include_potential,
         )
         return {"tool": "pr_review", "status": "ok", "project_path": project_path, "result": result}
     except Exception as e:
@@ -425,12 +427,13 @@ def review(
     run_tests: str = "suggested",
     deep: bool = False,
     entity: str | None = None,
+    include_potential: bool = False,
 ) -> Dict[str, Any]:
     from impact_engine.review import build_review_report
     try:
         _verify_path_exists(project_path)
         graph = GraphDocument.from_json(Path(graph_path).read_text(encoding="utf-8")) if graph_path else None
-        result = build_review_report(project_path, graph=graph, graph_path=graph_path, diff_text=diff_text, base=base, refresh=refresh, max_results=max_results, run_tests=run_tests, deep=deep, entity=entity)
+        result = build_review_report(project_path, graph=graph, graph_path=graph_path, diff_text=diff_text, base=base, refresh=refresh, max_results=max_results, run_tests=run_tests, deep=deep, entity=entity, include_potential=include_potential)
         return {"tool": "review", "status": "ok", "project_path": project_path, "result": result, "mode_response": _mode_response("review", project_path, result)}
     except Exception as e:
         return {"tool": "review", "status": "error", "project_path": project_path, "error": str(e), "result": None}
@@ -1135,7 +1138,8 @@ TOOLS = [
                 "max_depth": {"type": "integer", "default": 6},
                 "min_confidence": {"type": "number", "default": 0.0},
                 "max_results": {"type": "integer", "default": 10, "maximum": 10},
-                "include_full_evidence": {"type": "boolean", "default": False, "description": "Explicitly return the complete impact closure for investigation."}
+                "include_full_evidence": {"type": "boolean", "default": False, "description": "Explicitly return the complete impact closure for investigation."},
+                "include_potential": {"type": "boolean", "default": False, "description": "Explicitly return possible candidates, rejected relations, and coverage limitations. This does not change risk."}
             },
             "required": ["project_path"]
         }
@@ -1154,7 +1158,8 @@ TOOLS = [
                 "max_results": {"type": "integer", "default": 10},
                 "run_tests": {"type": "string", "enum": ["none", "suggested"]},
                 "deep": {"type": "boolean", "default": False},
-                "entity": {"type": "string"}
+                "entity": {"type": "string"},
+                "include_potential": {"type": "boolean", "default": False, "description": "Explicitly return possible candidates, rejected relations, and coverage limitations. This does not change risk."}
             },
             "required": ["project_path"]
         }

@@ -37,6 +37,12 @@ frontend-клиента и теста. Graphify отвечает за свой, 
 
 `codeslicer review <project> --json` выдаёт `ReviewReport/v2`: понятную сводку, источник проверки, freshness, ограниченный список затронутых областей, evidence, human-readable ограничения и безопасный test plan с `argv`, `cwd`, runner и confidence. Поля v1 сохранены для существующих клиентов.
 
+Основной review показывает только **Confirmed** и **Likely** связи. Для
+отдельного широкого поиска используйте `--show-potential`: он добавляет
+**Possible** низкоуверенные кандидаты, **Rejected** связи и ограничения
+покрытия, не меняя risk или рекомендации тестов. Это не то же самое, что
+`--full-evidence`: последний запрашивает полное доказанное замыкание графа.
+
 VS Code extension находится в [`extensions/vscode`](extensions/vscode/README.md) как отдельный TypeScript package этого репозитория. Для обычного пользователя он поставляет platform-specific VSIX со встроенным self-contained CodeSlicer runtime: Python, pip, `.venv`, clone репозитория и ручной путь к executable не требуются. Runtime запускается отдельным локальным процессом только по явному действию в trusted workspace.
 
 Помимо проверки текущих изменений extension поддерживает explicit local compare с base branch и выбор локального diff-file из Command Palette, а последние десять summary сохраняет только в workspace state. GitHub PR review запускается только отдельной командой через VS Code OAuth: extension читает metadata и diff выбранного PR, сохраняет diff в global storage и анализирует его локально. Исходный код не отправляется, checks/comments не публикуются.
