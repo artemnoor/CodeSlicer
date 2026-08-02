@@ -5,10 +5,10 @@ These checks are annotations only: they never invent semantic edges.
 from __future__ import annotations
 
 import hashlib
-import json
 from typing import Any
 
 from impact_engine.models import GraphDocument, Node
+from impact_engine.persistence import canonical_json_bytes
 
 
 def annotate_edge_contracts(graph: GraphDocument) -> GraphDocument:
@@ -58,8 +58,10 @@ def graph_fingerprint(graph: GraphDocument) -> str:
     """Return a stable content hash independent of list ordering."""
     payload = graph.to_dict()
     payload["metadata"] = {}
-    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    # The bundled runtime includes orjson (compiled Rust). Its sorted bytes
+    # match the previous compact JSON representation, keeping graph and
+    # review-cache fingerprints stable while avoiding a large Python str.
+    return hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
 
 def graph_quality_report(graph: GraphDocument) -> dict[str, Any]:

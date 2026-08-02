@@ -464,16 +464,26 @@ def explain_edge(graph: Any, from_symbol: str, to_symbol: str, kind: Optional[st
 def impact_path(graph: Any, from_symbol: str, to_symbol: str, max_depth: int = 20) -> dict:
     """Return the highest-confidence directed path between two graph nodes."""
     if isinstance(graph, dict):
-        graph = GraphDocument.from_json(json.dumps(graph))
+        graph = GraphDocument.from_dict(graph)
     adjacency: dict[str, list[Edge]] = {}
     for edge in graph.edges:
         if edge_is_active_for_impact(edge):
             adjacency.setdefault(edge.from_node, []).append(edge)
-    queue: list[tuple[str, list[Edge]]] = [(from_symbol, [])]
+    # Keep only parent pointers.  Copying a complete path for every neighbour
+    # and removing from the start of a list both scale poorly on broad graphs.
+    queue: deque[tuple[str, int]] = deque([(from_symbol, 0)])
     visited = {from_symbol}
+    parents: dict[str, tuple[str, Edge]] = {}
     while queue:
-        current, path = queue.pop(0)
+        current, depth = queue.popleft()
         if current == to_symbol:
+            path: list[Edge] = []
+            cursor = current
+            while cursor in parents:
+                parent, edge = parents[cursor]
+                path.append(edge)
+                cursor = parent
+            path.reverse()
             return {
                 "found": True,
                 "from": from_symbol,
@@ -486,10 +496,11 @@ def impact_path(graph: Any, from_symbol: str, to_symbol: str, max_depth: int = 2
                 "path_status": _path_status(path),
                 "evidence_chain": [ev for edge in path for ev in edge_to_dict(edge)["evidence_chain"]],
             }
-        if len(path) >= max_depth:
+        if depth >= max_depth:
             continue
         for edge in sorted(adjacency.get(current, []), key=lambda item: (-item.confidence, item.to_node)):
             if edge.to_node not in visited:
                 visited.add(edge.to_node)
-                queue.append((edge.to_node, path + [edge]))
+                parents[edge.to_node] = (current, edge)
+                queue.append((edge.to_node, depth + 1))
     return {"found": False, "from": from_symbol, "to": to_symbol, "nodes": [], "edges": [], "confidence": 0.0, "evidence_chain": []}

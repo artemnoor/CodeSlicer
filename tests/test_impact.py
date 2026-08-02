@@ -75,6 +75,8 @@ def test_impact_query_uses_constant_time_bfs_queue_and_edge_membership():
     assert "queue.append((next_id, depth + 1))" in contents
     assert "path_edges + [edge]" not in contents
     assert "next_edges = []" not in contents
+    assert "queue.pop(0)" not in contents
+    assert "path + [edge]" not in contents
 
 
 def test_explain_edge_returns_evidence_chain():

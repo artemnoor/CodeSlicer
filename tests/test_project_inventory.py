@@ -54,6 +54,35 @@ pytest==7.0.0
     assert "__future__" not in inv.external_imports
 
 
+def test_inventory_reuses_source_contents_between_counting_and_import_detection(tmp_path, monkeypatch):
+    source = tmp_path / "app.py"
+    source.write_text("import requests\n\ndef run():\n    return requests\n", encoding="utf-8")
+    original = Path.read_text
+    reads = 0
+
+    def counted_read_text(self, *args, **kwargs):
+        nonlocal reads
+        if self == source:
+            reads += 1
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", counted_read_text)
+    inventory = scan_project_inventory(tmp_path)
+
+    assert "requests" in inventory.external_imports
+    assert reads == 1
+
+
+def test_inventory_keeps_python_ast_transient_and_out_of_public_dict(tmp_path):
+    source = tmp_path / "app.py"
+    source.write_text("class Service:\n    def run(self):\n        return 1\n", encoding="utf-8")
+
+    inventory = scan_project_inventory(tmp_path)
+
+    assert "app.py" in inventory._parsed_python_trees
+    assert "_parsed_python_trees" not in inventory.to_dict()
+
+
 def test_project_inventory_scans_nested_polyglot_manifests_and_imports(tmp_path):
     (tmp_path / "backend" / "app").mkdir(parents=True)
     (tmp_path / "frontend" / "src").mkdir(parents=True)

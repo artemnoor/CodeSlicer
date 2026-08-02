@@ -74,6 +74,13 @@ def annotate_plugin_provenance(graph: GraphDocument, plan: PluginSelectionPlan) 
         if plan.registry and plugin_id in plan.registry.manifests
     }
     node_by_id = {node.id: node for node in graph.nodes}
+    # This immutable index replaces rebuilding every manifest's extension set
+    # for every edge.  It preserves the ambiguity rule below: an extension
+    # owned by more than one selected language remains deliberately unknown.
+    language_plugins_by_extension: dict[str, set[str]] = {}
+    for plugin_id, manifest in selected_languages.items():
+        for extension in manifest.file_extensions:
+            language_plugins_by_extension.setdefault(str(extension).lower(), set()).add(plugin_id)
 
     def language_plugin_for_edge(edge: Any) -> str | None:
         """Resolve extractor provenance from concrete source locations only.
@@ -99,8 +106,7 @@ def annotate_plugin_provenance(graph: GraphDocument, plan: PluginSelectionPlan) 
         candidates = {
             plugin_id
             for file_name in files
-            for plugin_id, manifest in selected_languages.items()
-            if Path(file_name).suffix.lower() in {str(item).lower() for item in manifest.file_extensions}
+            for plugin_id in language_plugins_by_extension.get(Path(file_name).suffix.lower(), ())
         }
         return next(iter(candidates)) if len(candidates) == 1 else None
     for edge in graph.edges:

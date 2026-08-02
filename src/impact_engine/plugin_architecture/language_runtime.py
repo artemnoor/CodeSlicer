@@ -32,6 +32,8 @@ class ManifestLanguagePlugin:
             kwargs["cancellation"] = context.cancellation
         if "progress_callback" in parameters:
             kwargs["progress_callback"] = context.report_progress
+        if "parsed_trees" in parameters and context.parsed_python_trees:
+            kwargs["parsed_trees"] = context.parsed_python_trees
         graph = self.extractor(str(context.project_path), **kwargs)
         graph.metadata.setdefault("plugin_provenance", []).append({
             "plugin_id": self.manifest.id,

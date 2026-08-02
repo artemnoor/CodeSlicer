@@ -156,12 +156,19 @@ def run_case(project: Path, scope: str = ".", *, source_path: Path | None = None
         incremental, inc_times, inc_peak = _measure(
             lambda: analyze_project_core(str(project), changed_files=[source.relative_to(project).as_posix()], scope=scope, raw_graph_cache_path=str(raw_cache)), repeat=1
         )
-        incremental_graph = GraphDocument.from_dict(incremental["graph"])
+        # Compare the clean rebuild with the same final mutation state.  A
+        # previous version compared the one-file graph to a clean graph that
+        # also included a later manifest mutation, creating a false quality
+        # failure for projects that have pyproject.toml/package.json.
+        comparison_incremental = incremental
         if manifest_original is not None:
             manifest_comment = "#" if manifest.suffix.lower() in {".toml", ".txt"} else "//"
             manifest.write_text(manifest_original + f"\n{manifest_comment} benchmark manifest mutation\n", encoding="utf-8")
-            _, manifest_times, _ = _measure(
-                lambda: analyze_project_core(str(project), changed_files=["pyproject.toml"], scope=scope, raw_graph_cache_path=str(raw_cache)), repeat=1
+            comparison_incremental, manifest_times, _ = _measure(
+                lambda: analyze_project_core(
+                    str(project), changed_files=[manifest.relative_to(project).as_posix()],
+                    scope=scope, raw_graph_cache_path=str(raw_cache),
+                ), repeat=1
             )
         with tempfile.TemporaryDirectory(prefix="impact-engine-clean-") as clean_temp:
             clean_project = Path(clean_temp) / "project"
@@ -170,7 +177,7 @@ def run_case(project: Path, scope: str = ".", *, source_path: Path | None = None
                 lambda: analyze_project_core(str(clean_project), scope=scope), repeat=1
             )
             clean_graph = GraphDocument.from_dict(clean["graph"])
-        differential = _semantic_signature(incremental_graph) == _semantic_signature(clean_graph)
+        differential = _semantic_signature(GraphDocument.from_dict(comparison_incremental["graph"])) == _semantic_signature(clean_graph)
     finally:
         source.write_text(original, encoding="utf-8")
         if manifest_original is not None:

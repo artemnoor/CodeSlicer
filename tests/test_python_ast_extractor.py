@@ -1,3 +1,4 @@
+import ast
 import pytest
 from pathlib import Path
 from impact_engine.extractors.python_ast import extract_project
@@ -110,3 +111,22 @@ def test_extractor_does_not_create_inferred_mvp_edge():
                 edge.from_node == "services.OrderService.create_order"
                 and edge.to_node == "repositories.OrderRepository.save"
             ), "Extractor should not produce the INFERRED CALLS edge"
+
+
+def test_extractor_reuses_pipeline_parsed_tree_without_second_source_read(tmp_path, monkeypatch):
+    source = tmp_path / "app.py"
+    content = "import local_service\n\ndef run():\n    return local_service.execute()\n"
+    source.write_text(content, encoding="utf-8")
+    parsed = ast.parse(content, filename=str(source))
+    original_read_text = Path.read_text
+
+    def fail_only_for_source(path, *args, **kwargs):
+        if path == source:
+            raise AssertionError("extractor reparsed source despite a supplied inventory AST")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", fail_only_for_source)
+    document = extract_project(tmp_path, files=["app.py"], parsed_trees={"app.py": parsed})
+
+    assert "method:app.run" in {node.id for node in document.nodes}
+    assert any(node.id == "call:app.run:4:local_service.execute" for node in document.nodes)

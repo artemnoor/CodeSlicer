@@ -116,6 +116,9 @@ class PluginContext:
     # need observable, cancellable work units.  Plugins report one completed
     # source file at a time through this callback; the pipeline owns aggregation.
     progress_callback: Callable[[Mapping[str, Any]], None] | None = None
+    # Ephemeral parser products shared only during one local pipeline run.
+    # They are neither part of inventory serialization nor persisted in caches.
+    parsed_python_trees: Mapping[str, Any] = field(default_factory=dict, repr=False)
     _diagnostics: list[PluginDiagnostic] = field(default_factory=list)
 
     @property

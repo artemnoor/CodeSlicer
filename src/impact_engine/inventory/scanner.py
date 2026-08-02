@@ -290,8 +290,19 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
     methods_count = 0
     loc = 0
 
+    # Walking a large workspace is dominated by filesystem metadata calls on
+    # Windows.  Materialize the pruned scope once and reuse it for source and
+    # manifest passes below instead of walking the same directory tree three
+    # times.
+    project_files = list(iter_project_files(root))
+    source_contents: dict[Path, str] = {}
+    # Transient process-local data for the pipeline.  The Python extractor can
+    # reuse these exact trees instead of parsing source a second time; this is
+    # intentionally kept out of the public JSON inventory contract.
+    parsed_python_trees: dict[str, ast.AST] = {}
+
     # Scan project files
-    for p in iter_project_files(root):
+    for p in project_files:
         parts = p.relative_to(root).parts
         if _is_ignored_path(parts):
             continue
@@ -304,6 +315,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
             if suffix in [".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".cs"]:
                 try:
                     content_for_counts = p.read_text(encoding="utf-8")
+                    source_contents[p] = content_for_counts
                     loc += len([line for line in content_for_counts.splitlines() if line.strip()])
                 except Exception:
                     content_for_counts = ""
@@ -321,6 +333,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
                 if content_for_counts:
                     try:
                         count_tree = ast.parse(content_for_counts)
+                        parsed_python_trees[rel_path] = count_tree
                         for ast_node in ast.walk(count_tree):
                             if isinstance(ast_node, ast.ClassDef):
                                 classes_count += 1
@@ -392,7 +405,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
         "build.gradle": ("java", parse_build_gradle),
         "tsconfig.json": ("typescript", lambda path: []),
     }
-    for csproj in iter_project_files(root):
+    for csproj in project_files:
         if csproj.is_file() and csproj.suffix.lower() in {".csproj", ".sln", ".slnx"} and not _is_ignored_path(csproj.relative_to(root).parts):
             manifests.append(csproj.relative_to(root).as_posix())
             ecosystem = "csharp"
@@ -411,7 +424,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
                 declared_dependencies.add(project_name)
                 _add_map_value(declared_dependencies_by_ecosystem, ecosystem, project_name)
 
-    for m_path in iter_project_files(root):
+    for m_path in project_files:
         if not m_path.is_file():
             continue
         parts = m_path.relative_to(root).parts
@@ -474,7 +487,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
     # Collect Python imports
     for f in py_files:
         try:
-            tree = ast.parse(f.read_text(encoding="utf-8"))
+            tree = ast.parse(source_contents[f] if f in source_contents else f.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     for name in node.names:
@@ -503,7 +516,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
     )
     for f in js_files + ts_files:
         try:
-            content = f.read_text(encoding="utf-8")
+            content = source_contents[f] if f in source_contents else f.read_text(encoding="utf-8")
             ecosystem = "typescript" if f.suffix.lower() in [".ts", ".tsx"] else "javascript"
             for match in js_ts_import_regex.finditer(content):
                 imp = match.group(1) or match.group(2) or match.group(3)
@@ -524,7 +537,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
     go_import_line_re = re.compile(r'import\s+(?:[.\w]+\s+)?["`]([^"`]+)["`]')
     for f in go_files:
         try:
-            content = f.read_text(encoding="utf-8")
+            content = source_contents[f] if f in source_contents else f.read_text(encoding="utf-8")
             imports = []
             for block in go_import_block_re.findall(content):
                 imports.extend(re.findall(r'(?:[.\w]+\s+)?["`]([^"`]+)["`]', block))
@@ -541,7 +554,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
     java_import_re = re.compile(r"^\s*import\s+(?:static\s+)?([A-Za-z_][\w.]*)(?:\.\*)?\s*;", re.MULTILINE)
     for f in java_files:
         try:
-            content = f.read_text(encoding="utf-8")
+            content = source_contents[f] if f in source_contents else f.read_text(encoding="utf-8")
             for imp in java_import_re.findall(content):
                 is_local = any(imp == prefix or imp.startswith(prefix + ".") for prefix in java_local_packages)
                 if not imp.startswith(("java.", "javax.")) and not is_local:
@@ -553,7 +566,8 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
     csharp_import_re = re.compile(r"^\s*using\s+(?:static\s+)?([A-Za-z_][\w.]*)\s*;", re.MULTILINE)
     for f in csharp_files:
         try:
-            for imp in csharp_import_re.findall(f.read_text(encoding="utf-8", errors="ignore")):
+            content = source_contents[f] if f in source_contents else f.read_text(encoding="utf-8", errors="ignore")
+            for imp in csharp_import_re.findall(content):
                 root_name = imp.split(".", 1)[0]
                 if root_name not in {"System", "Microsoft", "global"} and not any(imp.startswith(local) for local in local_modules_by_ecosystem.get("csharp", set())):
                     external_imports.add(root_name)
@@ -563,7 +577,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
         except Exception:
             pass
 
-    return ProjectInventory(
+    inventory = ProjectInventory(
         root_path=str(root.as_posix()),
         files=files,
         languages=languages,
@@ -582,6 +596,8 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
         methods_count=methods_count,
         loc=loc
     )
+    inventory._parsed_python_trees = parsed_python_trees
+    return inventory
 
 
 def scan_project(project_path: str | Path) -> ProjectInventory:

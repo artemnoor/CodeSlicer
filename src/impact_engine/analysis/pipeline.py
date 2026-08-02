@@ -31,10 +31,12 @@ from impact_engine.plugin_architecture.selection import PluginSelectionPlan, bui
 from impact_engine.persistence import (
     AtomicCacheStore,
     CacheMetadata,
+    classify_path,
     git_context,
     project_snapshot_stats,
     project_snapshot as persistent_project_snapshot,
     root_identity,
+    canonical_json_bytes,
     write_json_atomic,
 )
 from impact_engine.profiling import AnalysisProfiler
@@ -328,7 +330,7 @@ class AnalysisPipeline:
                 "execution_mode": "full_initial_scan",
                 "full_pipeline_called": True,
                 "selective_execution_proven": False,
-                "fallback_reason": "initial_or_non_incremental_analysis",
+                "fallback_reason": self.selective_execution_fallback or "initial_or_non_incremental_analysis",
             }
         self._progress("final", 1, 1, "Анализ завершён")
         progress = {"status": "completed", "events": self.progress_events, "current": self.progress_events[-1]}
@@ -627,7 +629,9 @@ class AnalysisPipeline:
             if prefix == ".":
                 prefix = ""
             scan_root = project_root / prefix if prefix else project_root
-            result = asdict(scan_project_inventory(scan_root))
+            inventory = scan_project_inventory(scan_root)
+            parsed_python_trees = dict(getattr(inventory, "_parsed_python_trees", {}) or {})
+            result = asdict(inventory)
             if prefix:
                 # Scan the package itself, not the monorepo root. This keeps
                 # dependency/import evidence local to the requested scope and
@@ -636,9 +640,14 @@ class AnalysisPipeline:
                 result["package_manifests"] = [f"{prefix}/{value}" for value in result.get("package_manifests", [])]
                 result["root_path"] = str(project_root.as_posix())
                 result["scope"] = self.options.scope
+                parsed_python_trees = {
+                    f"{prefix}/{relative_path}": tree
+                    for relative_path, tree in parsed_python_trees.items()
+                }
             result["files_count"] = len(result.get("files", []))
             self._inventory_data = result
             self._inventory_files = result.get("files", [])
+            self._parsed_python_trees = parsed_python_trees
             self.stage_timings["inventory"] = round(time.perf_counter() - started, 4)
             return result
         except Exception as exc:
@@ -663,13 +672,27 @@ class AnalysisPipeline:
                 if manifest is not None:
                     extensions.update(str(item).lower() for item in manifest.file_extensions)
         source_files = [item for item in inventory_files if Path(str(item)).suffix.lower() in extensions]
-        extraction_scope = self.options.changed_files if self.options.changed_files is not None else inventory_files
-        if self.options.changed_files is not None:
+        # Dependency manifests choose plugins, support packs and framework
+        # hooks.  A narrow parse of just ``pyproject.toml`` or ``package.json``
+        # cannot prove that the previously selected source graph is still
+        # valid, so deliberately take the complete (safe) path here.  Source
+        # edits retain the selective fast path below.
+        manifest_changed = any(
+            classify_path(str(item).replace("\\", "/")) == "manifest"
+            for item in (self.options.changed_files or [])
+        )
+        if manifest_changed:
+            self.selective_execution_fallback = (
+                "manifest changed; complete plugin and source re-evaluation is required"
+            )
+        incremental_scope = self.options.changed_files is not None and not manifest_changed
+        extraction_scope = self.options.changed_files if incremental_scope else inventory_files
+        if incremental_scope:
             total_files = sum(1 for item in extraction_scope if Path(str(item)).suffix.lower() in extensions)
         else:
             total_files = len(source_files)
         self._progress("extraction", 0, max(1, total_files), "Извлечение исходных фактов")
-        if self.options.changed_files is not None and self.options.raw_graph_cache_path:
+        if incremental_scope and self.options.raw_graph_cache_path:
             if self._try_reuse_final_graph_fragments(plan):
                 self.stage_timings["extraction"] = round(time.perf_counter() - started, 4)
                 self._progress("extraction", total_files, max(1, total_files), "Изменённый файл не изменил raw graph")
@@ -699,6 +722,7 @@ class AnalysisPipeline:
             cancellation=self.cancellation,
             timeout_seconds=30.0,
             progress_callback=report_extraction_progress,
+            parsed_python_trees=getattr(self, "_parsed_python_trees", {}),
         )
         # Inventory is the authoritative, pruned source set.  Passing it on a
         # full scan prevents every language extractor from walking the project
@@ -726,6 +750,15 @@ class AnalysisPipeline:
             with self.profiler.measure("cache_lookup"):
                 legacy_cache = self.cache_store.load(artifact_names=("raw_file_fragments.json",))
             raw_fragments = legacy_cache.artifacts.get("raw_file_fragments.json") if legacy_cache.hit else None
+        if not isinstance(raw_fragments, dict):
+            # Cache metadata contains the *old* source snapshot by design, so
+            # AtomicCacheStore cannot return it after an editor change.  The
+            # fragment artifact itself is still safe to use as a comparison
+            # baseline once the complete bundle is present and no transaction
+            # is in progress.
+            raw_fragments = self._load_previous_cache_artifact("raw_extraction_file_fragments.json")
+        if not isinstance(raw_fragments, dict):
+            raw_fragments = self._load_previous_cache_artifact("raw_file_fragments.json")
         if not isinstance(raw_fragments, dict) or not raw_fragments:
             return False
 
@@ -772,6 +805,8 @@ class AnalysisPipeline:
         with self.profiler.measure("cache_lookup"):
             final_cache = self.cache_store.load(artifact_names=("graph.json",))
         previous_graph = final_cache.artifacts.get("graph.json") if final_cache.hit else None
+        if not isinstance(previous_graph, dict):
+            previous_graph = self._load_previous_cache_artifact("graph.json")
         if not isinstance(previous_graph, dict):
             return False
         self.reusable_final_graph_payload = previous_graph
@@ -835,27 +870,55 @@ class AnalysisPipeline:
             )
             return None
 
+    def _load_previous_cache_artifact(self, name: str) -> dict[str, Any] | None:
+        """Read a completed previous artifact for evidence-preserving delta checks.
+
+        A changed source snapshot intentionally invalidates ``AtomicCacheStore``
+        as a whole.  Incremental analysis still needs its prior raw fragments
+        and final graph to prove a *no semantic delta* result.  This helper is
+        deliberately narrow: it only reads a named JSON artifact from a
+        completed, non-journaled local bundle and never treats it as a fresh
+        graph by itself.
+        """
+        try:
+            cache_root = Path(self.project_path) / ".impact_engine"
+            if (cache_root / ".cache.journal.json").exists() or not (cache_root / ".cache.complete").is_file():
+                return None
+            safe_name = Path(name).name
+            if safe_name != name:
+                return None
+            path = cache_root / safe_name
+            if not path.is_file():
+                return None
+            from impact_engine.persistence import _read_json
+            value = _read_json(path)
+            return value if isinstance(value, dict) else None
+        except (OSError, ValueError, TypeError):
+            return None
+
     @staticmethod
     def _raw_file_fragments(graph: GraphDocument, files: set[str] | None = None) -> dict[str, str]:
         fragments: dict[str, dict[str, list[dict[str, Any]]]] = {}
-        node_files: dict[str, set[str]] = {}
+        node_owner_files: dict[str, set[str]] = {}
         for node in graph.nodes:
             file_name = str(node.properties.get("file") or node.properties.get("path") or node.properties.get("source_file") or "").replace("\\", "/")
             if file_name:
-                node_files.setdefault(file_name, set()).add(node.id)
+                node_owner_files.setdefault(node.id, set()).add(file_name)
                 fragments.setdefault(file_name, {"nodes": [], "edges": []})["nodes"].append(node.to_dict())
         for edge in graph.edges:
             owners = {str(ev.file).replace("\\", "/") for ev in edge.evidence if ev.file}
-            owners |= {file_name for file_name, ids in node_files.items() if edge.from_node in ids or edge.to_node in ids}
-            for file_name in owners:
+            owners.update(node_owner_files.get(edge.from_node, ()))
+            owners.update(node_owner_files.get(edge.to_node, ()))
+            # Stable order keeps cache fingerprints reproducible across Python
+            # processes while avoiding the former nodes × edges membership scan.
+            for file_name in sorted(owners):
                 if files is None or file_name in files:
                     fragments.setdefault(file_name, {"nodes": [], "edges": []})["edges"].append(edge.to_dict())
         result = {}
         for file_name, fragment in fragments.items():
             if files is not None and file_name not in files:
                 continue
-            payload = json.dumps(fragment, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-            result[file_name] = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+            result[file_name] = hashlib.sha256(canonical_json_bytes(fragment)).hexdigest()
         return result
 
     def _refresh_changed_files(self, cached: GraphDocument, plan: PluginSelectionPlan) -> list[GraphDocument]:
@@ -905,6 +968,8 @@ class AnalysisPipeline:
             if all(raw_fragments.get(file_name) == current_fragments.get(file_name) for file_name in changed):
                 previous_final = self.cache_load if self.cache_load and self.cache_load.hit else self.cache_store.load()
                 previous_graph = previous_final.artifacts.get("graph.json") if previous_final.hit else None
+                if not isinstance(previous_graph, dict):
+                    previous_graph = self._load_previous_cache_artifact("graph.json")
                 if previous_graph:
                     self.reusable_final_graph_payload = previous_graph
                     total_files = len(getattr(self, "_inventory_files", []) or [])
@@ -1004,6 +1069,8 @@ class AnalysisPipeline:
         if changed_fragment(cached, changed_node_ids) == changed_fragment(rebuilt_document):
             previous_final = self.cache_store.load()
             previous_graph = previous_final.artifacts.get("graph.json") if previous_final.hit else None
+            if not isinstance(previous_graph, dict):
+                previous_graph = self._load_previous_cache_artifact("graph.json")
             if previous_graph:
                 self.reusable_final_graph = GraphDocument.from_dict(previous_graph)
         refreshed: list[GraphDocument] = [kept] + rebuilt

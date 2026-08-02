@@ -12,7 +12,7 @@ import { detectBaseSelection } from "./base";
 import { parseJsonLineProgress } from "./progress";
 import { GitHubReviewService } from "./github";
 import { CockpitState, INITIAL_STATE, ProjectState, ReviewHistoryEntry, ReviewState, ReviewSourceMode, TestRecommendation, UiLanguage } from "./types";
-import { renderCockpit } from "./webview";
+import { renderCockpit, renderReviewReport } from "./webview";
 import { buildPushArgs, isPlausibleGitRemote, parseGitBranches, parseGitRemotes, PushPreview } from "./git";
 
 const OUTPUT = vscode.window.createOutputChannel("CodeSlicer");
@@ -21,6 +21,7 @@ const graphifyPath = (root: string, configured: string) => configured.trim() || 
 
 class CockpitProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
+  private reviewPanel?: vscode.WebviewPanel;
   private state: CockpitState = structuredClone(INITIAL_STATE);
   private tests: TestRecommendation[] = [];
   private selectedLanguage?: "ru" | "en";
@@ -95,6 +96,23 @@ class CockpitProvider implements vscode.WebviewViewProvider {
 
   private render(): void {
     if (this.view) this.view.webview.html = renderCockpit(this.state, this.language());
+    if (this.reviewPanel) this.reviewPanel.webview.html = renderReviewReport(this.state, this.language());
+  }
+
+  /** Open the concise review answer where VS Code has room to read it. */
+  private showReviewReport(): void {
+    if (!this.reviewPanel) {
+      this.reviewPanel = vscode.window.createWebviewPanel(
+        "codeslicer.reviewReport",
+        "CodeSlicer: Review result",
+        { viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
+        { enableScripts: true, retainContextWhenHidden: true },
+      );
+      this.reviewPanel.onDidDispose(() => { this.reviewPanel = undefined; });
+      this.reviewPanel.webview.onDidReceiveMessage(message => this.onMessage(message));
+    }
+    this.reviewPanel.webview.html = renderReviewReport(this.state, this.language());
+    this.reviewPanel.reveal(vscode.ViewColumn.Active, false);
   }
 
   private log(result: { command: string[]; cwd: string; exitCode: number; stdout: string; stderr: string }): void {
@@ -652,9 +670,9 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         await this.context.workspaceState.update("codeslicer.reviewHistory", history);
       });
       this.render();
-      // A completed review is the moment the user needs the answer, not the
-      // start screen again. The webview owns its selected tab, so switch after
-      // the HTML is rebuilt rather than coupling navigation to analysis.
+      this.showReviewReport();
+      // Keep the detailed side-panel result reachable for guides and users who
+      // prefer the cockpit, but do not force the main answer into that width.
       setTimeout(() => void this.view?.webview.postMessage({ type: "openTab", tab: "results" }), 0);
     } catch (error) {
       this.state = withReview(this.state, { ...INITIAL_STATE.review, status: "error", warnings: [String(error)] });
@@ -757,7 +775,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       const guided = Boolean(message.guide && typeof message.guide === "object");
       const before = guided ? this.guideSnapshot() : undefined;
       const actions: Record<string, () => Promise<void>> = {
-        configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(),
+        configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(), focusCockpit: async () => { await vscode.commands.executeCommand("codeslicer.cockpit.focus"); this.view?.webview.postMessage({ type: "openTab", tab: "results" }); },
         analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
         sourceCurrent: () => this.setReviewSource("current-changes"), sourceStaged: () => this.setReviewSource("staged"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
         hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), openProject: () => this.openOrCreateProject(), importGit: () => this.importFromGit(), initGit: () => this.initializeGit(), showDemo: () => this.showDemo(), startServer: () => this.startLocalServer(), stopServer: () => this.stopLocalServer(), showGraph: () => this.analyzeAndShowGraph(), showGit: () => this.showGitBranches(), createBranch: () => this.createBranch(), switchBranch: () => this.switchBranch(), addRemote: () => this.addRemote(), previewPush: () => this.previewPush(), pushBranch: () => this.pushBranch(), configureGitHubToken: () => this.configureGitHubToken(), installGraphify: () => this.installGraphify(), buildGraphify: () => this.buildGraphifyGraph()

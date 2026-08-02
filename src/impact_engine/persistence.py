@@ -81,6 +81,26 @@ def _canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+def canonical_json_bytes(value: Any) -> bytes:
+    """Serialize persisted artifacts deterministically without a Python-string copy.
+
+    Large graphs are written several times during a full or incremental run.
+    ``orjson`` is already an optional reader for this cache; when available it
+    produces the same compact, sorted JSON representation directly as bytes.
+    The standard-library branch deliberately remains the compatibility
+    fallback, so artifact schema and cache keys do not depend on the optional
+    accelerator.
+    """
+    if orjson is not None:
+        return orjson.dumps(value, option=orjson.OPT_SORT_KEYS)
+    return _canonical_json(value).encode("utf-8")
+
+
+def _canonical_json_bytes(value: Any) -> bytes:
+    """Return canonical JSON for an on-disk JSONL-compatible artifact."""
+    return canonical_json_bytes(value) + b"\n"
+
+
 def _sha256(value: str | bytes) -> str:
     data = value.encode("utf-8") if isinstance(value, str) else value
     return hashlib.sha256(data).hexdigest()
@@ -102,7 +122,7 @@ def _write_bytes_atomic(path: Path, payload: bytes) -> None:
 
 def write_json_atomic(path: str | Path, value: Any) -> Path:
     destination = Path(path).resolve()
-    _write_bytes_atomic(destination, (_canonical_json(value) + "\n").encode("utf-8"))
+    _write_bytes_atomic(destination, _canonical_json_bytes(value))
     return destination
 
 

@@ -1,6 +1,7 @@
 """Python AST extractor implementation. Stage 4 complete."""
 import ast
 from pathlib import Path
+from typing import Mapping
 from impact_engine.models import GraphDocument, Node, Edge, Evidence
 
 
@@ -20,10 +21,30 @@ class ASTFactExtractor(ast.NodeVisitor):
         self.current_method = None
         self.scope = module_name
         self.imports: dict[str, str] = {}
+        # ``ast.unparse`` is used both while recording a parent fact and again
+        # while visiting its child expression.  Keep the cache strictly local
+        # to this one parsed file: AST object ids stay valid for the visit and
+        # no source-derived data is retained after extraction.
+        self._unparse_cache: dict[int, str] = {}
+
+    def _unparse(self, node: ast.AST) -> str:
+        key = id(node)
+        cached = self._unparse_cache.get(key)
+        if cached is not None:
+            return cached
+        value = ast.unparse(node)
+        self._unparse_cache[key] = value
+        return value
 
     def _module_node(self):
-        module_id = f"module:{self.module_name}"
-        return next((n for n in self.doc.nodes if n.id == module_id), None)
+        """Return this file's module node through GraphDocument's O(1) index.
+
+        Import-heavy modules call this once per alias.  Scanning ``doc.nodes``
+        made the cost grow with every fact emitted by earlier files, despite
+        the document already maintaining a stable node index for this exact
+        lookup.
+        """
+        return self.doc.get_node(f"module:{self.module_name}")
 
     def _record_import_alias(self, alias: str, target: str) -> None:
         self.imports[alias] = target
@@ -60,6 +81,10 @@ class ASTFactExtractor(ast.NodeVisitor):
     def visit_ClassDef(self, node: ast.ClassDef):
         class_name = node.name
         parent_class = self.current_class
+        bases = []
+        for base in node.bases:
+            base_text = self._unparse(base)
+            bases.append(self.imports.get(base_text, f"{self.module_name}.{base_text}"))
         
         if self.current_class:
             full_class_name = f"{self.current_class}.{class_name}"
@@ -82,7 +107,7 @@ class ASTFactExtractor(ast.NodeVisitor):
                 "file": self.relative_path,
                 "line": node.lineno,
                 "end_line": getattr(node, "end_lineno", node.lineno),
-                "bases": [self.imports.get(ast.unparse(base), f"{self.module_name}.{ast.unparse(base)}") for base in node.bases],
+                "bases": bases,
             }
         )
         
@@ -125,7 +150,7 @@ class ASTFactExtractor(ast.NodeVisitor):
         decorators = []
         for dec in getattr(node, "decorator_list", []):
             try:
-                decorators.append("@" + ast.unparse(dec))
+                decorators.append("@" + self._unparse(dec))
             except Exception:
                 pass
 
@@ -149,7 +174,7 @@ class ASTFactExtractor(ast.NodeVisitor):
                     param_order.append(arg.arg)
                     if arg.annotation:
                         try:
-                            ann_str = ast.unparse(arg.annotation)
+                            ann_str = self._unparse(arg.annotation)
                             fq_name = self.imports.get(ann_str)
                             if not fq_name:
                                 fq_name = f"{self.module_name}.{ann_str}"
@@ -161,7 +186,7 @@ class ASTFactExtractor(ast.NodeVisitor):
         return_annotation = node.returns
         if return_annotation is not None:
             try:
-                return_text = ast.unparse(return_annotation)
+                return_text = self._unparse(return_annotation)
                 properties["return_type"] = self.imports.get(return_text, f"{self.module_name}.{return_text}")
             except Exception:
                 pass
@@ -175,7 +200,7 @@ class ASTFactExtractor(ast.NodeVisitor):
                 if param_idx >= 0 and param_idx < num_args:
                     arg_name = node.args.args[param_idx].arg
                     try:
-                        def_str = ast.unparse(default_node)
+                        def_str = self._unparse(default_node)
                         properties[f"param_default:{arg_name}"] = def_str
                     except Exception:
                         pass
@@ -191,7 +216,7 @@ class ASTFactExtractor(ast.NodeVisitor):
             class_id = f"class:{self.module_name}.{self.current_class}"
             # Propagate param types from __init__ to the parent class node properties
             if func_name == "__init__":
-                class_node = next((n for n in self.doc.nodes if n.id == class_id), None)
+                class_node = self.doc.get_node(class_id)
                 if class_node:
                     for k, v in properties.items():
                         if k.startswith("param_type:"):
@@ -256,14 +281,14 @@ class ASTFactExtractor(ast.NodeVisitor):
             parent_id = f"module:{self.scope}"
 
         method_id = parent_id
-        target_str = ast.unparse(target)
+        target_str = self._unparse(target)
 
         if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and target.value.id == "self":
             target_kind = "self_attribute"
         else:
             target_kind = "local"
 
-        value_str = ast.unparse(value)
+        value_str = self._unparse(value)
         props: dict[str, object] = {
             "target": target_str,
             "value": value_str,
@@ -271,21 +296,21 @@ class ASTFactExtractor(ast.NodeVisitor):
             "target_kind": target_kind,
         }
         if annotation is not None:
-            annotation_text = ast.unparse(annotation)
+            annotation_text = self._unparse(annotation)
             # Resolve direct imported aliases while retaining the original
             # spelling for built-ins and generic wrappers.
             props["annotation"] = self.imports.get(annotation_text, annotation_text)
 
         if isinstance(value, ast.Call):
-            call_name = ast.unparse(value.func)
+            call_name = self._unparse(value.func)
             props["call_name"] = call_name
             kw_args = {}
             for kw in value.keywords:
                 if kw.arg:
-                    kw_args[kw.arg] = ast.unparse(kw.value)
+                    kw_args[kw.arg] = self._unparse(kw.value)
             props["keyword_args"] = kw_args
             if value.args:
-                props["args"] = [ast.unparse(arg) for arg in value.args]
+                props["args"] = [self._unparse(arg) for arg in value.args]
 
         assignment_id = f"assignment:{self.scope}:{lineno}:{target_str}"
         self.add_fact_node(
@@ -319,19 +344,19 @@ class ASTFactExtractor(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call):
         if isinstance(node.func, ast.Attribute):
-            receiver = ast.unparse(node.func.value)
+            receiver = self._unparse(node.func.value)
             method_name = node.func.attr
-            call_name = ast.unparse(node.func)
+            call_name = self._unparse(node.func)
         else:
             receiver = None
             method_name = None
-            call_name = ast.unparse(node.func)
+            call_name = self._unparse(node.func)
             
-        args = [ast.unparse(arg) for arg in node.args]
+        args = [self._unparse(arg) for arg in node.args]
         kw_args = {}
         for kw in node.keywords:
             if kw.arg:
-                kw_args[kw.arg] = ast.unparse(kw.value)
+                kw_args[kw.arg] = self._unparse(kw.value)
                 
         props = {
             "scope": self.scope,
@@ -381,6 +406,7 @@ def extract_project(
     *,
     cancellation=None,
     progress_callback=None,
+    parsed_trees: Mapping[str, ast.AST] | None = None,
 ) -> GraphDocument:
     root_path = Path(path).resolve()
     doc = GraphDocument(metadata={"extractor": "python_ast", "status": "extracted", "path": str(root_path)})
@@ -466,8 +492,10 @@ def extract_project(
         ))
         
         try:
-            content = filepath.read_text(encoding="utf-8")
-            tree = ast.parse(content, filename=str(filepath))
+            tree = (parsed_trees or {}).get(rel_path)
+            if tree is None:
+                content = filepath.read_text(encoding="utf-8")
+                tree = ast.parse(content, filename=str(filepath))
             extractor = ASTFactExtractor(rel_path, module_name, doc)
             extractor.visit(tree)
         except Exception as e:

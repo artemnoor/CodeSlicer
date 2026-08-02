@@ -591,6 +591,8 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
         from contextlib import nullcontext
         from impact_engine.persistence import CacheLock, CancellationToken, daemon_request, daemon_status
         out_path = args.out or _project_graph_path(args.path)
+        scope_key = __import__("hashlib").sha256((args.scope or ".").encode("utf-8")).hexdigest()[:12]
+        raw_cache = str(Path(args.path).resolve() / ".impact_engine" / f"raw_graph.{scope_key}.json")
         if args.use_scan_plan:
             from impact_engine.scope import build_scan_plan, write_scan_plan
             write_scan_plan(args.path, build_scan_plan(args.path))
@@ -612,6 +614,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
         if not args.no_daemon and daemon_status(args.path).get("status") == "running":
             summary = daemon_request(args.path, "analyze", {
                 "out_path": out_path, "scope": args.scope,
+                "raw_graph_cache_path": raw_cache,
                 "enable_remote_registry": args.remote_registry,
                 "create_research_requests": not args.no_research_requests,
                 "graphify_path": args.graphify,
@@ -623,6 +626,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                     args.path, out_path=out_path, enable_remote_registry=args.remote_registry,
                     create_research_requests=not args.no_research_requests, graphify_path=args.graphify,
                     progress_callback=report_progress, scope=args.scope, cancellation=cancellation,
+                    raw_graph_cache_path=raw_cache,
                     force_full_resolution=args.full_resolution,
                 )
 

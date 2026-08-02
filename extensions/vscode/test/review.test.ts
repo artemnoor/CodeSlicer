@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { parseReviewJson } from "../src/review";
 import { INITIAL_STATE } from "../src/types";
-import { renderCockpit } from "../src/webview";
+import { renderCockpit, renderReviewReport } from "../src/webview";
 import { clientRouter } from "../src/webview/router";
 import { riskTone } from "../src/webview/state";
 
@@ -89,6 +89,21 @@ test("results keep broad discovery collapsed and clearly marked", () => {
   assert.match(html, /Analysis limitations/);
   assert.match(html, /impact-card--confirmed/);
   assert.match(html, /impact-card--possible/);
+});
+
+test("review result opens as a readable editor document without losing evidence or test controls", () => {
+  const html = renderReviewReport({ ...INITIAL_STATE, project: { ...INITIAL_STATE.project, freshness: "fresh" }, review: { ...INITIAL_STATE.review, status: "ready", riskLevel: "HIGH", riskConfidence: "high", riskReasons: ["public API boundary changed"], impacts: [{ entityId: "route", label: "POST /orders", kind: "ROUTE", confidence: "confirmed", tier: "confirmed", reason: "changed handler", evidence: [{ file: "app/routes.py", line: 12, text: "route handler", provenance: "fastapi" }] }], potentialImpacts: [{ entityId: "dynamic", label: "dynamic call", kind: "CALL", confidence: "low", tier: "possible", reason: "unresolved dynamic call", evidence: [] }], tests: [{ file: "tests/test_orders.py", symbol: "test_create", category: "route", confidence: "high", reason: "covers the changed route", argv: ["py", "-3", "-m", "pytest", "tests/test_orders.py"] }] } }, "en");
+  assert.match(html, /class="review-report"/);
+  assert.match(html, /Change review complete/);
+  assert.match(html, /Do this now/);
+  assert.match(html, /What may be affected/);
+  assert.match(html, /Show potential scope/);
+  assert.match(html, /data-action="focusCockpit"/);
+  assert.match(html, /data-test="0"/);
+  assert.match(html, /data-entity="route"/);
+  assert.match(html, /\.report-body \{ min-height: 100vh; overflow-x: hidden/);
+  assert.match(html, /\.review-report \{ width: min\(100% - 48px, 1120px\); max-width: calc\(100% - 28px\)/);
+  assert.match(html, /@media \(max-width: 680px\)/);
 });
 
 test("start screen gives safe next steps for an empty folder and a project without Git", () => {

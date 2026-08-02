@@ -255,7 +255,13 @@ def incremental_update(
     annotate_graph_quality(graph)
     result["graph"] = graph.to_dict()
     cache_stats = graph.metadata.get("incremental_cache", {}) if isinstance(graph.metadata, dict) else {}
-    raw_reused = "incremental_raw_cache" in result.get("extractors_used", [])
+    # A no-semantic-delta update may reuse the final persisted graph directly;
+    # it is at least as strong as raw extraction reuse and must be visible to
+    # callers as a real cache hit rather than a misleading full refresh.
+    raw_reused = any(
+        marker in result.get("extractors_used", [])
+        for marker in ("incremental_raw_cache", "persistent_final_graph_cache")
+    )
     result["incremental"] = {
         "status": "updated",
         "changed_files": changed,

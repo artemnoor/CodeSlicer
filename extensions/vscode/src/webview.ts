@@ -1,1 +1,1 @@
-export { renderCockpit } from "./webview/App";
+export { renderCockpit, renderReviewReport } from "./webview/App";

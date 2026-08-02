@@ -21,8 +21,10 @@ from impact_engine.persistence import (
     CacheMetadata,
     CacheLock,
     CancellationToken,
+    canonical_json_bytes,
     classify_path,
     project_snapshot,
+    write_json_atomic,
 )
 from impact_engine.profiling import PROFILE_STAGES, WORK_COUNTERS
 from impact_engine.scope import iter_selected_project_files
@@ -60,6 +62,28 @@ def test_atomic_bundle_rejects_interrupted_write(tmp_path: Path):
     loaded = store.load(metadata)
     assert loaded.status == "invalidated"
     assert loaded.reason == "interrupted_write"
+
+
+def test_atomic_json_write_is_deterministic_and_readable(tmp_path: Path):
+    """Fast JSON bytes must remain a portable cache artifact, not a new schema."""
+    target = tmp_path / "artifact.json"
+    payload = {"z": [2, {"b": True, "a": "тест"}], "a": {"nested": 1}}
+
+    write_json_atomic(target, payload)
+    first = target.read_bytes()
+    write_json_atomic(target, payload)
+
+    assert target.read_bytes() == first
+    assert first.endswith(b"\n")
+    assert json.loads(first) == payload
+
+
+def test_native_canonical_json_bytes_preserve_the_legacy_fingerprint_contract():
+    """Rust-backed JSON must not invalidate deterministic graph fingerprints."""
+    payload = {"z": [2, {"b": True, "a": "тест"}], "a": {"nested": 1, "ratio": 0.75}}
+    legacy = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+    assert canonical_json_bytes(payload) == legacy
 
 
 def test_cache_is_branch_aware_and_scope_aware(tmp_path: Path):
@@ -251,3 +275,27 @@ def test_incremental_execution_records_real_language_plugin_selection(tmp_path: 
     assert selective["full_pipeline_called"] is False
     assert "language.python" in selective["selected_language_plugins"]
     assert "language.typescript" in selective["skipped_language_plugins"] or "language.javascript" in selective["skipped_language_plugins"]
+
+
+def test_manifest_incremental_rechecks_all_source_files_for_semantic_safety(tmp_path: Path):
+    """A manifest can change plugin selection, so it must never parse only itself."""
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'sample'\n", encoding="utf-8")
+    (tmp_path / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+    raw = tmp_path / ".impact_engine" / "raw.json"
+    analyze_project_core(str(tmp_path), raw_graph_cache_path=str(raw))
+
+    (tmp_path / "pyproject.toml").write_text(
+        "[project]\nname = 'sample'\n# metadata-only edit\n", encoding="utf-8"
+    )
+    incremental = analyze_project_core(
+        str(tmp_path), changed_files=["pyproject.toml"], raw_graph_cache_path=str(raw)
+    )
+    clean = analyze_project_core(str(tmp_path))
+    selective = incremental["graph"]["metadata"]["selective_execution"]
+
+    assert selective["execution_mode"] == "full_initial_scan"
+    assert "manifest changed" in selective["fallback_reason"]
+    assert "language.python" in incremental["extractors_used"]
+    assert sorted((edge["from"], edge["to"], edge["kind"]) for edge in incremental["graph"]["edges"]) == sorted(
+        (edge["from"], edge["to"], edge["kind"]) for edge in clean["graph"]["edges"]
+    )

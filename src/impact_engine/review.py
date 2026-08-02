@@ -40,6 +40,17 @@ SUPPRESSED_KINDS = {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "CANONICAL_AL
 SUPPORTED_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".cs"}
 
 
+def _raw_graph_cache_path(root: Path, scope: str | None = None) -> Path:
+    """Return the scope-isolated raw graph cache used by incremental review.
+
+    The regular ``analyze-incremental`` command already uses this convention.
+    Reusing it from Review prevents a UI-triggered refresh from silently
+    falling back to a complete extraction of an otherwise cached workspace.
+    """
+    scope_key = hashlib.sha256((scope or ".").encode("utf-8")).hexdigest()[:12]
+    return root / ".impact_engine" / f"raw_graph.{scope_key}.json"
+
+
 @dataclass(frozen=True)
 class ReviewReport:
     """Typed wrapper for the stable ReviewReport/v1 dictionary contract."""
@@ -78,7 +89,7 @@ def build_review_report(
     warnings: list[str] = []
     profiler = AnalysisProfiler()
     profile_started = time.perf_counter()
-    graph, freshness = _resolve_graph(root, graph, refresh, warnings, base=base, graph_path=graph_path)
+    graph, freshness = _resolve_graph(root, graph, refresh, warnings, base=base, graph_path=graph_path, scope=scope)
     graph = _exclude_graphify_from_default_review(graph, warnings)
     graph_integrity = _review_graph_integrity(graph)
     if graph_integrity["dangling_endpoint_edges"]:
@@ -611,7 +622,7 @@ def _attach_review_contract(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
-def _resolve_graph(root: Path, graph: GraphDocument | None, refresh: str, warnings: list[str], base: str | None = None, graph_path: str | Path | None = None) -> tuple[GraphDocument, dict[str, Any]]:
+def _resolve_graph(root: Path, graph: GraphDocument | None, refresh: str, warnings: list[str], base: str | None = None, graph_path: str | Path | None = None, scope: str | None = None) -> tuple[GraphDocument, dict[str, Any]]:
     explicit_path = Path(graph_path).expanduser().resolve() if graph_path else None
     if explicit_path is not None:
         if not explicit_path.is_file():
@@ -676,12 +687,23 @@ def _resolve_graph(root: Path, graph: GraphDocument | None, refresh: str, warnin
         try:
             if refresh == "auto" and path and path.exists() and snapshot_path is not None:
                 from impact_engine.incremental import incremental_update, load_snapshot, save_snapshot
-                result = incremental_update(str(root), lambda changed=None: analyze_project_core(str(root), out_path=str(root / ".impact_engine" / "graph.json")), load_snapshot(snapshot_path), str(root / ".impact_engine" / "graph.json"), str(path))
+                result = incremental_update(
+                    str(root),
+                    lambda changed: analyze_project_core(
+                        str(root), out_path=None, changed_files=changed,
+                        raw_graph_cache_path=str(_raw_graph_cache_path(root, scope)), scope=scope,
+                    ),
+                    load_snapshot(snapshot_path), str(root / ".impact_engine" / "graph.json"), str(path),
+                    scope=scope,
+                )
                 save_snapshot(result["incremental"]["snapshot"], snapshot_path)
                 refresh_status = "compatibility_full_refresh" if result.get("selective_execution", {}).get("execution_mode") == "full_pipeline_compatibility" else str(result.get("incremental", {}).get("status", "updated"))
                 fallback_reason = result.get("selective_execution", {}).get("reason")
             else:
-                result = analyze_project_core(str(root), out_path=str(root / ".impact_engine" / "graph.json"))
+                result = analyze_project_core(
+                    str(root), out_path=str(root / ".impact_engine" / "graph.json"),
+                    raw_graph_cache_path=str(_raw_graph_cache_path(root, scope)), scope=scope,
+                )
                 if refresh == "auto":
                     from impact_engine.incremental import project_snapshot, save_snapshot
                     save_snapshot(project_snapshot(root), snapshot_write_path)

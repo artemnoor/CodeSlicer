@@ -46,6 +46,21 @@ def test_impact_path_returns_evidence_chain():
     assert result["confidence"] == 0.9
 
 
+def test_impact_path_keeps_bfs_priority_without_copying_every_candidate_path():
+    graph = GraphDocument()
+    for node_id in ("start", "high", "low", "end"):
+        graph.add_node(Node(node_id, "FUNCTION", node_id))
+    graph.add_edge(Edge("high", "CALLS", "start", "high", confidence=0.95))
+    graph.add_edge(Edge("low", "CALLS", "start", "low", confidence=0.10))
+    graph.add_edge(Edge("high-end", "CALLS", "high", "end", confidence=0.95))
+    graph.add_edge(Edge("low-end", "CALLS", "low", "end", confidence=0.99))
+
+    result = impact_path(graph, "start", "end")
+
+    assert result["found"] is True
+    assert [edge["id"] for edge in result["edges"]] == ["high", "high-end"]
+
+
 def test_quality_report_detects_dangling_edge():
     graph = make_graph()
     graph.add_edge(Edge("bad", "CALLS", "a", "missing", evidence=[Evidence("external")]))
@@ -227,6 +242,53 @@ def test_incremental_pipeline_reuses_raw_extraction_for_changed_file(tmp_path: P
     assert "incremental_raw_cache" in second["extractors_used"]
     assert any(node["name"] == "second" for node in second["graph"]["nodes"])
     assert not any(node["name"] == "first" for node in second["graph"]["nodes"])
+
+
+def test_content_only_incremental_reuses_completed_final_graph_without_semantic_loss(tmp_path: Path):
+    """Comments should refresh freshness, not rebuild an unchanged graph."""
+    project = tmp_path / "project"
+    project.mkdir()
+    source = project / "main.py"
+    source.write_text("def first():\n    return 1\n", encoding="utf-8")
+    raw_cache = project / ".impact_engine" / "raw_graph.test.json"
+
+    baseline = analyze_project_core(
+        str(project), changed_files=["main.py"], raw_graph_cache_path=str(raw_cache)
+    )
+    # Keep source evidence locations stable: a comment appended after the
+    # function is deliberately not a graph fact and should take the fast path.
+    source.write_text("def first():\n    return 1\n\n# documentation-only change\n", encoding="utf-8")
+    updated = analyze_project_core(
+        str(project), changed_files=["main.py"], raw_graph_cache_path=str(raw_cache)
+    )
+
+    cache = updated["graph"]["metadata"]["incremental_cache"]
+    assert cache["graph_delta"] == "none"
+    assert cache["files_reused"] == 0  # The tiny fixture has one source file.
+    assert "persistent_final_graph_cache" in updated["extractors_used"]
+    assert sorted((edge["from"], edge["to"], edge["kind"], edge["source"]) for edge in baseline["graph"]["edges"]) == sorted(
+        (edge["from"], edge["to"], edge["kind"], edge["source"]) for edge in updated["graph"]["edges"]
+    )
+
+
+def test_content_only_incremental_reuses_final_graph_inside_a_scoped_package(tmp_path: Path):
+    """The fast path must use project-relative keys when --scope is set."""
+    package = tmp_path / "src"
+    package.mkdir()
+    source = package / "main.py"
+    source.write_text("def first():\n    return 1\n", encoding="utf-8")
+    raw_cache = tmp_path / ".impact_engine" / "raw_graph.scope.json"
+
+    analyze_project_core(
+        str(tmp_path), scope="src", changed_files=["src/main.py"], raw_graph_cache_path=str(raw_cache)
+    )
+    source.write_text("def first():\n    return 1\n\n# documentation-only change\n", encoding="utf-8")
+    updated = analyze_project_core(
+        str(tmp_path), scope="src", changed_files=["src/main.py"], raw_graph_cache_path=str(raw_cache)
+    )
+
+    assert "persistent_final_graph_cache" in updated["extractors_used"]
+    assert updated["graph"]["metadata"]["incremental_cache"]["graph_delta"] == "none"
 
 
 def test_incremental_fact_association_reuses_symbol_index_for_edges(tmp_path: Path):
