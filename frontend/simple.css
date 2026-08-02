@@ -184,6 +184,25 @@
 
 .simple-main .route-view { max-width: none; margin: 24px 0 0; }
 
+.analysis-limits {
+  display: grid;
+  grid-template-columns: minmax(220px, .72fr) minmax(0, 1.28fr);
+  gap: 24px;
+  margin: 18px 0 22px;
+  padding: 18px 20px;
+  border: 1px solid rgba(244, 196, 79, .48);
+  background: linear-gradient(110deg, rgba(244, 196, 79, .10), rgba(17, 17, 17, .98) 42%);
+}
+
+.analysis-limits .card-heading { align-self: start; }
+.analysis-limits .card-heading h2 { margin-top: 7px; font: 500 18px/1.18 var(--mono); letter-spacing: -.045em; }
+.analysis-limits .card-heading p { max-width: 260px; }
+.analysis-limits-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.analysis-limits-list li { display: grid; gap: 5px; padding: 11px 0; border-top: 1px solid rgba(244, 196, 79, .19); }
+.analysis-limits-list li:first-child { padding-top: 0; border-top: 0; }
+.analysis-limits-list strong { color: #f7d56b; font: 700 10px/1.25 var(--mono); letter-spacing: .04em; text-transform: uppercase; }
+.analysis-limits-list span { max-width: 70ch; color: #dbd8c5; font-size: 12px; line-height: 1.5; }
+
 .simple-onboarding {
   width: min(720px, 100%);
   margin: 13vh auto 0;
@@ -430,14 +449,21 @@
   .map-metrics { grid-template-columns: repeat(3, 1fr); }
   .map-meter-wrap { grid-column: 1 / -1; min-height: 84px; border-top: 1px solid var(--line); }
   .graphify-content { max-width: none; }
+  .analysis-limits { grid-template-columns: 1fr; gap: 16px; }
 }
 
 @media (max-width: 600px) {
   .simple-topbar { padding: 12px 16px; }
+  .simple-topbar .brand { width: 100%; }
+  .simple-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .simple-nav a { min-height: 40px; justify-content: start; padding: 0 8px; font-size: 10px; }
+  .simple-nav a::after { bottom: 0; }
   .simple-project-picker { flex-wrap: wrap; }
   .simple-project-picker input { flex-basis: 100%; }
   .simple-project-picker .button { flex: 1; }
   .simple-main { padding: 20px 16px 52px; }
+  .analysis-limits { margin: 14px 0 18px; padding: 16px; }
+  .analysis-limits-list span { font-size: 12px; }
   .simple-onboarding { margin-top: 8vh; padding: 28px 20px; }
   .simple-onboarding-actions { flex-direction: column; }
   .simple-onboarding-actions .button { width: 100%; }
