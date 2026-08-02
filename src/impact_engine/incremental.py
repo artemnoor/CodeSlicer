@@ -17,6 +17,7 @@ from typing import Any, Callable
 
 from impact_engine.graph_quality import annotate_graph_quality
 from impact_engine.models import GraphDocument, FactDocument, diff_fact_documents
+from impact_engine.persistence import AtomicCacheStore
 from impact_engine.incremental_index import affected_closure
 from impact_engine.resolver_registry import list_resolver_contracts
 from impact_engine.selective_execution import ResolverExecutionPlan, ResolverContextBuilder
@@ -115,6 +116,28 @@ def atomic_write_graph(graph: GraphDocument, output_path: str | Path) -> Path:
     return destination
 
 
+def _cached_fact_document(project_path: str | Path, graph: GraphDocument | None = None) -> FactDocument | None:
+    """Load an atomically committed FactDocument when it belongs to ``graph``.
+
+    The cache is an optimisation only: any incomplete bundle, unsupported
+    legacy cache, or snapshot mismatch returns ``None`` and the caller rebuilds
+    facts from the graph.  That preserves the original evidence contract.
+    """
+    try:
+        loaded = AtomicCacheStore(project_path).load(artifact_names=("facts.json",))
+        payload = loaded.artifacts.get("facts.json") if loaded.hit else None
+        if not isinstance(payload, dict):
+            return None
+        if graph is not None:
+            expected = graph.metadata.get("cache", {}).get("source_snapshot_hash") if isinstance(graph.metadata, dict) else None
+            actual = (loaded.metadata or {}).get("source_snapshot_hash")
+            if expected and expected != actual:
+                return None
+        return FactDocument.from_dict(payload)
+    except (OSError, ValueError, TypeError):
+        return None
+
+
 def incremental_update(
     project_path: str,
     analyzer: Callable[[], dict[str, Any]],
@@ -124,6 +147,7 @@ def incremental_update(
     cancellation: CancellationToken | None = None,
     forced_changed: list[str] | None = None,
     scope: str | None = None,
+    previous_graph: GraphDocument | None = None,
 ) -> dict[str, Any]:
     if cancellation is not None:
         cancellation.check()
@@ -162,13 +186,61 @@ def incremental_update(
         result["coverage"] = []
         result["incomplete"] = False
         return result
+    # A changed-file analyzer is allowed to return a bounded candidate graph.
+    # It is *not* allowed to replace the durable project graph with that
+    # candidate unless it represents the project as a whole.  In particular,
+    # treating a one-file fragment as the new canonical graph silently drops
+    # unrelated routes, callers, and tests.  Callers can handle this explicit
+    # result by running a full refresh or a future proven graph merge.
+    prior_graph = previous_graph
+    if prior_graph is None and previous_graph_path and Path(previous_graph_path).exists():
+        try:
+            prior_graph = GraphDocument.from_json(Path(previous_graph_path).read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            prior_graph = None
+
+    # The analysis pipeline persists the exact final FactDocument atomically
+    # with its graph.  Rebuilding every fact from a large previous graph on
+    # each review was pure duplicate CPU work.  Read that durable artifact
+    # before the analyzer replaces it; fall back to graph reconstruction for
+    # legacy/external callers or incomplete cache bundles.
+    previous_facts = _cached_fact_document(project_path)
     parameters = inspect.signature(analyzer).parameters
     result = analyzer(changed) if parameters else analyzer()
     if cancellation is not None:
         cancellation.check()
     graph = GraphDocument.from_dict(result.get("graph", {}))
-    new_facts = FactDocument.from_graph(graph)
-    old_facts = FactDocument.from_graph(GraphDocument.from_json(Path(previous_graph_path).read_text(encoding="utf-8"))) if previous_graph_path and Path(previous_graph_path).exists() else FactDocument()
+    source_files_total = len(current_snapshot)
+    changed_fraction = len(changed) / max(1, source_files_total)
+    candidate_is_partial = (
+        prior_graph is not None
+        and len(prior_graph.nodes) > 0
+        and len(graph.nodes) < len(prior_graph.nodes)
+        and changed_fraction < 0.5
+    )
+    if candidate_is_partial:
+        result["incremental"] = {
+            "status": "partial_candidate_rejected",
+            "reason": "changed-file analysis produced a smaller graph without a proven whole-project merge",
+            "changed_files": changed,
+            "changed_file_count": len(changed),
+            "files_total": source_files_total,
+            "candidate_nodes": len(graph.nodes),
+            "previous_nodes": len(prior_graph.nodes),
+            "safe_replace": False,
+            "requires_full_refresh": True,
+        }
+        result["graph"] = prior_graph.to_dict()
+        result["graph_path"] = str(Path(previous_graph_path).resolve()) if previous_graph_path else None
+        result["cache"] = {
+            "status": "miss",
+            "reason": "partial_candidate_rejected",
+            "scope": scope or ".",
+        }
+        result["incomplete"] = True
+        return result
+    new_facts = _cached_fact_document(project_path, graph) or FactDocument.from_graph(graph)
+    old_facts = previous_facts or (FactDocument.from_graph(GraphDocument.from_json(Path(previous_graph_path).read_text(encoding="utf-8"))) if previous_graph_path and Path(previous_graph_path).exists() else FactDocument())
     fact_diff = diff_fact_documents(old_facts, new_facts, changed)
     result["fact_diff"] = fact_diff.to_dict()
     graph.metadata["fact_diff"] = fact_diff.to_dict()

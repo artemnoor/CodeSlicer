@@ -642,7 +642,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     this.render();
   }
 
-  async review(): Promise<void> {
+  async review(includePotential = false): Promise<void> {
     const root = await this.needWorkspace();
     if (!root || !await this.trusted()) return;
     const executable = await this.executable(root);
@@ -655,7 +655,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: reviewing local changes", cancellable: true }, async (_progress, token) => {
         const controller = new AbortController();
         token.onCancellationRequested(() => controller.abort());
-        const result = await runProcess(executable, buildReviewArgs(root, source, base), root, { timeoutMs: 900_000, signal: controller.signal });
+        const result = await runProcess(executable, buildReviewArgs(root, source, base, includePotential), root, { timeoutMs: 900_000, signal: controller.signal });
         this.log(result);
         if (result.cancelled) throw new Error("Review cancelled. Existing cache and graph were left unchanged.");
         if (result.timedOut) throw new Error("Review timed out. CodeSlicer stopped its process tree; the next run will recover any stale analysis lock automatically.");
@@ -776,7 +776,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       const before = guided ? this.guideSnapshot() : undefined;
       const actions: Record<string, () => Promise<void>> = {
         configure: () => this.configure(), configureBase: () => this.configureBaseRef(), refresh: () => this.refresh(), doctor: () => this.doctor(), runtimeAvailability: () => this.runtimeAvailability(), focusCockpit: async () => { await vscode.commands.executeCommand("codeslicer.cockpit.focus"); this.view?.webview.postMessage({ type: "openTab", tab: "results" }); },
-        analyze: () => this.analyze(), review: () => this.review(), explain: () => this.explain(),
+        analyze: () => this.analyze(), review: () => this.review(), showPotential: () => this.review(true), explain: () => this.explain(),
         sourceCurrent: () => this.setReviewSource("current-changes"), sourceStaged: () => this.setReviewSource("staged"), sourceCompare: () => this.setReviewSource("compare"), sourceDiff: () => this.setReviewSource("diff-file"), sourceGitHub: () => this.setReviewSource("github-pr"),
         hub: () => this.hub(), graphify: () => this.hub(true), configureGraphify: () => this.configureGraphify(), installRuntime: () => this.downloadCodeSlicer(), setupSkills: () => this.setupSkills(), openProject: () => this.openOrCreateProject(), importGit: () => this.importFromGit(), initGit: () => this.initializeGit(), showDemo: () => this.showDemo(), startServer: () => this.startLocalServer(), stopServer: () => this.stopLocalServer(), showGraph: () => this.analyzeAndShowGraph(), showGit: () => this.showGitBranches(), createBranch: () => this.createBranch(), switchBranch: () => this.switchBranch(), addRemote: () => this.addRemote(), previewPush: () => this.previewPush(), pushBranch: () => this.pushBranch(), configureGitHubToken: () => this.configureGitHubToken(), installGraphify: () => this.installGraphify(), buildGraphify: () => this.buildGraphifyGraph()
       };

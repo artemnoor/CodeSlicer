@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from typing import Any, Iterable, Mapping
+
 from .models import CanonicalRoute, FileClassification, FileRole, GraphEdgeAnnotation, GraphNodeAnnotation, Reachability
 
 
 class GraphAnnotator:
     def annotate_graph(
         self,
-        graph: dict,
+        graph: Any,
         file_classifications: list[FileClassification],
         routes: list[CanonicalRoute] | None = None,
     ) -> tuple[list[GraphNodeAnnotation], list[GraphEdgeAnnotation]]:
@@ -14,22 +16,22 @@ class GraphAnnotator:
         node_annotations: list[GraphNodeAnnotation] = []
         ann_by_id: dict[str, GraphNodeAnnotation] = {}
 
-        for node in graph.get("nodes", []) or []:
+        for node in self._nodes(graph):
             ann = self._annotate_node(node, class_by_path)
             node_annotations.append(ann)
             ann_by_id[ann.node_id] = ann
 
         edge_annotations: list[GraphEdgeAnnotation] = []
-        for idx, edge in enumerate(graph.get("edges", []) or []):
+        for idx, edge in enumerate(self._edges(graph)):
             ann = self._annotate_edge(edge, ann_by_id, idx)
             edge_annotations.append(ann)
 
         return node_annotations, edge_annotations
 
-    def _annotate_node(self, node: dict, class_by_path: dict[str, FileClassification]) -> GraphNodeAnnotation:
-        node_id = str(node.get("id", ""))
-        kind = str(node.get("kind", "") or "")
-        name = str(node.get("name", "") or "")
+    def _annotate_node(self, node: Any, class_by_path: dict[str, FileClassification]) -> GraphNodeAnnotation:
+        node_id = str(self._value(node, "id", ""))
+        kind = str(self._value(node, "kind", "") or "")
+        name = str(self._value(node, "name", "") or "")
         file_path = self._extract_file_path(node)
         fc = class_by_path.get(self._norm(file_path)) if file_path else None
         tags: list[str] = []
@@ -87,11 +89,11 @@ class GraphAnnotator:
             reasons=reasons,
         )
 
-    def _annotate_edge(self, edge: dict, ann_by_id: dict[str, GraphNodeAnnotation], idx: int) -> GraphEdgeAnnotation:
-        edge_id = str(edge.get("id") or f"edge:{idx}")
-        kind = str(edge.get("kind", "") or "")
-        from_id = str(edge.get("from", "") or "")
-        to_id = str(edge.get("to", "") or "")
+    def _annotate_edge(self, edge: Any, ann_by_id: dict[str, GraphNodeAnnotation], idx: int) -> GraphEdgeAnnotation:
+        edge_id = str(self._value(edge, "id") or f"edge:{idx}")
+        kind = str(self._value(edge, "kind", "") or "")
+        from_id = str(self._value(edge, "from", self._value(edge, "from_node", "")) or "")
+        to_id = str(self._value(edge, "to", self._value(edge, "to_node", "")) or "")
         left = ann_by_id.get(from_id)
         right = ann_by_id.get(to_id)
         anns = [a for a in [left, right] if a is not None]
@@ -131,13 +133,14 @@ class GraphAnnotator:
             reasons=reasons,
         )
 
-    def _extract_file_path(self, node: dict) -> str | None:
-        props = node.get("properties") or {}
+    def _extract_file_path(self, node: Any) -> str | None:
+        props = self._value(node, "properties", {}) or {}
         if isinstance(props, dict) and props.get("file"):
             return str(props["file"])
-        if node.get("file"):
-            return str(node["file"])
-        node_id = str(node.get("id", "") or "")
+        file_path = self._value(node, "file")
+        if file_path:
+            return str(file_path)
+        node_id = str(self._value(node, "id", "") or "")
         if node_id.startswith("file:"):
             return node_id.removeprefix("file:")
         if "::" in node_id:
@@ -150,3 +153,21 @@ class GraphAnnotator:
         if not path:
             return ""
         return path.replace("\\", "/").lstrip("./")
+
+    @staticmethod
+    def _nodes(graph: Any) -> Iterable[Any]:
+        if isinstance(graph, Mapping):
+            return graph.get("nodes", []) or []
+        return getattr(graph, "nodes", []) or []
+
+    @staticmethod
+    def _edges(graph: Any) -> Iterable[Any]:
+        if isinstance(graph, Mapping):
+            return graph.get("edges", []) or []
+        return getattr(graph, "edges", []) or []
+
+    @staticmethod
+    def _value(item: Any, key: str, default: Any = None) -> Any:
+        if isinstance(item, Mapping):
+            return item.get(key, default)
+        return getattr(item, key, default)

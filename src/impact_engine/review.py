@@ -694,11 +694,22 @@ def _resolve_graph(root: Path, graph: GraphDocument | None, refresh: str, warnin
                         raw_graph_cache_path=str(_raw_graph_cache_path(root, scope)), scope=scope,
                     ),
                     load_snapshot(snapshot_path), str(root / ".impact_engine" / "graph.json"), str(path),
-                    scope=scope,
+                    scope=scope, previous_graph=graph,
                 )
-                save_snapshot(result["incremental"]["snapshot"], snapshot_path)
-                refresh_status = "compatibility_full_refresh" if result.get("selective_execution", {}).get("execution_mode") == "full_pipeline_compatibility" else str(result.get("incremental", {}).get("status", "updated"))
-                fallback_reason = result.get("selective_execution", {}).get("reason")
+                if result.get("incremental", {}).get("requires_full_refresh"):
+                    warnings.append("incremental candidate was incomplete; ran a full refresh to preserve graph coverage")
+                    result = analyze_project_core(
+                        str(root), out_path=str(root / ".impact_engine" / "graph.json"),
+                        raw_graph_cache_path=str(_raw_graph_cache_path(root, scope)), scope=scope,
+                    )
+                    from impact_engine.incremental import project_snapshot, save_snapshot
+                    save_snapshot(project_snapshot(root), snapshot_path)
+                    refresh_status = "full_refresh_after_partial_candidate"
+                    fallback_reason = "incremental_candidate_not_proven_whole_project_graph"
+                else:
+                    save_snapshot(result["incremental"]["snapshot"], snapshot_path)
+                    refresh_status = "compatibility_full_refresh" if result.get("selective_execution", {}).get("execution_mode") == "full_pipeline_compatibility" else str(result.get("incremental", {}).get("status", "updated"))
+                    fallback_reason = result.get("selective_execution", {}).get("reason")
             else:
                 result = analyze_project_core(
                     str(root), out_path=str(root / ".impact_engine" / "graph.json"),

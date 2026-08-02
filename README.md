@@ -2,9 +2,9 @@
 
 <p align="center">
   <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/artemnoor/CodeSlicer/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/release-v0.5.0-7c3aed?style=flat-square" alt="Release v0.5.0"></a>
+  <a href="https://github.com/artemnoor/CodeSlicer/releases/tag/v0.6.30"><img src="https://img.shields.io/badge/release-v0.6.30-7c3aed?style=flat-square" alt="Release v0.6.30"></a>
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/regression-754%20passed-22c55e?style=flat-square" alt="754 regression tests passed">
+  <img src="https://img.shields.io/badge/regression-824%20passed-22c55e?style=flat-square" alt="824 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
   <img src="https://img.shields.io/badge/agent%20skills-2-f97316?style=flat-square" alt="2 bundled agent skills">
   <img src="https://img.shields.io/badge/MCP-stdio%20JSON--RPC-ec4899?style=flat-square" alt="MCP stdio JSON-RPC">
@@ -63,6 +63,40 @@ GitHub PR review не требует и не хранит PAT: он исполь
 Установите VSIX, соответствующий host extension (локальный Windows/macOS/Linux либо Linux в WSL/SSH/container/Codespaces), откройте проект и нажмите **«Проверить изменения»**. VSIX не скачивает source archive, не запускает `pip`, не создаёт `.venv` и не устанавливает Graphify. Проверяется manifest runtime с версией, target и SHA-256 launcher. Все шесть target (`win32-x64`, `win32-arm64`, `darwin-x64`, `darwin-arm64`, `linux-x64`, `linux-arm64`) готовятся отдельной native CI matrix; подробнее — [`extensions/vscode/README.md`](extensions/vscode/README.md).
 
 Interactive demo в extension — только симуляция вкладок: он не меняет workspace, не скачивает ничего и не запускает CLI, Git или тесты.
+
+## Производительность и большие репозитории
+
+CodeSlicer сохраняет точность прежде скорости: partial changed-file candidate
+никогда не заменяет canonical graph. Если безопасный merge не доказан,
+локальный review делает полный refresh и явно сообщает об этом, а не скрывает
+маршруты, callers или тесты из результата.
+
+В release `0.6.30` профиль выполнен на реальном Django commit
+`60121939f6b225c7a719dd561e372e1d8e5e2c4a`: 6&nbsp;958 файлов,
+примерно 460k строк, 315&nbsp;345 узлов и 316&nbsp;365 рёбер. На Windows x64
+post-hygiene/quality этап сократился с 56,9 с до 14,7 с. Повторный review с
+готовым graph и тем же diff сократился с 83,1 с до 61,5 с. Полный cold run
+зависит от диска и кэша ОС; в измерениях он занял 184–235 с. Это ориентир, а
+не обещание времени для другой машины.
+
+Большой подробный hygiene-report больше не дублируется в основном graph JSON:
+для крупных проектов он сохраняется локально как
+`.impact_engine/project_hygiene.json.gz` и подгружается только при глубоком
+impact-запросе. В Django-проверке `graph.json` уменьшился с 926 МБ до 741 МБ,
+а полный 631&nbsp;710 аннотаций сохранён в сжатом sidecar (5,9 МБ).
+
+Повторить baseline из исходников можно так:
+
+```powershell
+git clone --depth 1 https://github.com/django/django.git C:\work\django-benchmark
+cd C:\work\CodeSlicer
+$env:PYTHONPATH = "src"
+codeslicer scan-plan C:\work\django-benchmark
+codeslicer analyze C:\work\django-benchmark --use-scan-plan
+```
+
+Перед сравнением запусков очищайте только `.impact_engine` в **копии**
+тестового проекта; CodeSlicer не удаляет пользовательские исходники сам.
 
 ## Начните здесь: Python Core из исходников
 

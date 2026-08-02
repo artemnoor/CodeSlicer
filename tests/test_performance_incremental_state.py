@@ -6,8 +6,10 @@ from pathlib import Path
 
 import pytest
 
+import impact_engine.analysis.pipeline as analysis_pipeline
 from impact_engine.incremental import incremental_update
 from impact_engine.analysis.pipeline import analyze_project_core
+from impact_engine.semantic_hygiene import externalize_large_hygiene
 from impact_engine.models import GraphDocument, Node
 from impact_engine.models import Edge
 from impact_engine.graph_quality import graph_quality_report
@@ -41,6 +43,30 @@ def test_snapshot_is_content_based_and_scope_aware(tmp_path: Path):
     (tmp_path / "src" / "app.py").write_text("x = 4", encoding="utf-8")
     second = project_snapshot(tmp_path, "src")
     assert first["src/app.py"] != second["src/app.py"]
+
+
+def test_changed_file_analysis_does_not_replace_the_canonical_cache_bundle(tmp_path: Path, monkeypatch):
+    source = tmp_path / "app.py"
+    source.write_text("def value():\n    return 1\n", encoding="utf-8")
+    (tmp_path / "other.py").write_text("def other():\n    return 1\n", encoding="utf-8")
+    monkeypatch.setattr(
+        analysis_pipeline,
+        "externalize_large_hygiene",
+        lambda graph: externalize_large_hygiene(graph, threshold=1),
+    )
+    analyze_project_core(str(tmp_path))
+    cached_graph = (tmp_path / ".impact_engine" / "graph.json").read_bytes()
+    cached_hygiene = (tmp_path / ".impact_engine" / "project_hygiene.json.gz").read_bytes()
+
+    source.write_text("def value():\n    return 2\n", encoding="utf-8")
+    analyze_project_core(
+        str(tmp_path),
+        changed_files=["app.py"],
+        raw_graph_cache_path=str(tmp_path / ".impact_engine" / "raw_graph.changed.json"),
+    )
+
+    assert (tmp_path / ".impact_engine" / "graph.json").read_bytes() == cached_graph
+    assert (tmp_path / ".impact_engine" / "project_hygiene.json.gz").read_bytes() == cached_hygiene
 
 
 def test_selected_file_traversal_does_not_walk_sibling_files(tmp_path: Path):
