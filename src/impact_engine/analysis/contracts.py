@@ -15,6 +15,10 @@ class AnalysisOptions:
     create_research_requests: bool = True
     graphify_path: str | None = None
     changed_files: list[str] | None = None
+    # Explicit discovery-selected files for a non-canonical focused run.  This
+    # is distinct from ``changed_files``: it must never be merged into or
+    # replace the complete persistent graph cache.
+    focus_files: list[str] | None = None
     raw_graph_cache_path: str | None = None
     progress_callback: Callable[[dict[str, Any]], None] | None = None
     cancellation: Any = None

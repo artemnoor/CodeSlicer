@@ -135,10 +135,16 @@ class AnalysisPipeline:
             resolution_profile="full" if self.options.force_full_resolution else "bounded_exact_imports",
         )
         with self.profiler.measure("cache_lookup"):
-            self.cache_load = self.cache_store.load(self.cache_metadata)
+            # A focused discovery run must not deserialize the canonical
+            # graph/facts bundle merely to decide it cannot reuse it.  On a
+            # large workspace that bundle is the dominant cost and defeats
+            # the purpose of selecting a small scope.
+            self.cache_load = None if self.options.focus_files is not None else self.cache_store.load(self.cache_metadata)
         if (
-            self.cache_load.hit
+            self.cache_load is not None
+            and self.cache_load.hit
             and not self.options.changed_files
+            and not self.options.focus_files
             and not self.options.graphify_path
             and self.options.support_packs is None
             and not self.options.enable_remote_registry
@@ -195,6 +201,13 @@ class AnalysisPipeline:
         self._progress("normalization", 1, 1, "Нормализация завершена")
         run_quality_gate(graph, "extraction_normalization")
         graph.metadata["language_semantic_capabilities"] = language_capabilities
+        if self.options.focus_files is not None:
+            graph.metadata["analysis_scope"] = {
+                "mode": "focused_discovery_scope",
+                "files": sorted({str(item).replace("\\", "/") for item in self.options.focus_files}),
+                "complete": False,
+                "reason": "discovery-selected possible scope; full workspace facts were intentionally not read",
+            }
         graph.metadata["plugin_selection_plan"] = self.selection_plan.to_dict() if self.selection_plan else {}
         if pre_hygiene:
             graph.metadata["pre_project_hygiene"] = pre_hygiene
@@ -253,7 +266,10 @@ class AnalysisPipeline:
                 )
             self.plugin_diagnostics.extend(item.to_dict() for item in hook_diags)
             graph.metadata["framework_hooks_scale_mode"] = "source_backed_pre_resolution_only"
-        local_registry_summary = self._sync_local_registry(inventory_data)
+        # Registry synchronization is workspace-wide bookkeeping.  It adds no
+        # evidence to a non-canonical focused graph and would defeat its file
+        # budget on a large project.
+        local_registry_summary = None if self.options.focus_files is not None else self._sync_local_registry(inventory_data)
         started = time.perf_counter()
         self._progress("resolution", 0, 1, "Precision и framework resolution")
         if deep_resolution_enabled:
@@ -303,8 +319,11 @@ class AnalysisPipeline:
                 )
             self.plugin_diagnostics.extend(item.to_dict() for item in post_hook_diags)
         started = time.perf_counter()
-        with self.profiler.measure("frontend_backend_projection"):
-            resolved = self._apply_post_hygiene_layer(resolved, inventory_data)
+        if self.options.focus_files is not None:
+            resolved.metadata["post_project_hygiene_status"] = "deferred_by_focused_scope"
+        else:
+            with self.profiler.measure("frontend_backend_projection"):
+                resolved = self._apply_post_hygiene_layer(resolved, inventory_data)
         # Resolution and endpoint bridging can add CALLS/DEPENDS_ON edges
         # after the initial extraction normalization. Re-run the endpoint
         # materialization gate before final quality checks so the persisted
@@ -327,7 +346,11 @@ class AnalysisPipeline:
             resolved = annotate_edge_contracts(resolved)
             resolved = annotate_graph_quality(resolved)
             run_quality_gate(resolved, "final_graph")
-        if self._should_defer_unknown_regions(resolved):
+        if self.options.focus_files is not None:
+            resolved.metadata["unknown_regions"] = {"status": "deferred_by_focused_scope", "policy": "focused runs do not inventory unrelated workspace regions", "counts": {}, "regions": []}
+            resolved.metadata["all_unknown_regions"] = {}
+            resolved.metadata["unknown_region_research_requests"] = []
+        elif self._should_defer_unknown_regions(resolved):
             resolved.metadata["unknown_regions"] = {"status": "deferred_by_scale_budget", "policy": "full workspace inventory deferred", "counts": {}, "regions": []}
             resolved.metadata["all_unknown_regions"] = {}
             resolved.metadata["unknown_region_research_requests"] = []
@@ -511,6 +534,7 @@ class AnalysisPipeline:
         """Reuse a complete cache after a stat-only no-change validation."""
         if (
             self.options.changed_files is not None
+            or self.options.focus_files is not None
             or self.options.graphify_path
             or self.options.support_packs is not None
             or self.options.enable_remote_registry
@@ -739,9 +763,10 @@ class AnalysisPipeline:
             self.selective_execution_fallback = (
                 "manifest changed; complete plugin and source re-evaluation is required"
             )
-        incremental_scope = self.options.changed_files is not None and not manifest_changed
-        extraction_scope = self.options.changed_files if incremental_scope else inventory_files
-        if incremental_scope:
+        focused_scope = self.options.focus_files is not None
+        incremental_scope = self.options.changed_files is not None and not manifest_changed and not focused_scope
+        extraction_scope = self.options.focus_files if focused_scope else self.options.changed_files if incremental_scope else inventory_files
+        if incremental_scope or focused_scope:
             total_files = sum(1 for item in extraction_scope if Path(str(item)).suffix.lower() in extensions)
         else:
             total_files = len(source_files)
@@ -1370,8 +1395,13 @@ class AnalysisPipeline:
         raw fragment, but cannot replace the canonical cache unless the caller
         explicitly covered every file in the current analysis scope.
         """
-        if self.options.changed_files is None:
+        if self.options.changed_files is None and self.options.focus_files is None:
             return True
+        # A discovery-selected focused run is intentionally a fragment.  It
+        # has no changed-file list to compare with the complete snapshot and
+        # must never replace the project's canonical cache.
+        if self.options.focus_files is not None:
+            return False
         if not self.current_snapshot:
             return False
         root = Path(self.project_path).resolve()
@@ -1417,6 +1447,7 @@ def analyze_project_core(
     create_research_requests: bool = True,
     graphify_path: str | None = None,
     changed_files: list[str] | None = None,
+    focus_files: list[str] | None = None,
     raw_graph_cache_path: str | None = None,
     progress_callback=None,
     cancellation=None,
@@ -1435,6 +1466,7 @@ def analyze_project_core(
         create_research_requests=create_research_requests,
         graphify_path=graphify_path,
         changed_files=changed_files,
+        focus_files=focus_files,
         raw_graph_cache_path=raw_graph_cache_path,
         progress_callback=progress_callback,
         cancellation=cancellation,
@@ -1449,3 +1481,66 @@ def analyze_project_core(
         output = result.to_dict()
     output["profiling"] = pipeline.profiler.snapshot()
     return output
+
+
+def analyze_project_progressively(
+    path: str,
+    changed_files: list[str],
+    *,
+    max_scope_files: int = 250,
+    max_scope_depth: int = 1,
+    create_research_requests: bool = False,
+    support_packs: list | None = None,
+    support_pack_root: str = "support_packs",
+) -> dict[str, Any]:
+    """Run an explicit, noncanonical two-stage investigation.
+
+    Stage one is a cheap lexical import index. Stage two runs the normal
+    evidence-producing pipeline only for the selected candidates. This stays
+    separate from ``analyze_project_core`` because a scoped graph is useful
+    for interactive exploration, but cannot replace a complete project graph
+    or make a merge decision.
+    """
+    from impact_engine.analysis.focused_scope import build_discovery_scope
+
+    discovery = build_discovery_scope(
+        path,
+        changed_files,
+        max_files=max_scope_files,
+        max_depth=max_scope_depth,
+    )
+    files = list(discovery["files"])
+    if not files:
+        return {
+            "status": "no_focus_candidates",
+            "project_path": str(Path(path).resolve()),
+            "discovery_scope": discovery,
+            "progressive_analysis": {
+                "status": "requires_canonical_analysis",
+                "reason": "the lexical discovery stage found no existing local source candidate",
+                "canonical": False,
+            },
+        }
+    result = analyze_project_core(
+        path,
+        support_packs=support_packs,
+        support_pack_root=support_pack_root,
+        create_research_requests=create_research_requests,
+        focus_files=files,
+    )
+    progressive = {
+        "status": "scoped_preliminary_analysis",
+        "canonical": False,
+        "merge_decision_eligible": False,
+        "next_action": "run canonical analysis for a complete PR decision",
+        "discovery_complete": bool(discovery["complete"]),
+        "scope_truncated": not bool(discovery["complete"]),
+    }
+    result["discovery_scope"] = discovery
+    result["progressive_analysis"] = progressive
+    graph = result.get("graph")
+    if isinstance(graph, dict):
+        metadata = graph.setdefault("metadata", {})
+        metadata["discovery_scope"] = discovery
+        metadata["progressive_analysis"] = progressive
+    return result

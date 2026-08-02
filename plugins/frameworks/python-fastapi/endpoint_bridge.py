@@ -442,7 +442,15 @@ def _collect_fastapi_backend_routes_from_source(graph: GraphDocument) -> list[di
     parsed_modules: list[tuple[Path, str, ast.AST, dict[str, str]]] = []
 
     from impact_engine.scope import iter_project_files
+    focused = graph.metadata.get("analysis_scope", {}) if isinstance(graph.metadata, dict) else {}
+    allowed_files = {
+        str(item).replace("\\", "/")
+        for item in focused.get("files", [])
+    } if focused.get("mode") == "focused_discovery_scope" else set()
     for path in iter_project_files(root, {".py"}):
+        relative_path = path.relative_to(root).as_posix()
+        if allowed_files and relative_path not in allowed_files:
+            continue
         if any(part in _SKIP_DIRS or part.startswith(".") for part in path.relative_to(root).parts):
             continue
         module = _python_module_id(root, path)

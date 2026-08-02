@@ -316,7 +316,27 @@ def _edge_keys(edges: list[dict[str, Any]], edge_kinds: set[str] | None = None) 
 
 
 def _edge_key(edge: dict[str, Any]) -> tuple[str, str, str]:
-    return str(edge.get("from") or edge.get("from_node")), str(edge.get("to") or edge.get("to_node")), str(edge.get("kind"))
+    return (
+        _benchmark_entity_id(edge.get("from") or edge.get("from_node")),
+        _benchmark_entity_id(edge.get("to") or edge.get("to_node")),
+        str(edge.get("kind")),
+    )
+
+
+def _benchmark_entity_id(value: Any) -> str:
+    """Compare semantic fixture IDs independently of graph storage prefixes.
+
+    The canonical graph serializes declarations as e.g. ``method:app.create``
+    while long-lived benchmark fixtures express the same stable identity as
+    ``app.create``.  Prefixes encode node kind rather than a different target;
+    keeping that representational detail in the benchmark would turn an exact
+    edge into a false negative.
+    """
+    text = str(value or "")
+    prefix, separator, remainder = text.partition(":")
+    if separator and prefix in {"method", "function", "module", "class"}:
+        return remainder
+    return text
 
 
 def _edge_key_to_string(key: tuple[str, str, str]) -> str:

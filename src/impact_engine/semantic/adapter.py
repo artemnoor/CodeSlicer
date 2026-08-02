@@ -65,7 +65,7 @@ def _module_from_file(root: Path, file_path: Path) -> str:
     return ".".join(rel.with_suffix("").parts)
 
 
-def _iter_project_files(root: Path, suffixes: set[str]) -> Iterable[Path]:
+def _iter_project_files(root: Path, suffixes: set[str], allowed_files: set[str] | None = None) -> Iterable[Path]:
     if root.is_file():
         if root.suffix in suffixes:
             yield root
@@ -73,6 +73,8 @@ def _iter_project_files(root: Path, suffixes: set[str]) -> Iterable[Path]:
     from impact_engine.scope import iter_project_files
     for path in iter_project_files(root):
         if not path.is_file() or path.suffix not in suffixes:
+            continue
+        if allowed_files is not None and path.relative_to(root).as_posix() not in allowed_files:
             continue
         if any(part in _SKIP_DIRS or part.startswith(".") for part in path.relative_to(root).parts):
             continue
@@ -179,11 +181,16 @@ def graph_to_semantic_facts(graph: GraphDocument) -> FactSet:
             )
 
     root = graph.metadata.get("path")
+    scope = graph.metadata.get("analysis_scope", {}) if isinstance(graph.metadata, dict) else {}
+    allowed_files = {
+        str(item).replace("\\", "/")
+        for item in scope.get("files", [])
+    } if scope.get("mode") == "focused_discovery_scope" else None
     if root:
         root_path = Path(str(root))
         if root_path.exists():
-            _add_python_source_facts(root_path, facts, add_once)
-            _add_js_source_facts(root_path, facts, add_once)
+            _add_python_source_facts(root_path, facts, add_once, allowed_files)
+            _add_js_source_facts(root_path, facts, add_once, allowed_files)
 
     facts.files = sorted({str(item) for item in facts.files})
     return facts
@@ -269,8 +276,8 @@ def _parse_decorator(text: str, target: str, file_name: Any, line: Any) -> Decor
     )
 
 
-def _add_python_source_facts(root: Path, facts: FactSet, add_once: Any) -> None:
-    for path in _iter_project_files(root, {".py"}):
+def _add_python_source_facts(root: Path, facts: FactSet, add_once: Any, allowed_files: set[str] | None = None) -> None:
+    for path in _iter_project_files(root, {".py"}, allowed_files):
         rel = path.relative_to(root).as_posix() if path != root else path.name
         facts.files.append(rel)
         try:
@@ -333,8 +340,8 @@ def _add_python_call(node: ast.Call, module: str, rel: str, facts: FactSet, add_
     add_once(facts.calls, CallFact(module, function, receiver, method, args, kwargs, rel, node.lineno))
 
 
-def _add_js_source_facts(root: Path, facts: FactSet, add_once: Any) -> None:
-    for path in _iter_project_files(root, _JS_EXTENSIONS):
+def _add_js_source_facts(root: Path, facts: FactSet, add_once: Any, allowed_files: set[str] | None = None) -> None:
+    for path in _iter_project_files(root, _JS_EXTENSIONS, allowed_files):
         rel = path.relative_to(root).as_posix() if path != root else path.name
         facts.files.append(rel)
         try:
