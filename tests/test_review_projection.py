@@ -1,7 +1,7 @@
 from impact_engine.models import Edge, Evidence, GraphDocument, Node
 from impact_engine.ranking_policy import DEFAULT_RANKING_POLICY
 from impact_engine.review_projection import build_review_projection
-from impact_engine.review_projection.test_selection import select_targeted_tests
+from impact_engine.review_projection.test_selection import _is_runnable_test_file, select_targeted_tests
 
 
 def _graph():
@@ -156,6 +156,55 @@ def test_targeted_test_recommendations_deduplicate_alias_nodes_by_executable_fil
     assert recommendations[0].file == "tests/test_merge.py"
 
 
+def test_fallback_ignores_test_helpers_and_offers_safe_pytest_command():
+    graph = GraphDocument()
+    graph.add_node(Node("method:app.feature.changed", "METHOD", "changed", {"file": "app/feature.py"}))
+    graph.add_node(Node("method:tests.feature.utils.helper", "METHOD", "helper", {"file": "tests/feature/utils.py"}))
+    graph.add_node(Node("method:tests.feature.test_feature.test_changed", "TEST", "test_changed", {"file": "tests/feature/test_feature.py"}))
+
+    recommendations = select_targeted_tests(
+        graph,
+        {"method:app.feature.changed"},
+        set(),
+        {},
+        {"tests/feature/implementation.py"},
+    )
+
+    assert len(recommendations) == 1
+    assert recommendations[0].file == "tests/feature/test_feature.py"
+    assert recommendations[0].fallback_status == "fallback"
+    assert recommendations[0].command == ["python", "-m", "pytest", "tests/feature/test_feature.py"]
+
+
+def test_fallback_does_not_mistake_framework_production_test_py_for_a_test():
+    graph = GraphDocument()
+    graph.add_node(Node("method:app.changed", "METHOD", "changed", {"file": "app/feature.py"}))
+    graph.add_node(Node("method:django.command.test", "METHOD", "test", {"file": "django/core/management/commands/test.py"}))
+    graph.add_node(Node("method:tests.query.test", "TEST", "test", {"file": "tests/queries/test.py"}))
+
+    recommendations = select_targeted_tests(
+        graph, {"method:app.changed"}, set(), {}, {"django/core/management/commands/test.py", "tests/queries/test.py"}
+    )
+
+    assert [item.file for item in recommendations] == ["tests/queries/test.py"]
+
+
+def test_primary_test_path_does_not_recommend_a_production_test_named_call():
+    graph = GraphDocument()
+    graph.add_node(Node("method:app.changed", "METHOD", "changed", {"file": "app/feature.py"}))
+    graph.add_node(Node("call:app.runner.test", "CALL_EXPR", "test_runner_class.add_arguments", {"file": "app/management/commands/test.py"}))
+    graph.add_edge(Edge("runner-calls-target", "CALLS", "call:app.runner.test", "method:app.changed", confidence=.95))
+
+    recommendations = select_targeted_tests(graph, {"method:app.changed"}, set(), {}, set())
+
+    assert recommendations == []
+
+
+def test_source_backed_javascript_and_go_test_files_are_runnable():
+    assert _is_runnable_test_file("test/app.js")
+    assert _is_runnable_test_file("internal/auth/auth_test.go")
+
+
 def test_unsupported_coverage_keeps_risk_unknown():
     projection = build_review_projection(
         _graph(), [{"id": "repo.save", "kind": "METHOD", "file": "backend/Orders.cs", "line": 4}], {"backend/Orders.cs"},
@@ -163,6 +212,17 @@ def test_unsupported_coverage_keeps_risk_unknown():
     )
     assert projection.risk["level"] == "UNKNOWN"
     assert projection.risk["confidence"] == "low"
+
+
+def test_bounded_coverage_without_cross_file_closure_keeps_risk_unknown():
+    graph = GraphDocument()
+    graph.add_node(Node("method:app.changed", "METHOD", "changed", {"file": "app/service.py", "line": 3}))
+    projection = build_review_projection(
+        graph, [{"id": "method:app.changed", "file": "app/service.py", "line": 3}], {"app/service.py"},
+        coverage=[{"path": "app/service.py", "status": "supported", "may_be_incomplete": True, "review_usable": True}],
+    )
+    assert projection.risk["level"] == "UNKNOWN"
+    assert "closure was not proven" in projection.risk["reason"]
 
 
 def test_chain_ids_are_process_deterministic():

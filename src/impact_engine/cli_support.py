@@ -20,7 +20,17 @@ def _print_json(data: object) -> None:
     # Keep machine-readable stdout ASCII-safe on Windows; UTF-8 remains in
     # graph artifacts and the visual API, while subprocess clients can decode
     # JSON reliably under the active console code page.
-    print(json.dumps(data, indent=2, ensure_ascii=True))
+    try:
+        print(json.dumps(data, indent=2, ensure_ascii=True))
+    except BrokenPipeError:
+        # Consumers such as ``head`` may intentionally close stdout after a
+        # complete JSON prefix.  Treat that as normal pipe semantics instead
+        # of surfacing a PyInstaller traceback from an otherwise successful
+        # analysis command.
+        try:
+            sys.stdout.close()
+        except OSError:
+            pass
 
 
 def _print_result(data: object, json_output: bool, human: str | None = None) -> None:

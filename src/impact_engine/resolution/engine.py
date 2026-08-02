@@ -81,8 +81,31 @@ def _edge_exists(graph: GraphDocument, edge_id: str) -> bool:
     return edge_id in graph._edge_id_index
 
 
+def canonical_callable_id(graph: GraphDocument, symbol: str) -> str:
+    """Return the materialized callable node when compatibility aliases exist.
+
+    Extractors historically expose qualified scopes (``package.fn``) while
+    normalization may also materialize ``method:package.fn``.  Connecting an
+    exact call to the former after the latter becomes canonical leaves a
+    technically valid but review-suppressed alias edge.  Prefer the concrete
+    callable node when it is already present; otherwise preserve the original
+    symbol for lightweight extractor-only graphs.
+    """
+    graph._ensure_indexes()
+    for prefix in ("method:", "function:"):
+        candidate = f"{prefix}{symbol}"
+        if candidate in graph._node_index:
+            return candidate
+    return symbol
+
+
 def _add_exact_function_call(graph: GraphDocument, call: Node, target: str) -> None:
-    scope = str(call.properties.get("scope") or "")
+    # Generic exact calls join the materialized callable nodes.  Framework
+    # packs that expose a documented legacy identity (notably FastAPI routes)
+    # keep that identity in their own hooks; the two contracts must not be
+    # conflated.
+    scope = canonical_callable_id(graph, str(call.properties.get("scope") or ""))
+    target = canonical_callable_id(graph, target)
     if not scope or not target:
         return
     edge_id = f"exact_calls__{scope}__{target}"
@@ -110,10 +133,10 @@ def _add_exact_function_call(graph: GraphDocument, call: Node, target: str) -> N
         },
     ))
     graph.add_edge(Edge(
-        id=f"exact_resolves_to__{call.id}__method:{target}",
+        id=f"exact_resolves_to__{call.id}__{target}",
         kind="RESOLVES_TO",
         from_node=call.id,
-        to_node=f"method:{target}",
+        to_node=target,
         source="EXTRACTED",
         confidence=1.0,
         evidence=[Evidence(
@@ -124,6 +147,69 @@ def _add_exact_function_call(graph: GraphDocument, call: Node, target: str) -> N
         )],
         properties={"resolution_status": "resolved_exact", "evidence_class": "static_proven", "validation_status": "not_validated"},
     ))
+
+
+def resolve_exact_import_calls(
+    graph: GraphDocument,
+    *,
+    max_calls: int | None = None,
+) -> dict[str, int]:
+    """Resolve only statically unambiguous project function calls.
+
+    This is deliberately a *single* linear pass, unlike :func:`resolve_graph`.
+    It does not infer receiver types, follow rebinding, or guess from a method
+    name.  It is therefore safe to run on a large workspace where the full
+    five-pass resolver would be too expensive, while still recovering the
+    import-backed calls that are essential to a useful PR impact closure.
+
+    ``max_calls`` is a work bound rather than a confidence downgrade: calls
+    beyond the bound are left unresolved and the caller can surface that
+    limitation explicitly.
+    """
+    index = build_symbol_index(graph)
+    resolve_module_scope = build_module_scope_resolver(graph)
+    examined = 0
+    resolved = 0
+    truncated = False
+
+    for call in graph.nodes:
+        if call.kind != "CALL_EXPR":
+            continue
+        if max_calls is not None and examined >= max_calls:
+            truncated = True
+            break
+        examined += 1
+        scope = str(call.properties.get("scope") or "")
+        call_name = str(call.properties.get("call_name") or "")
+        if not scope or not call_name:
+            continue
+        current_module = resolve_module_scope(scope)
+        target: str | None = None
+        if "." not in call_name:
+            target = index.resolve_function_name(
+                call_name,
+                current_module,
+                scope.rsplit(".", 1)[0],
+            )
+        elif call_name.count(".") == 1:
+            alias, member = call_name.split(".", 1)
+            target = index.resolve_module_member(alias, member, current_module)
+        if not target:
+            continue
+        edge_id = f"exact_calls__{canonical_callable_id(graph, scope)}__{canonical_callable_id(graph, target)}"
+        had_edge = _edge_exists(graph, edge_id)
+        _add_exact_function_call(graph, call, target)
+        if not had_edge and _edge_exists(graph, edge_id):
+            resolved += 1
+
+    result = {
+        "status": "completed" if not truncated else "bounded",
+        "calls_examined": examined,
+        "exact_calls_added": resolved,
+        "max_calls": max_calls,
+    }
+    graph.metadata["exact_import_call_resolution"] = result
+    return result
 
 
 def resolve_receiver_type(
@@ -210,6 +296,10 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
         for node in graph.nodes
         if node.kind == "METHOD" and node.properties.get("scope")
     }
+    # Exact import/function resolution is independent of the later type
+    # fixpoint.  Running it once avoids repeating the same O(calls) work on
+    # every inference pass.
+    resolve_exact_import_calls(graph)
 
     context = ResolutionContext()
 
@@ -244,24 +334,6 @@ def resolve_graph(graph: GraphDocument, support_packs: list | None = None) -> Gr
 
     # Multi-pass fixpoint inference
     for _ in range(5):
-        # Resolve local/imported top-level functions only through exact symbols.
-        # There is deliberately no method-name similarity fallback.
-        for call in calls:
-            scope = str(call.properties.get("scope") or "")
-            call_name = str(call.properties.get("call_name") or "")
-            if not scope or not call_name:
-                continue
-            current_module = resolve_module_scope(scope)
-            if "." not in call_name:
-                target = index.resolve_function_name(call_name, current_module, scope.rsplit(".", 1)[0])
-                if target:
-                    _add_exact_function_call(graph, call, target)
-            elif call_name.count(".") == 1:
-                alias, member = call_name.split(".", 1)
-                target = index.resolve_module_member(alias, member, current_module)
-                if target:
-                    _add_exact_function_call(graph, call, target)
-
         # Pass 1: Direct instantiation assignments (e.g., self.order_repository = OrderRepository())
         for assign in assignments:
             scope = assign.properties.get("scope")

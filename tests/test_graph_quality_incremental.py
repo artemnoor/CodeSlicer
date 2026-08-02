@@ -212,13 +212,26 @@ def test_large_graphs_skip_unbounded_enrichment_with_an_explicit_coverage_marker
     project = tmp_path / "project"
     project.mkdir()
     source = project / "main.py"
-    source.write_text("\n".join(f"value_{index} = helper({index})" for index in range(12_050)), encoding="utf-8")
+    source.write_text(
+        "def helper(value):\n    return value\n\n"
+        + "\n".join(f"value_{index} = helper({index})" for index in range(12_050)),
+        encoding="utf-8",
+    )
 
     result = analyze_project_core(str(project))
 
     budget = result["graph"]["metadata"]["deep_resolution_budget"]
     assert budget["status"] == "skipped_by_scale_budget"
-    assert result["graph"]["metadata"]["precision_resolution"]["status"] == "skipped_by_scale_budget"
+    resolution = result["graph"]["metadata"]["precision_resolution"]
+    assert resolution["status"] == "partial_exact_import_resolution"
+    assert resolution["exact_import_calls"]["exact_calls_added"] >= 1
+    assert any(
+        edge["kind"] == "CALLS"
+        and edge["from"] == "main"
+        and edge["to"] == "method:main.helper"
+        and edge["properties"].get("resolution_status") == "resolved_exact"
+        for edge in result["graph"]["edges"]
+    )
 
 
 def test_large_incremental_graph_defers_global_unknown_region_inventory(tmp_path: Path):

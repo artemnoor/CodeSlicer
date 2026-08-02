@@ -117,13 +117,14 @@ def _top_level_write_plugin_hook(context, graph):
     return PluginResult(graph=graph)
 
 
-def _inventory(*, languages=("python",), files=("app.py",), imports=(), dependencies=()):
+def _inventory(*, languages=("python",), files=("app.py",), imports=(), dependencies=(), local_modules=()):
     return {
         "languages": list(languages),
         "files": list(files),
         "package_manifests": [],
         "external_imports_by_ecosystem": {"python": list(imports), "javascript": list(imports)},
         "declared_dependencies_by_ecosystem": {"python": list(dependencies), "javascript": list(dependencies)},
+        "local_modules_by_ecosystem": {"python": list(local_modules), "javascript": list(local_modules)},
     }
 
 
@@ -204,6 +205,17 @@ def test_selection_requires_dependency_or_import_evidence():
         Path("."), _inventory(imports=("fastapi",), dependencies=("fastapi",)), registry=registry
     )
     assert "framework.python.fastapi" in fastapi_plan.selected_framework_ids
+
+
+def test_fastapi_pack_can_activate_for_its_own_local_package_source():
+    registry = discover_plugin_registry()
+    plan = build_plugin_selection_plan(
+        Path("."), _inventory(local_modules=("fastapi",)), registry=registry
+    )
+
+    assert "framework.python.fastapi" in plan.selected_framework_ids
+    diagnostic = next(item for item in plan.diagnostics if item.plugin_id == "framework.python.fastapi")
+    assert diagnostic.details["evidence"] == ["local_module:fastapi"]
 
 
 def test_js_import_evidence_activates_react_pack_without_package_manifest():

@@ -155,6 +155,16 @@ def test_warm_pipeline_uses_persistent_cache(tmp_path: Path):
     assert second["profiling"]["work"]["facts_reused"] == second["graph"]["metadata"]["cache"]["facts_reused"]
 
 
+def test_full_resolution_never_reuses_a_bounded_resolution_cache(tmp_path: Path):
+    (tmp_path / "app.py").write_text("def helper():\n    return 1\n\ndef run():\n    return helper()\n", encoding="utf-8")
+    analyze_project_core(str(tmp_path), scope=".")
+
+    full = analyze_project_core(str(tmp_path), scope=".", force_full_resolution=True)
+
+    assert "persistent_cache" not in full["extractors_used"]
+    assert full["graph"]["metadata"]["deep_resolution_budget"]["force_full_resolution"] is True
+
+
 def test_warm_cache_does_not_rescan_the_project_inventory(tmp_path: Path, monkeypatch):
     """Warm validation may stat files, but must not rebuild inventory facts."""
     (tmp_path / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")

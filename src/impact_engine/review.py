@@ -317,11 +317,14 @@ def build_review_report(
     )
     usable_limited_coverage = any(item.get("status") == "limited" and item.get("review_usable") for item in coverage)
     if incomplete_coverage and chains:
-        # A limited/unsupported changed language cannot provide a confirmed
-        # cross-file chain.  Keep the raw graph for deep investigation, but
-        # make concise review state the honest no-proof status.
-        chains = []
-        warnings.append("cross-file chains withheld because changed language coverage is incomplete")
+        # Limited language coverage cannot support a *confirmed* cross-file
+        # claim.  It can still support a source-backed `likely` relation (for
+        # example an explicit framework factory call).  Keep those visibly
+        # labelled likely chains instead of throwing useful evidence away.
+        confirmed_count = sum(item.get("confidence") == "confirmed" for item in chains)
+        if confirmed_count:
+            chains = [item for item in chains if item.get("confidence") != "confirmed"]
+            warnings.append("confirmed cross-file chains withheld because changed language coverage is incomplete")
     if incomplete_coverage:
         risk.update({"level": "UNKNOWN", "confidence": "low", "reason": "incomplete language coverage"})
         risk.setdefault("reasons", []).append("incomplete language coverage")
@@ -499,6 +502,7 @@ def _test_plan(recommendations: list[dict[str, Any]], root: Path, changed_symbol
     plan = []
     for recommendation in recommendations:
         argv = _safe_argv(recommendation.get("command"))
+        advisory = bool(recommendation.get("advisory")) or recommendation.get("fallback_status") != "primary"
         plan.append({
             "argv": argv,
             "cwd": str(root),
@@ -506,12 +510,12 @@ def _test_plan(recommendations: list[dict[str, Any]], root: Path, changed_symbol
             "reason": recommendation.get("reason") or "Suggested from local evidence",
             "confidence": recommendation.get("confidence", "unknown"),
             "safety": (
-                "advisory_confirmation_required" if recommendation.get("advisory") and argv
-                else "advisory_not_runnable_without_manual_command" if recommendation.get("advisory")
+                "advisory_confirmation_required" if advisory and argv
+                else "advisory_not_runnable_without_manual_command" if advisory
                 else "confirmation_required" if argv
                 else "not_runnable_without_manual_command"
             ),
-            "advisory": bool(recommendation.get("advisory")),
+            "advisory": advisory,
             "covered_entities": [recommendation.get("symbol")] if recommendation.get("symbol") else [],
             "uncovered_entities": uncovered,
             "file": recommendation.get("file"),
@@ -562,6 +566,8 @@ def _limitations(freshness: dict[str, Any], coverage: list[dict[str, Any]], warn
     for item in coverage:
         if item.get("status") in {"limited", "unsupported"}:
             items.append({"kind": str(item["status"]), "message": f"{item.get('path')} has {item.get('status')} coverage.", "action": "Review the changed area manually and run its focused tests."})
+        elif item.get("may_be_incomplete"):
+            items.append({"kind": "bounded_semantic_coverage", "message": f"{item.get('path')} has exact import-call coverage, but full type/data-flow resolution was bounded for scale.", "action": "Treat shown chains as proven; use Potential impact and focused tests for unresolved dynamic consumers."})
     if not items and warnings:
         items.append({"kind": "review_warning", "message": "Some evidence could not be shown in the concise review.", "action": "Open Architecture or inspect the affected item for detail."})
     return items
@@ -1084,16 +1090,19 @@ def _coverage(graph: GraphDocument, paths: set[str]) -> list[dict[str, Any]]:
     csharp_features = graph.metadata.get("csharp_framework_features", {}) or {}
     csharp_usable_features = sorted({feature for item in csharp_features.values() if isinstance(item, dict) and item.get("review_usable") for feature in item.get("review_usable_features", []) or []})
     result = []
+    precision = graph.metadata.get("precision_resolution", {}) or {}
+    partial_exact = precision.get("status") == "partial_exact_import_resolution"
     for path in sorted(paths):
         suffix = Path(path).suffix.lower()
         language = {".py": "python", ".js": "javascript", ".jsx": "javascript", ".ts": "typescript", ".tsx": "typescript", ".go": "go", ".java": "java", ".cs": "csharp"}.get(suffix, "unknown")
         cap = language_capabilities.get(language, {}) if isinstance(language_capabilities, dict) else {}
         capability_values = cap.get("capabilities", cap) if isinstance(cap, dict) else {}
         production = bool(capability_values.get("production_semantic_baseline"))
-        call_resolution = str(capability_values.get("call_resolution") or "none")
+        declared_call_resolution = str(capability_values.get("call_resolution") or "none")
+        call_resolution = "bounded_exact_imports" if language == "python" and partial_exact else declared_call_resolution
         if suffix not in SUPPORTED_SUFFIXES or not capability_values:
             status = "unsupported"
-        elif production and call_resolution == "semantic":
+        elif production and (declared_call_resolution == "semantic" or partial_exact):
             status = "supported"
         else:
             status = "limited"
@@ -1108,6 +1117,10 @@ def _coverage(graph: GraphDocument, paths: set[str]) -> list[dict[str, Any]]:
             review_usable = bool(capability_values.get("review_usable"))
             review_features = sorted({str(item) for item in declared_features})
             review_reason = "declared by the language capability contract"
+        elif partial_exact and language == "python":
+            review_usable = True
+            review_features = ["source_declarations", "local_imports", "exact_import_call_resolution"]
+            review_reason = "bounded exact import-call resolution completed; full type/data-flow resolution was skipped for scale"
         elif status == "supported":
             review_usable = True
             review_features = ["source_declarations", "local_imports", "semantic_call_resolution"]
@@ -1121,7 +1134,7 @@ def _coverage(graph: GraphDocument, paths: set[str]) -> list[dict[str, Any]]:
             "extractor": cap.get("provider_id") or cap.get("extractor") if isinstance(cap, dict) else None,
             "resolver": call_resolution,
             "production_semantic_baseline": production,
-            "may_be_incomplete": status != "supported",
+            "may_be_incomplete": status != "supported" or (language == "python" and partial_exact),
             "review_usable": review_usable,
             "review_usable_features": review_features,
             "review_usable_reason": review_reason,
@@ -1130,7 +1143,13 @@ def _coverage(graph: GraphDocument, paths: set[str]) -> list[dict[str, Any]]:
 
 
 def _coverage_warnings(coverage: list[dict[str, Any]]) -> list[str]:
-    return [f"coverage for {item['path']} is {item['status']}" for item in coverage if item["status"] in {"unsupported", "limited"}]
+    warnings = [f"coverage for {item['path']} is {item['status']}" for item in coverage if item["status"] in {"unsupported", "limited"}]
+    warnings.extend(
+        f"coverage for {item['path']} is bounded: exact import calls are available, full type/data-flow resolution was skipped"
+        for item in coverage
+        if item.get("may_be_incomplete") and item["status"] == "supported"
+    )
+    return warnings
 
 
 def _is_test_path(path: str) -> bool:

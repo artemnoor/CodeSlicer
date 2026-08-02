@@ -1,10 +1,12 @@
 """Argument parser construction for the public CLI."""
 from impact_engine.cli_support import *
+from impact_engine import __version__
 
 
 def build_parser(prog: str = "impact-engine") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog=prog)
     parser.add_argument("--json", action="store_true", help="Output raw JSON results")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     analyze = sub.add_parser("analyze")

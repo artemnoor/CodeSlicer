@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import deque
+from pathlib import PurePosixPath
 from typing import Any
 
 from impact_engine.edge_quality import classify_edge_quality
@@ -49,6 +50,44 @@ def _test_file(node: Any) -> str | None:
     return None
 
 
+def _is_runnable_test_file(file_name: str) -> bool:
+    """Avoid presenting a helper under ``tests/`` as a runnable test target."""
+    normalized = file_name.replace("\\", "/")
+    path = PurePosixPath(normalized)
+    name = path.name.lower()
+    # Framework internals frequently contain production modules named ``test.py``
+    # (for example Django's management command).  Treat those generic filenames
+    # as a runnable target only when their directory explicitly identifies tests.
+    test_directory = bool({"test", "tests", "spec", "specs"}.intersection(part.lower() for part in path.parts[:-1]))
+    return (
+        name.startswith("test_")
+        or name.endswith(("_test.py", "_test.go"))
+        or (name in {"test.py", "spec.py"} and test_directory)
+        or ".test." in name
+        or ".spec." in name
+        # A direct source-backed call from a conventional JS test directory
+        # is runnable even when its file is named simply ``app.js``.  Helpers
+        # are still excluded from fallback recommendations because they have
+        # no such evidence path.
+        or (test_directory and name.endswith((".js", ".cjs", ".mjs", ".ts", ".tsx")))
+    )
+
+
+def _fallback_command(file_name: str, node: Any) -> Any:
+    command = (getattr(node, "properties", {}) or {}).get("test_command")
+    if command:
+        return command
+    if file_name.lower().endswith(".py"):
+        return ["python", "-m", "pytest", file_name]
+    if file_name.lower().endswith(".go") and file_name.endswith("_test.go"):
+        directory = PurePosixPath(file_name.replace("\\", "/")).parent.as_posix()
+        return ["go", "test", f"./{directory}" if directory != "." else "."]
+    normalized_parts = set(PurePosixPath(file_name.replace("\\", "/")).parts)
+    if file_name.lower().endswith((".js", ".cjs", ".mjs", ".ts", ".tsx")) and (_is_runnable_test_file(file_name) or normalized_parts & {"test", "tests", "spec", "specs"}):
+        return ["npm", "test", "--", file_name]
+    return None
+
+
 def _path_confidence(edges: list[Any]) -> str:
     values = [_confidence(edge) for edge in edges]
     if "speculative" in values:
@@ -70,7 +109,7 @@ def _path_category(path_edges: list[Any], path_nodes: list[Any], changed_ids: se
     terminal_kind = str(getattr(terminal, "kind", "")).upper()
     is_route = terminal_role in {"route", "controller", "api"} or terminal_kind in {"ROUTE", "HTTP_ROUTE", "CONTROLLER"}
     is_contract = terminal_role in {"http", "rpc", "frontend_backend", "contract"}
-    if terminal_id in changed_ids and len(path_edges) == 1 and first_kind in {"TESTS", "CALLS", "IMPORTS"}:
+    if terminal_id in changed_ids and all(str(getattr(edge, "kind", "")).upper() in {"TESTS", "CALLS", "IMPORTS", "RESOLVES_TO"} for edge in path_edges):
         return "direct_changed_symbol"
     if terminal_id in impacted_ids and len(path_edges) == 1 and first_kind in {"TESTS", "CALLS", "IMPORTS"} and not is_route and not is_contract:
         return "direct_impacted_symbol"
@@ -176,7 +215,8 @@ def select_targeted_tests(graph: Any, changed_ids: set[str], impacted_ids: set[s
         # Without an outgoing semantic edge they cannot prove test coverage.
         if str(getattr(test_node, "kind", "")).upper() in {"EXTERNAL_LIBRARY", "PROJECT", "FILE", "MODULE"}:
             continue
-        if not is_test_node(test_node) or test_node.id not in outgoing:
+        file_name = _test_file(test_node)
+        if not is_test_node(test_node) or not file_name or not _is_runnable_test_file(file_name) or test_node.id not in outgoing:
             continue
         for path_edges, path_nodes in _test_paths(graph, test_node, targets, nodes=nodes, outgoing=outgoing, edge_by_id=edge_by_id):
             category = _path_category(path_edges, path_nodes, changed_ids, impacted_ids)
@@ -198,9 +238,8 @@ def select_targeted_tests(graph: Any, changed_ids: set[str], impacted_ids: set[s
                 evidence_by_id.setdefault(evidence_id, ev)
                 evidence_ids.append(evidence_id)
             confidence = _path_confidence(path_edges)
-            file_name = _test_file(test_node)
             properties = getattr(test_node, "properties", {}) or {}
-            command = properties.get("test_command") or properties.get("command")
+            command = properties.get("test_command") or properties.get("command") or _fallback_command(file_name or "", test_node)
             labels = " -> ".join(_node_label(node) for node in path_nodes)
             recommendation = TestRecommendation(
                 file=file_name, symbol=test_node.id, category=category,
@@ -221,14 +260,18 @@ def select_targeted_tests(graph: Any, changed_ids: set[str], impacted_ids: set[s
             if not is_test_node(node):
                 continue
             file_name = _test_file(node)
-            if not file_name or not any(_same_area(file_name, changed) for changed in changed_files):
+            if (
+                not file_name
+                or not _is_runnable_test_file(file_name)
+                or not any(_same_area(file_name, changed) for changed in changed_files)
+            ):
                 continue
             ev = ReviewEvidence(id=f"test:fallback:{node.id}", file=file_name, kind="NEARBY_TEST", description="test is near a changed file", source="EXTRACTED")
             evidence_by_id.setdefault(ev.id, ev)
             recommendation = TestRecommendation(
                 file=file_name, symbol=node.id, category="fallback_suite", score=CATEGORY_SCORES["fallback_suite"],
                 confidence="likely", evidence_ids=(ev.id,), reason="no exact targeted test was found", fallback_status="fallback",
-                command=(getattr(node, "properties", {}) or {}).get("test_command"),
+                command=_fallback_command(file_name, node),
             )
             recommendations.setdefault(_recommendation_key(node, file_name, recommendation.command), recommendation)
     ranked = sorted(recommendations.values(), key=lambda item: (-item.score, item.file or "", item.symbol))

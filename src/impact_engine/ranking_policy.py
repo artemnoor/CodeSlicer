@@ -85,8 +85,8 @@ DEFAULT_RANKING_POLICY = RankingPolicy(
     ),
 )
 
-TEST_SELECTION_POLICY_VERSION = "review-tests/v4"
-REVIEW_PROJECTION_POLICY_VERSION = "review-projection/v8"
+TEST_SELECTION_POLICY_VERSION = "review-tests/v6"
+REVIEW_PROJECTION_POLICY_VERSION = "review-projection/v9"
 REVIEW_SCHEMA_VERSION = "ReviewProjection/v1"
 
 

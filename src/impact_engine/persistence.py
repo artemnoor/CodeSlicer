@@ -39,7 +39,7 @@ CACHE_SCHEMA_VERSION = "impact-engine.cache.v7"
 # Bump this whenever semantic interpretation changes while the on-disk graph
 # schema remains compatible.  Otherwise a new CodeSlicer binary can present a
 # stale graph from an earlier resolver as if it were freshly analysed.
-PIPELINE_VERSION = "semantic-evidence.v3"
+PIPELINE_VERSION = "semantic-evidence.v6"
 MARKER_NAME = ".cache.complete"
 JOURNAL_NAME = ".cache.journal.json"
 LOCK_NAME = ".analysis.lock"
@@ -266,14 +266,25 @@ def plugin_registry_fingerprint(project_path: str | Path) -> str:
         manifest_path = Path(str(getattr(manifest, "path", "") or ""))
         assets = [manifest_path]
         if manifest_path:
-            assets.extend((manifest_path.parent / "hooks.py", manifest_path.parent / "recipes.py"))
+            # The registry fingerprint is used by the stat-only warm path,
+            # where no selection plan is rebuilt. Include every local Python
+            # implementation in a pack so an adapter delegated from hooks.py
+            # cannot silently leave an old graph marked fresh.
+            try:
+                assets.extend(
+                    candidate for candidate in manifest_path.parent.rglob("*.py")
+                    if "__pycache__" not in candidate.parts
+                )
+            except OSError:
+                assets.extend((manifest_path.parent / "hooks.py", manifest_path.parent / "recipes.py"))
         digests: dict[str, str] = {}
         for asset in assets:
             if not asset:
                 continue
             try:
                 if asset.is_file():
-                    digests[asset.name] = _sha256(asset.read_bytes())
+                    key = asset.relative_to(manifest_path.parent).as_posix() if manifest_path and asset != manifest_path else asset.name
+                    digests[key] = _sha256(asset.read_bytes())
             except OSError:
                 digests[asset.name] = "missing"
         entries.append({"id": str(plugin_id), "assets": _canonical_json(digests)})
@@ -317,6 +328,27 @@ def _plugin_entries(plugin_plan: Any) -> list[dict[str, str]]:
                     except OSError:
                         hook_fingerprint = "missing"
                     break
+        # A framework pack can delegate a hook into a sibling adapter module
+        # (for example FastAPI route composition).  Hashing just ``hooks.py``
+        # let a changed resolver reuse an old graph until a source file also
+        # changed.  The pack directory is intentionally small and local, so a
+        # deterministic fingerprint of its Python implementation files keeps
+        # warm-cache validation correct without scanning project source.
+        if manifest_path:
+            pack_root = Path(manifest_path).parent
+            files: list[dict[str, str]] = []
+            try:
+                for candidate in sorted(pack_root.rglob("*.py")):
+                    if "__pycache__" in candidate.parts:
+                        continue
+                    files.append({
+                        "path": candidate.relative_to(pack_root).as_posix(),
+                        "sha256": _sha256(candidate.read_bytes()),
+                    })
+                if files:
+                    hook_fingerprint = _sha256(_canonical_json(files))
+            except OSError:
+                hook_fingerprint = "missing"
         result.append({
             "id": plugin_id,
             "version": str(getattr(manifest, "version", "")),
@@ -345,6 +377,7 @@ class CacheMetadata:
     engine_version: str = __version__
     analysis_pipeline_version: str = PIPELINE_VERSION
     runtime_dependency_version: str = f"python-{platform.python_version()}"
+    resolution_profile: str = "bounded_exact_imports"
     created_at: float = field(default_factory=time.time)
     cache_status: str = "miss"
     cache_reason: str = "initial_scan"
@@ -371,6 +404,7 @@ class CacheMetadata:
             "engine_version": self.engine_version,
             "analysis_pipeline_version": self.analysis_pipeline_version,
             "runtime_dependency_version": self.runtime_dependency_version,
+            "resolution_profile": self.resolution_profile,
             "created_at": self.created_at,
             "cache_status": self.cache_status,
             "cache_reason": self.cache_reason,
@@ -390,6 +424,7 @@ class CacheMetadata:
         snapshot: Mapping[str, str] | None = None,
         cache_status: str = "miss",
         cache_reason: str = "initial_scan",
+        resolution_profile: str = "bounded_exact_imports",
     ) -> "CacheMetadata":
         project = Path(root).resolve()
         snap = dict(snapshot or project_snapshot(project, scope))
@@ -411,6 +446,7 @@ class CacheMetadata:
             scan_scope_hash=_sha256(scope_value), plugin_registry_fingerprint=plugin_registry_fingerprint(project), selected_plugins=language,
             selected_framework_packs=packs, cache_status=cache_status, cache_reason=cache_reason,
             runtime_dependency_version=f"python-{platform.python_version()}|tree-sitter-{tree_sitter_status}",
+            resolution_profile=resolution_profile,
         )
 
 
@@ -447,7 +483,11 @@ class CacheLock:
                     capture_output=True, text=True, timeout=3,
                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
-                return str(pid) in completed.stdout
+                # ``tasklist`` can emit non-UTF output on localized Windows
+                # installations.  A decoding fallback may leave stdout as
+                # None; that must mean "cannot prove the owner is alive", not
+                # a TypeError which leaves the caller with a stale lock.
+                return str(pid) in (completed.stdout or "")
             except (OSError, subprocess.SubprocessError):
                 return False
         try:
@@ -595,6 +635,7 @@ class AtomicCacheStore:
                 "source_snapshot_hash", "scan_scope", "scan_scope_hash", "selected_plugins",
                 "selected_framework_packs", "plugin_registry_fingerprint", "graph_schema_version", "engine_version",
                 "analysis_pipeline_version", "runtime_dependency_version",
+                "resolution_profile",
             ):
                 if metadata.get(key) != expected_data.get(key):
                     reason = "branch_mismatch" if key in {"branch", "ref", "head_fingerprint", "base_fingerprint"} else f"{key}_mismatch"

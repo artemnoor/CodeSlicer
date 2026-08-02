@@ -90,7 +90,7 @@ class TestRecommendation:
     confidence: str
     evidence_ids: tuple[str, ...] = ()
     reason: str = ""
-    command: str | None = None
+    command: Any = None
     fallback_status: str = "primary"
 
     def to_dict(self) -> dict[str, Any]:

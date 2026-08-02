@@ -30,7 +30,17 @@ def is_test_node(node: Any) -> bool:
     file_name = str(node_file(node) or "").lower()
     name = str(getattr(node, "name", "")).lower()
     parts = set(PurePosixPath(file_name).parts)
-    return str(getattr(node, "kind", "")).upper() == "TEST" or bool(parts & {"test", "tests", "spec", "specs"}) or name.startswith(("test_", "test", "spec_", "spec."))
+    # Do not infer a test merely from a production identifier such as
+    # ``test_runner_class`` or ``Command.test``.  That false positive is
+    # particularly common in framework internals and turns an unrelated
+    # production module into a runnable test recommendation.
+    path_name = PurePosixPath(file_name).name
+    return (
+        str(getattr(node, "kind", "")).upper() == "TEST"
+        or bool(parts & {"test", "tests", "spec", "specs"})
+        or path_name.endswith("_test.go")
+        or name.startswith(("test_", "spec_", "spec."))
+    )
 
 
 def suppression_reason(node: Any, *, allow_boundary: bool = False) -> str | None:

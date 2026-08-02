@@ -427,7 +427,15 @@ def collect_candidates(
             for edge in incoming.get(current, []):
                 if "incoming" in traversal_directions(edge):
                     adjacent.append((edge, edge.from_node, False))
-            adjacent.sort(key=lambda item: (-float(getattr(item[0], "confidence", 0.0)), str(getattr(item[0], "kind", "")), str(getattr(item[0], "id", "")), item[1]))
+            # A bounded review must not spend its first eight branches on
+            # examples merely because their ids sort first.  Explicit test
+            # call-sites are the most actionable consumers of a changed API;
+            # preserve them ahead of ordinary consumers at equal confidence.
+            adjacent.sort(key=lambda item: (
+                -float(getattr(item[0], "confidence", 0.0)),
+                0 if is_test_node(nodes.get(item[1])) else 1 if is_boundary_node(nodes.get(item[1])) else 2,
+                str(getattr(item[0], "kind", "")), str(getattr(item[0], "id", "")), item[1],
+            ))
             for edge, next_id, terminal_technical in adjacent[:max_branching]:
                 expanded_edges += 1
                 if expanded_edges > max_edges:
@@ -465,7 +473,13 @@ def collect_candidates(
                 # Test files belong in the dedicated targeted-test layer.  A
                 # generic import/call into a test module is not proof that the
                 # test covers the changed symbol.
-                test_without_coverage = is_test_node(next_node) and "test_direct" not in features
+                # A test-file CALL_EXPR normally proves only that the file
+                # mentions a symbol. Framework packs may additionally prove
+                # an explicit local factory/instance dispatch; preserve that
+                # as a `likely` test call instead of suppressing it as an
+                # unrelated nearby test.
+                test_call_site = bool((getattr(edge, "properties", {}) or {}).get("test_call_site"))
+                test_without_coverage = is_test_node(next_node) and "test_direct" not in features and not test_call_site
                 if suppression_reason(next_node, allow_boundary=True) or test_without_coverage:
                     # Technical nodes remain available to the chain, but never
                     # become top entities in concise mode.
@@ -515,9 +529,18 @@ def collect_candidates(
                     (chain_id,) if evidence_items else (), None, semantic_cluster(next_node),
                     _broad_discovery_reason(edge_objects) if confidence in {"unresolved", "speculative"} else None,
                 )
-                if old is None or (candidate.rank.score, candidate.entity_id) > (old.rank.score, old.entity_id):
+                # A longer path can accumulate ranking features while losing
+                # evidence quality (for example by crossing a structural
+                # 0.60 call edge).  Never let that speculative path replace a
+                # direct `likely` or `confirmed` relation for the same
+                # entity: confidence is the primary review contract; score is
+                # only the tie-breaker within one confidence tier.
+                confidence_rank = {"confirmed": 4, "likely": 3, "unresolved": 2, "speculative": 1}
+                candidate_key = (confidence_rank.get(candidate.confidence, 0), candidate.rank.score, candidate.entity_id)
+                old_key = (confidence_rank.get(old.confidence, 0), old.rank.score, old.entity_id) if old is not None else None
+                if old is None or candidate_key > old_key:
                     candidates[next_id] = candidate
-                elif old is not None and candidate.rank.score == old.rank.score:
+                elif old is not None and candidate_key == old_key:
                     candidates[next_id] = replace(old, evidence_ids=tuple(sorted(set(old.evidence_ids + candidate.evidence_ids))), chain_ids=tuple(sorted(set(old.chain_ids + candidate.chain_ids))))
                 if expanded_states + len(queue) < max_path_states:
                     heapq.heappush(queue, (-score, depth + 1, next_id, next_edges, path_nodes + (next_id,)))
@@ -549,14 +572,29 @@ def _risk(graph: Any, changed_ids: set[str], candidates: list[ReviewCandidate], 
         score += 3; reasons.append("critical/auth/payment path affected")
     if independent_paths >= 2:
         score += 2; reasons.append("multiple independent impact paths")
-    if tests:
+    if any(item.fallback_status == "primary" for item in tests):
         reasons.append("targeted test evidence exists")
+    elif tests:
+        reasons.append("only nearby test fallbacks are available")
     incomplete = any(
         item.get("status") in {"unsupported", "limited"}
         and not item.get("review_usable", False)
         and not str(item.get("path", "")).lower().startswith(("test", "tests/"))
         for item in coverage
     )
+    bounded_without_closure = (
+        any(bool(item.get("may_be_incomplete")) for item in coverage)
+        # Extractor canonicalisation can give the same changed declaration a
+        # different id in ``changed_symbols`` and in the graph.  The review
+        # contract is about a non-direct impact, not raw id spelling.
+        and not any(item.impact_class != "direct" for item in candidates)
+    )
+    if bounded_without_closure:
+        return {
+            "level": "UNKNOWN", "score": score, "confidence": "low",
+            "reason": "cross-file impact closure was not proven within the bounded semantic pass",
+            "reasons": reasons + ["cross-file impact closure was not proven; review the potential area and run focused tests"],
+        }
     if incomplete or unresolved_boundary:
         reasons.append("incomplete or unresolved high-value coverage")
         return {"level": "UNKNOWN", "score": score, "confidence": "low", "reason": "incomplete language coverage" if incomplete else "unresolved high-value boundary", "reasons": reasons}

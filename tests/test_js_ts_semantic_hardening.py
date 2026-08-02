@@ -97,4 +97,5 @@ def test_limited_typescript_review_keeps_unknown_risk_but_returns_source_backed_
     assert recommendation["advisory"] is True
     assert recommendation["file"] == "frontend/src/__tests__/orderFlow.test.tsx"
     assert recommendation["evidence_ids"]
-    assert report["test_plan"][0]["safety"] == "advisory_not_runnable_without_manual_command"
+    assert report["test_plan"][0]["safety"] == "advisory_confirmation_required"
+    assert report["test_plan"][0]["argv"] == ["npm", "test", "--", "frontend/src/__tests__/orderFlow.test.tsx"]

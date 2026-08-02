@@ -288,6 +288,15 @@ def _legacy_apply_backend_route_source_composer(graph: GraphDocument) -> GraphDo
         identity = (str(route["method"]).upper(), _canonical_route_path(str(route["path"])))
         route_identity_counts[identity] = route_identity_counts.get(identity, 0) + 1
     added_edges = 0
+    # Route composition can emit thousands of endpoints.  Re-scanning the
+    # whole graph for every candidate made this otherwise linear source pass
+    # quadratic on framework repositories such as FastAPI itself.
+    existing_edge_ids = {edge.id for edge in graph.edges}
+    existing_route_pairs = {
+        (edge.from_node, edge.to_node)
+        for edge in graph.edges
+        if edge.kind == "ROUTE_HANDLES"
+    }
     for route in routes:
         node_id = f"HTTP {str(route['method']).upper()} {route['path']}"
         graph.add_node(
@@ -308,11 +317,7 @@ def _legacy_apply_backend_route_source_composer(graph: GraphDocument) -> GraphDo
             )
         )
         edge_id = f"backend_route_source_composer__ROUTE_HANDLES__{node_id}__{route['handler']}"
-        if any(
-            (edge.id == edge_id)
-            or (edge.kind == "ROUTE_HANDLES" and edge.from_node == node_id and edge.to_node == str(route["handler"]))
-            for edge in graph.edges
-        ):
+        if edge_id in existing_edge_ids or (node_id, str(route["handler"])) in existing_route_pairs:
             continue
         ambiguous = route_identity_counts.get(
             (str(route["method"]).upper(), _canonical_route_path(str(route["path"]))), 0
@@ -336,6 +341,8 @@ def _legacy_apply_backend_route_source_composer(graph: GraphDocument) -> GraphDo
                 },
             )
         )
+        existing_edge_ids.add(edge_id)
+        existing_route_pairs.add((node_id, str(route["handler"])))
         added_edges += 1
 
     rejected = _reject_conflicting_fastapi_route_edges(graph, route_keys)
@@ -941,6 +948,11 @@ def _resolve_static_string(
     else:
         return None
     for candidate in candidates:
+        # An unknown ``Name`` has no import-map entry.  It is simply an
+        # unresolved dynamic prefix, not an exceptional condition and never
+        # a reason to abort route collection for the entire workspace.
+        if not isinstance(candidate, str) or not candidate:
+            continue
         normalized = candidate.removeprefix("backend.")
         variants = [candidate, normalized]
         # ``from app.core.config import settings`` makes the expression refer

@@ -85,6 +85,7 @@ def _framework_selected(manifest, inventory: dict[str, Any], *, explicit_local: 
     activation = dict(manifest.activation)
     deps = _inventory_values(inventory, "declared_dependencies", manifest.language)
     imports = _inventory_values(inventory, "external_imports", manifest.language)
+    local_modules = _inventory_values(inventory, "local_modules", manifest.language)
     evidence: list[str] = []
     for name in activation.get("dependencies", []) or []:
         if _matches(str(name), deps):
@@ -92,6 +93,13 @@ def _framework_selected(manifest, inventory: dict[str, Any], *, explicit_local: 
     for name in activation.get("imports", []) or []:
         if _matches(str(name), imports):
             evidence.append(f"import:{name}")
+    # Framework repositories often test the framework from source and thus do
+    # not list themselves as an external dependency.  A manifest may opt in to
+    # this explicit local-package signal; it is never inferred from a symbol
+    # name or a directory substring.
+    for name in activation.get("local_modules", []) or []:
+        if _matches(str(name), local_modules):
+            evidence.append(f"local_module:{name}")
     if evidence:
         supported = tuple(manifest.supported_versions or ())
         known_versions = inventory.get("dependency_versions_by_ecosystem", {}).get(manifest.language, {}) or {}

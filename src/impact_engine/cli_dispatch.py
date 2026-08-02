@@ -2,6 +2,12 @@
 from impact_engine.cli_support import *
 
 
+def _error_message(exc: BaseException) -> str:
+    """Never serialize an empty failure reason into a user-facing report."""
+    message = str(exc).strip()
+    return message or f"{type(exc).__name__} was raised without a diagnostic message"
+
+
 def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, raw_argv: list[str]) -> None:
     if args.command == "daemon":
         from impact_engine.persistence import daemon_status, start_daemon, stop_daemon
@@ -795,7 +801,14 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                 warnings=result.get("warnings", []), adapters=result.get("adapters", []), result=result,
             )
         except Exception as exc:
-            result = {"status": "error", "error": str(exc), "schema_version": "ReviewReport/v2"}
+            message = _error_message(exc)
+            result = {
+                "status": "error",
+                "error": message,
+                "error_type": type(exc).__name__,
+                "schema_version": "ReviewReport/v2",
+                "warnings": [f"review could not complete: {message}"],
+            }
         if args.json or getattr(args, "local_json", False):
             _print_json(result)
         else:
@@ -865,13 +878,15 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
             }
         except Exception as exc:
             exit_code = 3 if args.command == "ci" else 1
+            message = _error_message(exc)
             result = {
                 "schema_version": "CodeSlicerModeReport/v1",
                 "mode": args.command,
                 "status": "analysis_failed",
                 "local_only": True,
-                "error": str(exc),
-                "warnings": [f"analysis could not complete: {exc}"],
+                "error": message,
+                "error_type": type(exc).__name__,
+                "warnings": [f"analysis could not complete: {message}"],
                 "coverage": [],
                 "graph_freshness": {"status": "unavailable", "stale": True},
                 "actions": {"items": []},

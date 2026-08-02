@@ -14,6 +14,7 @@ from impact_engine.languages.semantics import build_language_capability_diagnost
 from impact_engine.models import GraphDocument, FactDocument
 from impact_engine.normalization.graph import merge_graph_documents, normalize_graph_document
 from impact_engine.resolution.precision import resolve_precision
+from impact_engine.resolution.engine import resolve_exact_import_calls
 from impact_engine.semantic import apply_semantic_resolution
 from impact_engine.semantic_hygiene import apply_post_project_hygiene, build_pre_project_hygiene, externalize_large_hygiene
 from impact_engine.community import annotate_communities
@@ -131,6 +132,7 @@ class AnalysisPipeline:
             snapshot=self.current_snapshot,
             cache_status="miss",
             cache_reason="initial_scan" if not self.options.changed_files else "incremental_update",
+            resolution_profile="full" if self.options.force_full_resolution else "bounded_exact_imports",
         )
         with self.profiler.measure("cache_lookup"):
             self.cache_load = self.cache_store.load(self.cache_metadata)
@@ -234,6 +236,23 @@ class AnalysisPipeline:
                     self.selection_plan, plugin_context, graph, phase="pre_resolution"
                 )
             self.plugin_diagnostics.extend(item.to_dict() for item in hook_diags)
+        elif self.selection_plan:
+            # Framework packs own compact, source-backed boundary facts such
+            # as FastAPI route composition.  They remain useful when the
+            # expensive global type/data-flow resolver is skipped, and the
+            # plugin sandbox still enforces their read-only local contract.
+            plugin_context = PluginContext(
+                Path(self.project_path),
+                getattr(self, "_inventory_data", {}),
+                self.selection_plan.selected_ids(),
+                cancellation=self.cancellation,
+            )
+            with self.profiler.measure("framework_hooks"):
+                graph, hook_diags = execute_selected_framework_hooks(
+                    self.selection_plan, plugin_context, graph, phase="pre_resolution"
+                )
+            self.plugin_diagnostics.extend(item.to_dict() for item in hook_diags)
+            graph.metadata["framework_hooks_scale_mode"] = "source_backed_pre_resolution_only"
         local_registry_summary = self._sync_local_registry(inventory_data)
         started = time.perf_counter()
         self._progress("resolution", 0, 1, "Precision и framework resolution")
@@ -249,8 +268,28 @@ class AnalysisPipeline:
                     )
                     self.plugin_diagnostics.extend(item.to_dict() for item in plugin_diags)
         else:
+            # Full type/data-flow resolution is intentionally bounded on large
+            # workspaces, but skipping *all* call resolution made the graph
+            # structurally complete yet useless for PR impact.  Recover only
+            # unambiguous local/import-backed calls in one bounded linear pass.
+            # This never promotes a name match or dynamic receiver to evidence.
+            with self.profiler.measure("precision_resolution"):
+                exact_summary = resolve_exact_import_calls(graph, max_calls=50_000)
             resolved = graph
-            resolved.metadata["precision_resolution"] = {"status": "skipped_by_scale_budget", "reason": "Structural extraction is current; use --full-resolution for unbounded precision resolution."}
+            resolved.metadata["precision_resolution"] = {
+                "status": "partial_exact_import_resolution",
+                "reason": "Full type/data-flow resolution was skipped by the scale budget; exact local and imported function calls were resolved in one bounded pass.",
+                "exact_import_calls": exact_summary,
+            }
+            if exact_summary["status"] == "bounded":
+                self.diagnostics.add(
+                    "exact_import_call_resolution_bounded",
+                    "Large project: exact import-call resolution reached its safety budget; unresolved calls remain explicitly limited.",
+                    component="analysis.scale_budget",
+                    severity="warning",
+                    actionable=True,
+                    details=exact_summary,
+                )
         self.stage_timings["resolution"] = round(time.perf_counter() - started, 4)
         self._progress("resolution", 1, 1, "Resolution завершён")
         run_quality_gate(resolved, "generic_and_framework_resolution")
@@ -363,6 +402,7 @@ class AnalysisPipeline:
                     snapshot=self.current_snapshot or persistent_project_snapshot(self.project_path, self.options.scope),
                     cache_status=cache_status,
                     cache_reason=cache_reason,
+                    resolution_profile="full" if self.options.force_full_resolution else "bounded_exact_imports",
                 )
                 resolved.metadata["cache"] = self.cache_metadata.to_dict()
                 reverse = build_reverse_dependency_index(resolved).to_dict()
@@ -524,6 +564,7 @@ class AnalysisPipeline:
             snapshot=snapshot if isinstance(snapshot, dict) else None,
             cache_status="hit",
             cache_reason="fast_cache_validation",
+            resolution_profile="full" if self.options.force_full_resolution else "bounded_exact_imports",
         )
         if metadata.get("plugin_registry_fingerprint") != current_metadata.plugin_registry_fingerprint:
             return None
@@ -531,7 +572,7 @@ class AnalysisPipeline:
         # still reject a graph made by a different semantic pipeline or runtime.
         # Without this check an upgraded CodeSlicer executable can silently
         # serve pre-upgrade resolver results until a source file changes.
-        for key in ("engine_version", "analysis_pipeline_version", "runtime_dependency_version", "graph_schema_version"):
+        for key in ("engine_version", "analysis_pipeline_version", "runtime_dependency_version", "graph_schema_version", "resolution_profile"):
             if metadata.get(key) != getattr(current_metadata, key):
                 return None
         facts_payload = loaded.artifacts.get("facts.json", {})
