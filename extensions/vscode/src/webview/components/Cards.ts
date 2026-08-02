@@ -5,4 +5,9 @@ export const impactCard = (item: ImpactItem, labels: { confirmed: string; likely
 
 export const evidenceCard = (item: EvidenceLocation): string => `<li><strong>${esc(item.file || "Unknown location")}${item.line ? `:${item.line}` : ""}</strong>${item.text ? `<span>${esc(item.text)}</span>` : ""}${item.provenance ? `<em>${esc(item.provenance)}</em>` : ""}</li>`;
 
-export const testCard = (item: TestRecommendation, index: number, run: string): string => `<article class="test-card"><div><span class="result-card__kind">${esc(item.advisory ? "advisory · limited coverage" : item.category)}</span><strong>${esc(item.file || item.symbol)}</strong><p>${esc(item.reason)}</p><small>${esc(item.confidence)}${item.argv ? ` · ${esc(item.argv.join(" "))}` : " · needs a manual command"}</small></div>${item.argv ? `<button class="button button--secondary" data-test="${index}">${esc(run)}</button>` : ""}</article>`;
+export const testCard = (item: TestRecommendation, index: number, run: string, language: "ru" | "en" = "en"): string => {
+  const advisory = language === "ru" ? "рекомендация · ограниченное покрытие" : "recommendation · limited coverage";
+  const commandHint = language === "ru" ? "нужна команда вручную" : "a manual command is needed";
+  const category = item.advisory ? advisory : (language === "ru" ? "рекомендуемый тест" : "recommended test");
+  return `<article class="test-card"><div><span class="result-card__kind">${esc(category)}</span><strong>${esc(item.file || item.symbol)}</strong><p>${esc(item.reason)}</p><small>${esc(item.confidence)}${item.argv ? ` · ${esc(item.argv.join(" "))}` : ` · ${commandHint}`}</small></div>${item.argv ? `<button class="button button--secondary" data-test="${index}">${esc(run)}</button>` : ""}</article>`;
+};

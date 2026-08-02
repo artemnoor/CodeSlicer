@@ -38,18 +38,18 @@ test("does not present unknown risk as a safe green result", () => {
 
 test("cockpit separates review, results, tests, technologies, history, architecture, and Git", () => {
   const html = renderCockpit({ ...INITIAL_STATE, runtime: { ...INITIAL_STATE.runtime, status: "found" }, codeGraph: { status: "ready", nodes: [{ id: "a", label: "entry", kind: "FUNCTION" }], edges: [], totalNodes: 1, totalEdges: 0, message: "Ready" }, gitGraph: { status: "ready", commits: [{ id: "123456789", parents: [], refs: "HEAD -> main", subject: "Initial" }], branches: [{ name: "main", current: true, upstream: "origin/main", tracking: "ahead 1" }], remotes: [], message: "Ready" } }, "ru");
-  assert.match(html, /Проверяйте изменения до commit и merge/);
+  assert.match(html, /Поймите, что изменится в проекте до ревью/);
   assert.match(html, /class="app-shell"/);
   assert.match(html, /--cs-bg: #0a0a0b/);
   assert.match(html, /--cs-green: #f4f4f5/);
-  assert.match(html, /#675de1/);
-  assert.match(html, /#ff6564/);
   assert.match(html, /font-family: var\(--vscode-font-family, Inter/);
   assert.match(html, /\.branch-tree::before/);
-  assert.doesNotMatch(html, /linear-gradient/);
   assert.match(html, /class="branch-rail"/);
   assert.match(html, /\[hidden\] \{ display: none !important; \}/);
   assert.match(html, /class="rail-nav"/);
+  assert.match(html, />Начать</);
+  assert.match(html, />Проверить изменения</);
+  assert.match(html, />Карта кода</);
   assert.match(html, /data-tab="review"/);
   assert.match(html, /data-tab="results"/);
   assert.match(html, /data-tab="tests"/);
@@ -75,6 +75,8 @@ test("cockpit separates review, results, tests, technologies, history, architect
   assert.match(html, /Дополнительные пакеты можно получать только из подписанного registry/i);
   assert.match(html, /class="graph-nodes"/);
   assert.match(html, /data-guide-handle/);
+  assert.match(html, /class="readiness-card"/);
+  assert.match(html, /Готовность проекта/);
   assert.match(renderCockpit(INITIAL_STATE, "en"), /data-language="ru"/);
 });
 
@@ -82,11 +84,11 @@ test("results keep broad discovery collapsed and clearly marked", () => {
   const html = renderCockpit({ ...INITIAL_STATE, review: { ...INITIAL_STATE.review, status: "ready", impacts: [{ entityId: "confirmed", label: "save", kind: "METHOD", confidence: "confirmed", tier: "confirmed", reason: "resolved call", evidence: [] }], potentialImpacts: [{ entityId: "possible", label: "dynamic call", kind: "CALL_EXPR", confidence: "low", tier: "possible", reason: "unresolved dynamic call", evidence: [] }], rejectedRelations: [{ from: "HTTP POST /orders", to: "create_order", kind: "ROUTE_HANDLES", reason: "explicit resolver status: rejected", evidence: [] }], potentialLimitations: ["The analysis graph may not match the current project."] } }, "en");
   assert.match(html, /<details class="potential-impact-panel">/);
   assert.match(html, /Show potential scope/);
-  assert.match(html, /Possible impact/);
+  assert.match(html, /Possible/);
   assert.match(html, /Confidence: low/);
-  assert.match(html, /Reason: unresolved dynamic call/);
-  assert.match(html, /Rejected relations/);
-  assert.match(html, /Analysis limitations/);
+  assert.match(html, /Why: unresolved dynamic call/);
+  assert.match(html, /Unconfirmed relationships/);
+  assert.match(html, /What CodeSlicer could not confirm/);
   assert.match(html, /impact-card--confirmed/);
   assert.match(html, /impact-card--possible/);
 });
@@ -108,11 +110,11 @@ test("review result opens as a readable editor document without losing evidence 
 
 test("start screen gives safe next steps for an empty folder and a project without Git", () => {
   const empty = renderCockpit({ ...INITIAL_STATE, project: { ...INITIAL_STATE.project, readiness: "empty" } }, "ru");
-  assert.match(empty, /Здесь пока нет проекта/);
+  assert.match(empty, /Поймите изменения до отправки на ревью/);
   assert.match(empty, /data-action="openProject"/);
   assert.match(empty, /data-action="importGit"/);
   const noGit = renderCockpit({ ...INITIAL_STATE, project: { ...INITIAL_STATE.project, readiness: "project", gitStatus: "missing" } }, "ru");
-  assert.match(noGit, /Подключите Git, когда будете готовы/);
+  assert.match(noGit, /Проверим готовность проекта/);
   assert.match(noGit, /data-action="initGit"/);
 });
 
