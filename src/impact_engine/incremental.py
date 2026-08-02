@@ -79,7 +79,12 @@ def normalize_changed_files(project_path: str | Path, paths: list[str] | None) -
     root = validate_project_path(project_path)
     normalized: set[str] = set()
     for value in paths:
-        candidate = Path(value)
+        # Git and editors can report a relative path with either separator,
+        # regardless of the host where CodeSlicer is running.  Normalize the
+        # transport representation before asking the host filesystem to
+        # resolve it; otherwise Linux treats ``nested\\main.py`` as one
+        # literal filename and creates a duplicate changed-file anchor.
+        candidate = Path(value.replace("\\", "/"))
         resolved = candidate.resolve() if candidate.is_absolute() else (root / candidate).resolve()
         try:
             normalized.add(resolved.relative_to(root).as_posix())
