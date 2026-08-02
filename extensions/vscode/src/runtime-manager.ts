@@ -1,4 +1,4 @@
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import { createHash } from "node:crypto";
 import { join, relative, resolve } from "node:path";
@@ -41,6 +41,16 @@ export async function validateRuntimeFiles(root: string, files: Record<string, s
 /** Resolves and validates the runtime embedded in this platform-specific VSIX.
  * No workspace virtualenv or PATH probing is performed. */
 export class CodeSlicerRuntimeManager {
+  /**
+   * A platform VSIX is immutable while VS Code is running.  Hashing its large
+   * executable and starting it with `--help` before every user command made a
+   * small review pay the frozen-Python startup cost twice.  Keep a successful
+   * validation only while every declared runtime file keeps the same metadata;
+   * a replacement, repair, or update invalidates the entry and performs the
+   * complete checksum + command-contract validation again.
+   */
+  private readonly validated = new Map<string, RuntimeState>();
+
   constructor(private readonly extensionPath: string) {}
 
   target(): string | undefined { return runtimeTarget(); }
@@ -67,13 +77,32 @@ export class CodeSlicerRuntimeManager {
     } catch { return undefined; }
   }
 
-  async validate(cwd: string, customExecutable?: string): Promise<RuntimeState> {
+  private async validationKey(root: string, manifest: RuntimeManifest): Promise<string | undefined> {
+    try {
+      const entries = await Promise.all(Object.keys(manifest.files).sort().map(async name => {
+        if (!name || name.split(/[\\/]/u).some(part => !part || part === "." || part === "..")) throw new Error("unsafe runtime path");
+        const path = resolve(root, name);
+        if (relative(root, path).startsWith("..") || relative(root, path) === "") throw new Error("unsafe runtime path");
+        const info = await stat(path);
+        return `${name}:${info.size}:${info.mtimeMs}:${info.mode}`;
+      }));
+      return `${manifest.runtimeVersion}|${manifest.extensionCompatibility}|${entries.join("|")}`;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async validate(cwd: string, customExecutable?: string, force = false): Promise<RuntimeState> {
     const target = this.target();
     if (!target) return { status: "incompatible", version: "Not available", diagnostic: `CodeSlicer has no bundled runtime for ${process.platform}-${process.arch}. Install the matching platform VSIX; no download will be attempted.` };
     const manifest = await this.readManifest();
     const bundled = this.runtimePath();
     if (!manifest || !bundled) return { status: "install-unavailable", version: "Not available", diagnostic: `This ${target} VSIX does not contain a valid bundled runtime manifest.` };
     try {
+      const root = this.runtimeRoot(target)!;
+      const key = await this.validationKey(root, manifest);
+      const cached = key ? this.validated.get(key) : undefined;
+      if (cached && !force) return cached;
       const invalid = await validateRuntimeFiles(this.runtimeRoot(target)!, manifest.files);
       if (invalid) return { status: "incompatible", executable: bundled, version: manifest.runtimeVersion, diagnostic: invalid };
       const runtimeFile = runtimeExecutableRelative().replace(/\\/gu, "/");
@@ -81,7 +110,9 @@ export class CodeSlicerRuntimeManager {
       await access(bundled, constants.X_OK);
       const result = await runProcess(bundled, ["--help"], cwd, 20_000);
       if (result.exitCode !== 0 || !/\breview\b/u.test(result.stdout) || !/\binspect\b/u.test(result.stdout)) return { status: "incompatible", executable: bundled, version: manifest.runtimeVersion, diagnostic: "Bundled runtime did not expose the required review and inspect commands." };
-      return { status: "found", executable: bundled, version: manifest.runtimeVersion, diagnostic: `Bundled ${target} runtime validated locally. It starts only after an explicit action.` };
+      const state = { status: "found" as const, executable: bundled, version: manifest.runtimeVersion, diagnostic: `Bundled ${target} runtime validated locally. It starts only after an explicit action.` };
+      if (key) this.validated.set(key, state);
+      return state;
     } catch (error) {
       // A custom path is never selected automatically; it is available only for an explicit developer configuration.
       if (customExecutable?.trim()) {
@@ -92,7 +123,7 @@ export class CodeSlicerRuntimeManager {
   }
 
   async doctor(cwd: string, customExecutable?: string): Promise<{ ok: boolean; diagnostic: string }> {
-    const runtime = await this.validate(cwd, customExecutable);
+    const runtime = await this.validate(cwd, customExecutable, true);
     if (!runtime.executable || runtime.status !== "found") return { ok: false, diagnostic: runtime.diagnostic };
     const result = await runProcess(runtime.executable, ["doctor", "--full"], cwd, 60_000);
     return { ok: result.exitCode === 0, diagnostic: result.stdout.trim() || result.stderr.trim() || "CodeSlicer doctor completed." };

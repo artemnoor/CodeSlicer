@@ -25,7 +25,7 @@ class HygienePipeline:
         declared_dependencies: dict[str, set[str]] | None = None,
         local_modules: dict[str, set[str]] | None = None,
         dev_dependencies: dict[str, set[str]] | None = None,
-        graph: dict | None = None,
+        graph: object | None = None,
         routes: list[tuple[str | None, str, str | None]] | None = None,
     ) -> HygieneReport:
         diagnostics: list[str] = []

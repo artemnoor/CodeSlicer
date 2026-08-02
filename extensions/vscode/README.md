@@ -30,6 +30,26 @@ npm run package
 
 The VSIX excludes the source repository, `.venv`, `node_modules`, caches, `.impact_engine`, Graphify outputs, tests, and secrets.
 
+## Large-workspace behavior
+
+The bundled Core keeps evidence correctness ahead of a deceptively fast
+partial result. A changed-file candidate cannot replace the canonical graph
+unless it covers the complete analysis scope; otherwise the next explicit
+review performs and reports a full refresh. This prevents routes, callers, and
+tests outside the changed file from disappearing from the workspace graph.
+
+On the Django repository at commit `60121939f6b225c7a719dd561e372e1d8e5e2c4a`
+(6,958 files; 315,345 nodes; 316,365 edges), CodeSlicer 0.6.30 reduced the
+post-hygiene/quality stage from 56.9 s to 14.7 s. A repeated review of the
+same local diff fell from 83.1 s to 61.5 s on the benchmark Windows x64 host.
+Cold-run timing is storage-dependent and measured 184–235 s, so it is not a
+cross-machine SLA.
+
+For large graphs, verbose hygiene annotations are kept in the local compressed
+sidecar `.impact_engine/project_hygiene.json.gz`. The main graph retains the
+summary and a reference; deep impact requests load the complete report only
+when needed. No code or graph is sent over the network.
+
 ## Cockpit workflow
 
 The webview keeps the normal path simple:

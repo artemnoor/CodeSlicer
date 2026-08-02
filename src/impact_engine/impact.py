@@ -1,6 +1,8 @@
 """Impact query and explain edge v2 implementation. Stage 16."""
 import json
+import gzip
 from collections import deque
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 from impact_engine.models import GraphDocument, Edge, Node
 from impact_engine.edge_quality import bucket_edge_dicts, classify_edge_quality, edge_is_active_for_impact
@@ -374,8 +376,19 @@ def _semantic_groups_from_hygiene(graph: GraphDocument, nodes: list[dict]) -> di
     hygiene = graph.metadata.get("project_hygiene") if isinstance(graph.metadata, dict) else None
     if not isinstance(hygiene, dict):
         return {}
+    raw_annotations = hygiene.get("node_annotations", []) or []
+    storage = hygiene.get("storage") if isinstance(hygiene.get("storage"), dict) else None
+    if not raw_annotations and storage and storage.get("format") == "gzip-json-v1":
+        try:
+            root = Path(str(graph.metadata.get("project_path") or ""))
+            sidecar = root / str(storage.get("path") or "")
+            if sidecar.is_file():
+                with gzip.open(sidecar, "rt", encoding="utf-8") as handle:
+                    raw_annotations = (json.load(handle).get("node_annotations") or [])
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            raw_annotations = []
     annotations = []
-    for item in hygiene.get("node_annotations", []) or []:
+    for item in raw_annotations:
         try:
             annotations.append(GraphNodeAnnotation.from_dict(item))
         except Exception:

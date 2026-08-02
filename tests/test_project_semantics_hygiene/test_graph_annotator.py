@@ -1,4 +1,7 @@
 from project_semantics_hygiene import FileRole, FileRoleClassifier, GraphAnnotator, ProjectFile, Reachability
+from impact_engine.impact import _semantic_groups_from_hygiene
+from impact_engine.models import Edge, GraphDocument, Node
+from impact_engine.semantic_hygiene import externalize_large_hygiene
 
 
 def _classes():
@@ -60,3 +63,52 @@ def test_edge_reachability_and_noise_scores():
     assert by_id["e_test"].noise_score == 0.40
     assert by_id["e_dead"].reachability is Reachability.UNREACHABLE_CANDIDATE
     assert by_id["e_dead"].noise_score == 0.70
+
+
+def test_model_graph_annotations_match_serialized_graph_annotations():
+    graph = {
+        "nodes": [
+            {"id": "runtime", "kind": "CLASS", "name": "Service", "properties": {"file": "src/service.py"}},
+            {"id": "test", "kind": "FUNCTION", "name": "test_service", "properties": {"file": "tests/test_service.py"}},
+        ],
+        "edges": [{"id": "tests", "kind": "TESTS", "from": "test", "to": "runtime", "properties": {}}],
+    }
+    model = GraphDocument(
+        nodes=[Node(**node) for node in graph["nodes"]],
+        edges=[
+            Edge(
+                id=edge["id"], kind=edge["kind"], from_node=edge["from"], to_node=edge["to"], properties=edge["properties"]
+            )
+            for edge in graph["edges"]
+        ],
+    )
+    annotator = GraphAnnotator()
+    dict_nodes, dict_edges = annotator.annotate_graph(graph, _classes())
+    model_nodes, model_edges = annotator.annotate_graph(model, _classes())
+    assert [item.to_dict() for item in model_nodes] == [item.to_dict() for item in dict_nodes]
+    assert [item.to_dict() for item in model_edges] == [item.to_dict() for item in dict_edges]
+
+
+def test_large_hygiene_report_is_local_sidecar_and_remains_available_to_impact(tmp_path):
+    route = Node("route", "ROUTE", "GET /users", {"file": "src/service.py"})
+    graph = GraphDocument(
+        nodes=[route],
+        metadata={
+            "project_path": str(tmp_path),
+            "project_hygiene": {
+                "summary": {"nodes.total": 1},
+                "node_annotations": [{
+                    "node_id": "route", "file_path": "src/service.py", "file_role": "SOURCE",
+                    "reachability": "RUNTIME", "tags": ["route"], "confidence": 0.86,
+                    "reasons": ["node belongs to runtime source file"],
+                }],
+                "edge_annotations": [],
+            },
+        },
+    )
+
+    assert externalize_large_hygiene(graph, threshold=1) is True
+    hygiene = graph.metadata["project_hygiene"]
+    assert "node_annotations" not in hygiene
+    assert (tmp_path / ".impact_engine" / "project_hygiene.json.gz").is_file()
+    assert _semantic_groups_from_hygiene(graph, [route.to_dict()])["routes"] == ["route"]

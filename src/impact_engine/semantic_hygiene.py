@@ -1,7 +1,11 @@
 """Adapter between Impact Engine graphs and the portable hygiene layer."""
 from __future__ import annotations
 
+import gzip
+import json
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +14,8 @@ from project_semantics_hygiene import HygienePipeline, ProjectFile
 
 
 _ROUTE_RE = re.compile(r"^(?:HTTP\s+)?(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+(.+)$", re.IGNORECASE)
+_HYGIENE_SIDECAR_THRESHOLD = 20_000
+_HYGIENE_SIDECAR_NAME = "project_hygiene.json.gz"
 
 
 def build_pre_project_hygiene(inventory_data: dict[str, Any], project_path: str | Path) -> dict[str, Any]:
@@ -50,7 +56,10 @@ def apply_post_project_hygiene(graph: GraphDocument, inventory_data: dict[str, A
         declared_dependencies=declared,
         local_modules=local_modules,
         dev_dependencies=_dev_dependencies(inventory_data),
-        graph=graph.to_dict(),
+        # GraphAnnotator only needs node/edge identity and file properties.
+        # Passing GraphDocument avoids creating a second full graph-sized
+        # dictionary (and its nested evidence/properties) during analysis.
+        graph=graph,
         routes=routes,
     )
 
@@ -73,6 +82,46 @@ def apply_post_project_hygiene(graph: GraphDocument, inventory_data: dict[str, A
 def apply_project_hygiene(graph: GraphDocument, inventory_data: dict[str, Any], project_path: str | Path) -> GraphDocument:
     """Backward-compatible alias for post-resolution hygiene."""
     return apply_post_project_hygiene(graph, inventory_data, project_path)
+
+
+def externalize_large_hygiene(graph: GraphDocument, *, threshold: int = _HYGIENE_SIDECAR_THRESHOLD) -> bool:
+    """Move verbose hygiene annotations out of large canonical graph JSON.
+
+    The sidecar is local, atomically replaced, and referenced from the graph.
+    It retains the complete legacy report for explicit deep investigation while
+    keeping normal graph/review loads proportional to the actual graph rather
+    than to duplicated annotation prose.
+    """
+    hygiene = graph.metadata.get("project_hygiene") if isinstance(graph.metadata, dict) else None
+    if not isinstance(hygiene, dict) or hygiene.get("storage"):
+        return False
+    node_annotations = hygiene.get("node_annotations") or []
+    edge_annotations = hygiene.get("edge_annotations") or []
+    if len(node_annotations) + len(edge_annotations) < threshold:
+        return False
+    root = Path(str(graph.metadata.get("project_path") or "")).expanduser()
+    if not root.is_dir():
+        return False
+    destination = root / ".impact_engine" / _HYGIENE_SIDECAR_NAME
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    handle, temporary_name = tempfile.mkstemp(prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent)
+    try:
+        with os.fdopen(handle, "wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as compressed:
+            compressed.write(json.dumps(hygiene, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+        os.replace(temporary_name, destination)
+    finally:
+        if os.path.exists(temporary_name):
+            os.unlink(temporary_name)
+    compact = {key: value for key, value in hygiene.items() if key not in {"node_annotations", "edge_annotations"}}
+    compact["storage"] = {
+        "format": "gzip-json-v1",
+        "path": f".impact_engine/{_HYGIENE_SIDECAR_NAME}",
+        "node_annotations": len(node_annotations),
+        "edge_annotations": len(edge_annotations),
+    }
+    graph.metadata["project_hygiene"] = compact
+    graph.metadata["project_hygiene_storage"] = compact["storage"]
+    return True
 
 
 def _project_files(root: Path, inventory_data: dict[str, Any]) -> list[ProjectFile]:

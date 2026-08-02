@@ -15,7 +15,7 @@ from impact_engine.models import GraphDocument, FactDocument
 from impact_engine.normalization.graph import merge_graph_documents, normalize_graph_document
 from impact_engine.resolution.precision import resolve_precision
 from impact_engine.semantic import apply_semantic_resolution
-from impact_engine.semantic_hygiene import apply_post_project_hygiene, build_pre_project_hygiene
+from impact_engine.semantic_hygiene import apply_post_project_hygiene, build_pre_project_hygiene, externalize_large_hygiene
 from impact_engine.community import annotate_communities
 from impact_engine.graph_quality import annotate_graph_quality, apply_quality_guard, run_quality_gate, annotate_edge_contracts
 from impact_engine.security import validate_project_path
@@ -191,13 +191,6 @@ class AnalysisPipeline:
             graph = self._merge_and_normalize(raw_graphs)
             graph = apply_nextjs_routes(graph, self.project_path)
         self._progress("normalization", 1, 1, "Нормализация завершена")
-        fact_document = FactDocument.from_graph(graph)
-        graph.metadata["fact_document"] = fact_document.summary()
-        if Path(self.project_path).is_dir():
-            fact_path = Path(self.project_path) / ".impact_engine" / "facts.json"
-            fact_path.parent.mkdir(parents=True, exist_ok=True)
-            write_json_atomic(fact_path, fact_document.to_dict())
-            graph.metadata["fact_document_path"] = str(fact_path.resolve())
         run_quality_gate(graph, "extraction_normalization")
         graph.metadata["language_semantic_capabilities"] = language_capabilities
         graph.metadata["plugin_selection_plan"] = self.selection_plan.to_dict() if self.selection_plan else {}
@@ -338,8 +331,27 @@ class AnalysisPipeline:
         self._record_profile_work()
         resolved.metadata["analysis_profile"] = self.profiler.snapshot()
         with self.profiler.measure("serialization"):
-            graph_payload = resolved.to_dict()
-            if self.cache_metadata is not None:
+            # Facts are part of the final evidence contract.  Building and
+            # atomically writing a pre-resolution copy here used to duplicate
+            # the most expensive graph-to-facts conversion and then overwrite
+            # it below with the resolved graph.  Construct exactly the final
+            # document once, after all semantic/framework passes complete.
+            owns_canonical_cache = self._may_replace_canonical_cache()
+            # Do not overwrite a full graph's sidecar from a bounded
+            # changed-file candidate.  Such a candidate is not durable until
+            # its caller proves a whole-project merge.
+            if owns_canonical_cache:
+                externalize_large_hygiene(resolved)
+            facts = FactDocument.from_graph(resolved)
+            resolved.metadata["fact_document"] = facts.summary()
+            fact_path = Path(self.project_path) / ".impact_engine" / "facts.json"
+            resolved.metadata["fact_document_path"] = str(fact_path.resolve())
+            # A changed-file pass may produce only a bounded candidate.  Its
+            # caller is responsible for a proven merge or full refresh, so it
+            # must never overwrite the canonical full-project cache first.
+            # Otherwise a later fallback can accidentally read that fragment
+            # as if it were the complete graph.
+            if self.cache_metadata is not None and owns_canonical_cache:
                 cache_status = "miss"
                 cache_reason = "cache_not_initialized"
                 if self.cache_load is not None:
@@ -353,9 +365,8 @@ class AnalysisPipeline:
                     cache_reason=cache_reason,
                 )
                 resolved.metadata["cache"] = self.cache_metadata.to_dict()
-                graph_payload = resolved.to_dict()
-                facts = FactDocument.from_graph(resolved)
                 reverse = build_reverse_dependency_index(resolved).to_dict()
+                graph_payload = resolved.to_dict()
                 self.cache_store.write_bundle(
                     self.cache_metadata,
                     {
@@ -369,6 +380,8 @@ class AnalysisPipeline:
                         "raw_extraction_file_fragments.json": resolved.metadata.get("raw_extraction_file_fragments", {}),
                     },
                 )
+            else:
+                graph_payload = resolved.to_dict()
             graph_path = self._write_graph_payload(graph_payload)
         profiling = self.profiler.snapshot()
 
@@ -1308,6 +1321,32 @@ class AnalysisPipeline:
 
     def _write_graph(self, graph: GraphDocument) -> str | None:
         return self._write_graph_payload(graph.to_dict())
+
+    def _may_replace_canonical_cache(self) -> bool:
+        """Whether this run owns a complete project graph artifact.
+
+        A changed-file extraction is deliberately bounded.  It may refresh a
+        raw fragment, but cannot replace the canonical cache unless the caller
+        explicitly covered every file in the current analysis scope.
+        """
+        if self.options.changed_files is None:
+            return True
+        if not self.current_snapshot:
+            return False
+        root = Path(self.project_path).resolve()
+        changed: set[str] = set()
+        for value in self.options.changed_files:
+            candidate = Path(str(value))
+            try:
+                if candidate.is_absolute():
+                    candidate = candidate.resolve().relative_to(root)
+            except (OSError, ValueError):
+                continue
+            relative = candidate.as_posix()
+            if relative.startswith("./"):
+                relative = relative[2:]
+            changed.add(relative)
+        return set(self.current_snapshot).issubset(changed)
 
     def _write_graph_payload(self, payload: dict[str, Any]) -> str | None:
         if not self.options.out_path:

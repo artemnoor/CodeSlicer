@@ -137,6 +137,29 @@ def test_incremental_reuses_unchanged_graph(tmp_path: Path):
     assert calls == []
 
 
+def test_incremental_rejects_a_changed_file_fragment_as_project_replacement(tmp_path: Path):
+    project = tmp_path / "project"
+    project.mkdir()
+    for name in ("a.py", "b.py", "c.py"):
+        (project / name).write_text("value = 1\n", encoding="utf-8")
+    previous_snapshot = project_snapshot(project)
+    (project / "a.py").write_text("value = 2\n", encoding="utf-8")
+    previous = make_graph()
+    fragment = GraphDocument(nodes=[Node("a", "FUNCTION", "a")])
+
+    result = incremental_update(
+        str(project),
+        lambda: {"status": "ok", "graph": fragment.to_dict()},
+        previous_snapshot=previous_snapshot,
+        previous_graph=previous,
+    )
+
+    assert result["incremental"]["status"] == "partial_candidate_rejected"
+    assert result["incremental"]["safe_replace"] is False
+    assert result["incremental"]["requires_full_refresh"] is True
+    assert len(result["graph"]["nodes"]) == len(previous.nodes)
+
+
 def test_versioned_snapshot_reuses_unchanged_file_hashes(tmp_path: Path, monkeypatch):
     project = tmp_path / "project"
     project.mkdir()
