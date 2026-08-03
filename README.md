@@ -94,19 +94,21 @@ SCIP-artifact’ы до прохождения собственного real-pro
 
 ### Проверка на реальных проектах
 
-Ниже — не synthetic fixture, а опубликованный, воспроизводимый CLI snapshot
-на public repositories с pinned SHA. Для каждого проекта выполняются cold
-`analyze --use-scan-plan`, warm cache pass, review настоящего `HEAD~1..HEAD`
-и отдельный comment-only freshness control. Последний обязан **не** создавать
-фиктивный impact. Полная методика, точные причины risk и JSON — в
+Ниже — не synthetic fixture, а воспроизводимый CLI snapshot на public
+repositories с pinned SHA. Помимо cold/warm анализа и controls он содержит два
+**proof cases**: реальная функция намеренно ломается в disposable copy,
+CodeSlicer показывает symbol/цепочку, целевой тест падает, исходный код
+восстанавливается и тот же тест проходит. Отчёт явно отделяет подтверждённые
+ребра от `UNKNOWN` risk и не выдаёт test oracle за автоматическую рекомендацию.
+Полная методика и JSON — в
 [real-project validation report](docs/benchmarks/REAL_PROJECT_VALIDATION.md).
 
 | Проект / язык | Профиль | Cold → warm | Результат review |
 | --- | ---: | ---: | --- |
-| FastAPI / Python | 3,099 files · 98,269 LOC | 75.96 s → 12.86 s | Low/high для однофайлового change-set; comment-control не создал ложного impact |
-| Gin / Go | 119 files · 20,415 LOC | 11.92 s → 2.98 s | Low/high; ложного impact нет |
-| Express / JavaScript | 202 files · 17,629 LOC | 10.91 s → 2.63 s | Low/high; ложного impact нет |
-| Cruxa / C# | 564 files · 33,752 LOC | 23.15 s → 3.48 s | 10 entities для 7-file real diff, но `UNKNOWN` при неполном cross-file closure |
+| FastAPI / Python | 3,099 files · 98,269 LOC | 67.01 s → 12.39 s | `serialize_response → app → APIRoute.handle`; target API test fails, then passes after restore |
+| Gin / Go | 119 files · 20,415 LOC | 12.09 s → 3.37 s | `BindXML` and direct callers; XML→JSON regression fails `TestContextBindWithXML`, then passes after restore |
+| Express / JavaScript | 202 files · 17,629 LOC | 9.49 s → 2.46 s | Inventory/cache control; `UNKNOWN` when closure is not proven |
+| Cruxa / C# | 564 files · 33,752 LOC | 20.77 s → 2.94 s | `UNKNOWN` on incomplete cross-file closure; never presented as safe |
 
 Это измерение на Windows 10 x64 / Python 3.11.9 от 2026-08-03, а не обещание
 скорости для другой машины. Публичные source trees не коммитятся; weekly/manual

@@ -115,6 +115,76 @@ def _source_diff(project: Path, mutation: dict[str, str]) -> Path:
     return diff_path
 
 
+def _behavioral_diff(project: Path, change: dict[str, Any]) -> tuple[Path, Path, str]:
+    """Apply one reversible behavior change and return its exact external diff."""
+    relative = Path(str(change["file"]))
+    target = project / relative
+    if not target.is_file():
+        raise FileNotFoundError(f"behavioral-change target is missing: {relative.as_posix()}")
+    original = target.read_text(encoding="utf-8")
+    before = str(change["before"])
+    after = str(change["after"])
+    if original.count(before) != 1:
+        raise ValueError(f"behavioral-change source must occur once in {relative.as_posix()}: {before!r}")
+    updated = original.replace(before, after, 1)
+    target.write_text(updated, encoding="utf-8")
+    diff = "".join(difflib.unified_diff(
+        original.splitlines(keepends=True), updated.splitlines(keepends=True),
+        fromfile=f"a/{relative.as_posix()}", tofile=f"b/{relative.as_posix()}", n=3,
+    ))
+    if not diff:
+        raise RuntimeError(f"behavioral change produced an empty diff for {relative.as_posix()}")
+    diff_path = project.parent / f"{project.name}.{change['id']}.diff"
+    diff_path.write_text(diff, encoding="utf-8")
+    return target, diff_path, original
+
+
+def _test_command(command: list[str], *, cwd: Path, expected_test: str) -> dict[str, Any]:
+    """Run an explicit, shell-free target test and retain minimal evidence."""
+    started = time.perf_counter()
+    result = subprocess.run(command, cwd=cwd, env=_env(), text=True, capture_output=True, timeout=300)
+    output = f"{result.stdout}\n{result.stderr}"
+    return {
+        "command": command,
+        "exit_code": result.returncode,
+        "wall_seconds": round(time.perf_counter() - started, 6),
+        "mentions_expected_test": expected_test in output,
+    }
+
+
+def _evidence_items(value: Any) -> list[dict[str, Any]]:
+    """Keep a bounded, JSON-safe review projection for a human benchmark."""
+    if not isinstance(value, list):
+        return []
+    compact: list[dict[str, Any]] = []
+    for item in value[:5]:
+        if not isinstance(item, dict):
+            continue
+        why = item.get("why_affected") if isinstance(item.get("why_affected"), dict) else {}
+        locations = why.get("evidence") if isinstance(why.get("evidence"), list) else []
+        compact.append({
+            "entity_id": item.get("entity_id"), "symbol": item.get("symbol") or item.get("label"),
+            "kind": item.get("kind"), "impact_class": item.get("impact_class") or item.get("class"),
+            "impact_tier": item.get("impact_tier"), "review_confidence": item.get("confidence"),
+            "evidence_confidence": why.get("confidence"), "rank_score": item.get("rank_score"),
+            "chain": list(why.get("chain") or []),
+            "evidence": [
+                {key: location.get(key) for key in ("file", "line", "kind", "source", "confidence", "description")}
+                for location in locations[:3] if isinstance(location, dict)
+            ],
+        })
+    return compact
+
+
+def _changed_symbol_items(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [
+        {key: item.get(key) for key in ("id", "kind", "file", "line", "changed_lines")}
+        for item in value[:5] if isinstance(item, dict)
+    ]
+
+
 def _count(value: Any) -> int:
     return len(value) if isinstance(value, list) else 0
 
@@ -181,6 +251,57 @@ def run_case(spec: dict[str, Any], source_root: Path | None, work_root: Path) ->
     }
 
 
+def run_proof_case(spec: dict[str, Any], projects: dict[str, dict[str, Any]], source_root: Path | None, work_root: Path) -> dict[str, Any]:
+    """Prove one real behavioral regression is caught and restored by its test."""
+    project_id = str(spec["project"])
+    project_spec = projects.get(project_id)
+    if project_spec is None:
+        raise ValueError(f"proof case {spec['id']} references unknown project {project_id}")
+    project, actual_commit, _ = _materialize(project_spec, source_root, work_root / str(spec["id"]))
+    expected_commit = str(project_spec.get("commit") or "")
+    if expected_commit and actual_commit != expected_commit:
+        raise RuntimeError(f"proof case {spec['id']} is at {actual_commit or 'no git metadata'}, expected {expected_commit}")
+    command = [str(part) for part in spec["test_command"]]
+    expected_test = str(spec["expected_test"])
+    baseline = _test_command(command, cwd=project, expected_test=expected_test)
+    common = ["--no-daemon", "--no-research-requests", "--scope", str(project_spec.get("scope") or ".")]
+    _run([sys.executable, "-m", "impact_engine.cli", "--json", "analyze", str(project), "--use-scan-plan", *common], cwd=project)
+    target, diff, original = _behavioral_diff(project, spec)
+    try:
+        # This is a PR-style experiment: compare a behavior-only diff to the
+        # graph of the pinned baseline.  Refreshing after injecting the known
+        # regression would make the graph describe the broken implementation,
+        # not the revision under review, and can erase the baseline call facts
+        # used to select affected code and tests.
+        review, review_seconds = _review(project, diff, str(project_spec.get("scope") or "."), "never")
+        broken = _test_command(command, cwd=project, expected_test=expected_test)
+    finally:
+        target.write_text(original, encoding="utf-8")
+    restored = _test_command(command, cwd=project, expected_test=expected_test)
+    gates = {
+        "pinned_commit": actual_commit == expected_commit if expected_commit else actual_commit is not None,
+        "baseline_target_test_passed": baseline["exit_code"] == 0,
+        "review_ok": str(review.get("schema_version", "")).startswith("ReviewReport/") and not review.get("errors"),
+        "broken_behavior_detected": broken["exit_code"] != 0 and broken["mentions_expected_test"],
+        "restored_behavior_passed": restored["exit_code"] == 0,
+    }
+    return {
+        "id": spec["id"], "project": project_id, "repository": project_spec["repository"], "commit": actual_commit,
+        "language": project_spec["language"],
+        "change": {"file": spec["file"], "symbol": spec["symbol"], "before": spec["before"], "after": spec["after"]},
+        "codeslicer_review": {
+            **_review_summary(review, review_seconds, diff_file=str(spec["file"])),
+            "changed_symbols": _changed_symbol_items(review.get("changed", {}).get("symbols") if isinstance(review.get("changed"), dict) else []),
+            "semantic_diff": review.get("semantic_diff", {}),
+            "top_impact_entities": _evidence_items(review.get("top_impacts")),
+            "recommended_tests": _evidence_items(review.get("test_recommendations")),
+            "limitations": list(review.get("limitations") or []),
+        },
+        "observed_test": {"baseline": baseline, "broken_change": broken, "restored": restored},
+        "validation": {"status": "passed" if all(gates.values()) else "failed", "gates": gates},
+    }
+
+
 def run_benchmarks(manifest_path: Path, *, source_root: Path | None = None) -> dict[str, Any]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     specs = manifest.get("projects", [])
@@ -194,19 +315,27 @@ def run_benchmarks(manifest_path: Path, *, source_root: Path | None = None) -> d
                 results.append(run_case(spec, source_root, work_root))
             except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
                 results.append({"id": spec.get("id", "unknown"), "repository": spec.get("repository"), "language": spec.get("language"), "validation": {"status": "failed", "gates": {}}, "error": str(exc)})
+        project_index = {str(item["id"]): item for item in specs}
+        proof_cases: list[dict[str, Any]] = []
+        for spec in manifest.get("proof_cases", []):
+            try:
+                proof_cases.append(run_proof_case(spec, project_index, source_root, work_root))
+            except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+                proof_cases.append({"id": spec.get("id", "unknown"), "project": spec.get("project"), "validation": {"status": "failed", "gates": {}}, "error": str(exc)})
     return {
         "schema_version": "CodeSlicerRealProjectBenchmarkReport/v1",
         "codeslicer_version": __version__,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "method": {
-            "workflow": ["pinned source snapshot", "CLI analyze with scan plan", "warm cache analyze", "CLI review of the real HEAD~1..HEAD diff", "CLI review with automatic freshness refresh over a minimal source-anchored diff"],
+            "workflow": ["pinned source snapshot", "CLI analyze with scan plan", "warm cache analyze", "CLI review of the real HEAD~1..HEAD diff", "CLI review with automatic freshness refresh over a minimal source-anchored diff", "reversible behavior diff against the pinned baseline graph, target-test fail, restore, target-test pass"],
             "project_dependencies_installed": False,
-            "project_tests_executed": False,
+            "project_tests_executed": bool(manifest.get("proof_cases")),
             "privacy": "only public repository identity, pinned commit and aggregate metrics are emitted",
         },
         "environment": {"platform": platform.platform(), "python": platform.python_version()},
         "results": results,
-        "status": "passed" if results and all(item.get("validation", {}).get("status") == "passed" for item in results) else "failed",
+        "proof_cases": proof_cases,
+        "status": "passed" if results and all(item.get("validation", {}).get("status") == "passed" for item in [*results, *proof_cases]) else "failed",
     }
 
 

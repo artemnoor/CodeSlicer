@@ -1,17 +1,18 @@
 {
   "schema_version": "CodeSlicerRealProjectBenchmarkReport/v1",
   "codeslicer_version": "0.5.3",
-  "generated_at": "2026-08-03T18:22:20.816079+00:00",
+  "generated_at": "2026-08-03T19:36:18.305323+00:00",
   "method": {
     "workflow": [
       "pinned source snapshot",
       "CLI analyze with scan plan",
       "warm cache analyze",
       "CLI review of the real HEAD~1..HEAD diff",
-      "CLI review with automatic freshness refresh over a minimal source-anchored diff"
+      "CLI review with automatic freshness refresh over a minimal source-anchored diff",
+      "reversible behavior diff against the pinned baseline graph, target-test fail, restore, target-test pass"
     ],
     "project_dependencies_installed": false,
-    "project_tests_executed": false,
+    "project_tests_executed": true,
     "privacy": "only public repository identity, pinned commit and aggregate metrics are emitted"
   },
   "environment": {
@@ -37,8 +38,8 @@
         }
       },
       "analysis": {
-        "cold_wall_seconds": 75.960943,
-        "warm_wall_seconds": 12.863783,
+        "cold_wall_seconds": 67.013233,
+        "warm_wall_seconds": 12.39202,
         "files": 3099,
         "loc": 98269,
         "nodes": 35819,
@@ -52,13 +53,17 @@
       },
       "review": {
         "historical_commit": {
-          "wall_seconds": 5.126004,
+          "wall_seconds": 6.217186,
           "schema_version": "ReviewReport/v2",
           "risk": {
-            "level": "LOW",
+            "level": "UNKNOWN",
             "score": 0,
-            "confidence": "high",
-            "reasons": []
+            "confidence": "low",
+            "reason": "incomplete language coverage",
+            "reasons": [
+              "cross-file impact closure was not proven; review the potential area and run focused tests",
+              "incomplete language coverage"
+            ]
           },
           "risk_confidence": null,
           "top_impacts": 0,
@@ -68,13 +73,16 @@
           "changed_files": 1
         },
         "freshness_control": {
-          "wall_seconds": 63.54204,
+          "wall_seconds": 57.056567,
           "schema_version": "ReviewReport/v2",
           "risk": {
-            "level": "LOW",
+            "level": "UNKNOWN",
             "score": 0,
-            "confidence": "high",
-            "reasons": []
+            "confidence": "low",
+            "reason": "cross-file impact closure was not proven within the bounded semantic pass",
+            "reasons": [
+              "cross-file impact closure was not proven; review the potential area and run focused tests"
+            ]
           },
           "risk_confidence": null,
           "top_impacts": 0,
@@ -102,8 +110,8 @@
         }
       },
       "analysis": {
-        "cold_wall_seconds": 11.918952,
-        "warm_wall_seconds": 2.979025,
+        "cold_wall_seconds": 12.088676,
+        "warm_wall_seconds": 3.371065,
         "files": 119,
         "loc": 20415,
         "nodes": 10498,
@@ -115,13 +123,17 @@
       },
       "review": {
         "historical_commit": {
-          "wall_seconds": 1.558601,
+          "wall_seconds": 3.145489,
           "schema_version": "ReviewReport/v2",
           "risk": {
-            "level": "LOW",
+            "level": "UNKNOWN",
             "score": 0,
-            "confidence": "high",
-            "reasons": []
+            "confidence": "low",
+            "reason": "incomplete language coverage",
+            "reasons": [
+              "cross-file impact closure was not proven; review the potential area and run focused tests",
+              "incomplete language coverage"
+            ]
           },
           "risk_confidence": null,
           "top_impacts": 0,
@@ -131,13 +143,17 @@
           "changed_files": 1
         },
         "freshness_control": {
-          "wall_seconds": 11.925994,
+          "wall_seconds": 12.091071,
           "schema_version": "ReviewReport/v2",
           "risk": {
-            "level": "LOW",
+            "level": "UNKNOWN",
             "score": 0,
-            "confidence": "high",
-            "reasons": []
+            "confidence": "low",
+            "reason": "incomplete language coverage",
+            "reasons": [
+              "cross-file impact closure was not proven; review the potential area and run focused tests",
+              "incomplete language coverage"
+            ]
           },
           "risk_confidence": null,
           "top_impacts": 0,
@@ -165,8 +181,8 @@
         }
       },
       "analysis": {
-        "cold_wall_seconds": 10.910247,
-        "warm_wall_seconds": 2.628437,
+        "cold_wall_seconds": 9.4945,
+        "warm_wall_seconds": 2.458641,
         "files": 202,
         "loc": 17629,
         "nodes": 9156,
@@ -183,29 +199,37 @@
       },
       "review": {
         "historical_commit": {
-          "wall_seconds": 1.157251,
+          "wall_seconds": 1.03862,
           "schema_version": "ReviewReport/v2",
           "risk": {
-            "level": "LOW",
+            "level": "UNKNOWN",
             "score": 0,
-            "confidence": "high",
-            "reasons": []
+            "confidence": "low",
+            "reason": "incomplete language coverage",
+            "reasons": [
+              "cross-file impact closure was not proven; review the potential area and run focused tests",
+              "incomplete language coverage"
+            ]
           },
           "risk_confidence": null,
-          "top_impacts": 0,
+          "top_impacts": 1,
           "test_recommendations": 0,
           "errors": 0,
           "diff_file": "HEAD~1..HEAD",
           "changed_files": 1
         },
         "freshness_control": {
-          "wall_seconds": 7.826997,
+          "wall_seconds": 6.660641,
           "schema_version": "ReviewReport/v2",
           "risk": {
-            "level": "LOW",
+            "level": "UNKNOWN",
             "score": 0,
-            "confidence": "high",
-            "reasons": []
+            "confidence": "low",
+            "reason": "incomplete language coverage",
+            "reasons": [
+              "cross-file impact closure was not proven; review the potential area and run focused tests",
+              "incomplete language coverage"
+            ]
           },
           "risk_confidence": null,
           "top_impacts": 0,
@@ -233,8 +257,8 @@
         }
       },
       "analysis": {
-        "cold_wall_seconds": 23.150318,
-        "warm_wall_seconds": 3.483547,
+        "cold_wall_seconds": 20.773564,
+        "warm_wall_seconds": 2.939431,
         "files": 564,
         "loc": 33752,
         "nodes": 5739,
@@ -245,7 +269,7 @@
       },
       "review": {
         "historical_commit": {
-          "wall_seconds": 2.473499,
+          "wall_seconds": 2.369303,
           "schema_version": "ReviewReport/v2",
           "risk": {
             "level": "UNKNOWN",
@@ -266,7 +290,7 @@
           "changed_files": 7
         },
         "freshness_control": {
-          "wall_seconds": 5.259735,
+          "wall_seconds": 4.849765,
           "schema_version": "ReviewReport/v2",
           "risk": {
             "level": "UNKNOWN",
@@ -283,6 +307,462 @@
           "test_recommendations": 0,
           "errors": 0,
           "diff_file": "backend/src/Cruxa.Api/Program.cs"
+        }
+      }
+    }
+  ],
+  "proof_cases": [
+    {
+      "id": "gin-bindxml-regression",
+      "project": "gin",
+      "repository": "https://github.com/gin-gonic/gin.git",
+      "commit": "34dac209ffb6ef85cc78c5d217bbb7ad001d68fd",
+      "language": "go",
+      "change": {
+        "file": "context.go",
+        "symbol": "(*Context).BindXML",
+        "before": "return c.MustBindWith(obj, binding.XML)",
+        "after": "return c.MustBindWith(obj, binding.JSON)"
+      },
+      "codeslicer_review": {
+        "wall_seconds": 15.841872,
+        "schema_version": "ReviewReport/v2",
+        "risk": {
+          "level": "UNKNOWN",
+          "score": 0,
+          "confidence": "low",
+          "reason": "incomplete language coverage",
+          "reasons": [
+            "incomplete or unresolved high-value coverage",
+            "graph is stale; high-confidence claims are suppressed",
+            "incomplete language coverage"
+          ]
+        },
+        "risk_confidence": null,
+        "top_impacts": 5,
+        "test_recommendations": 0,
+        "errors": 0,
+        "diff_file": "context.go",
+        "changed_symbols": [
+          {
+            "id": "gin.Context.BindXML",
+            "kind": "METHOD",
+            "file": "context.go",
+            "line": 791,
+            "changed_lines": [
+              792
+            ]
+          }
+        ],
+        "semantic_diff": {
+          "files": [
+            {
+              "path": "context.go",
+              "status": "runtime_change",
+              "reasons": []
+            }
+          ],
+          "has_runtime_change": true,
+          "has_behavioral_default_change": false
+        },
+        "top_impact_entities": [
+          {
+            "entity_id": "gin.Context.BindXML",
+            "symbol": "BindXML",
+            "kind": "METHOD",
+            "impact_class": "direct",
+            "impact_tier": "confirmed",
+            "review_confidence": "low",
+            "evidence_confidence": "confirmed",
+            "rank_score": 106.0,
+            "chain": [
+              "BindXML"
+            ],
+            "evidence": [
+              {
+                "file": "context.go",
+                "line": 791,
+                "kind": "DIFF",
+                "source": "DIFF",
+                "confidence": 1.0,
+                "description": "changed symbol is present in the diff"
+              }
+            ]
+          },
+          {
+            "entity_id": "gin.Context.Render",
+            "symbol": "Render",
+            "kind": "METHOD",
+            "impact_class": "direct",
+            "impact_tier": "confirmed",
+            "review_confidence": "low",
+            "evidence_confidence": "confirmed",
+            "rank_score": 32.0,
+            "chain": [
+              "BindXML",
+              "Render"
+            ],
+            "evidence": [
+              {
+                "file": "context_test.go",
+                "line": 3224,
+                "kind": "CALLS",
+                "source": "local-semantic",
+                "confidence": 0.96,
+                "description": "Go typed receiver c : Context.BindXML"
+              }
+            ]
+          },
+          {
+            "entity_id": "gin.Context.Negotiate",
+            "symbol": "Negotiate",
+            "kind": "METHOD",
+            "impact_class": "direct",
+            "impact_tier": "confirmed",
+            "review_confidence": "low",
+            "evidence_confidence": "confirmed",
+            "rank_score": 32.0,
+            "chain": [
+              "BindXML",
+              "Negotiate"
+            ],
+            "evidence": [
+              {
+                "file": "context_test.go",
+                "line": 3154,
+                "kind": "CALLS",
+                "source": "local-semantic",
+                "confidence": 0.96,
+                "description": "Go typed receiver c : Context.BindXML"
+              }
+            ]
+          },
+          {
+            "entity_id": "gin.Context.File",
+            "symbol": "File",
+            "kind": "METHOD",
+            "impact_class": "direct",
+            "impact_tier": "confirmed",
+            "review_confidence": "low",
+            "evidence_confidence": "confirmed",
+            "rank_score": 32.0,
+            "chain": [
+              "BindXML",
+              "File"
+            ],
+            "evidence": [
+              {
+                "file": "context_test.go",
+                "line": 3110,
+                "kind": "CALLS",
+                "source": "local-semantic",
+                "confidence": 0.96,
+                "description": "Go typed receiver c : Context.BindXML"
+              }
+            ]
+          },
+          {
+            "entity_id": "gin.Context.JSON",
+            "symbol": "JSON",
+            "kind": "METHOD",
+            "impact_class": "transitive",
+            "impact_tier": "confirmed",
+            "review_confidence": "low",
+            "evidence_confidence": "confirmed",
+            "rank_score": 2.0,
+            "chain": [
+              "JSON"
+            ],
+            "evidence": [
+              {
+                "file": "context_test.go",
+                "line": 3110,
+                "kind": "CALLS",
+                "source": "local-semantic",
+                "confidence": 0.96,
+                "description": "Go typed receiver c : Context.BindXML"
+              },
+              {
+                "file": "context.go",
+                "line": 39984,
+                "kind": "CALLS",
+                "source": "local-semantic",
+                "confidence": 0.96,
+                "description": "Go typed receiver c : Context.Render"
+              },
+              {
+                "file": "context_test.go",
+                "line": 3154,
+                "kind": "CALLS",
+                "source": "local-semantic",
+                "confidence": 0.96,
+                "description": "Go typed receiver c : Context.BindXML"
+              }
+            ]
+          }
+        ],
+        "recommended_tests": [],
+        "limitations": [
+          {
+            "kind": "stale_graph",
+            "message": "The analysis graph may not match the current project.",
+            "action": "Refresh the graph, then run the review again."
+          },
+          {
+            "kind": "limited",
+            "message": "context.go has limited coverage.",
+            "action": "Review the changed area manually and run its focused tests."
+          }
+        ]
+      },
+      "observed_test": {
+        "baseline": {
+          "command": [
+            "go",
+            "test",
+            ".",
+            "-run",
+            "^TestContextBindWithXML$"
+          ],
+          "exit_code": 0,
+          "wall_seconds": 11.632427,
+          "mentions_expected_test": false
+        },
+        "broken_change": {
+          "command": [
+            "go",
+            "test",
+            ".",
+            "-run",
+            "^TestContextBindWithXML$"
+          ],
+          "exit_code": 1,
+          "wall_seconds": 5.915248,
+          "mentions_expected_test": true
+        },
+        "restored": {
+          "command": [
+            "go",
+            "test",
+            ".",
+            "-run",
+            "^TestContextBindWithXML$"
+          ],
+          "exit_code": 0,
+          "wall_seconds": 0.710501,
+          "mentions_expected_test": false
+        }
+      },
+      "validation": {
+        "status": "passed",
+        "gates": {
+          "pinned_commit": true,
+          "baseline_target_test_passed": true,
+          "review_ok": true,
+          "broken_behavior_detected": true,
+          "restored_behavior_passed": true
+        }
+      }
+    },
+    {
+      "id": "fastapi-response-serialization-regression",
+      "project": "fastapi",
+      "repository": "https://github.com/fastapi/fastapi.git",
+      "commit": "4ef68e869f01ef96b37b1c5e3c8370f682d5590e",
+      "language": "python",
+      "change": {
+        "file": "fastapi/routing.py",
+        "symbol": "serialize_response",
+        "before": "    if field:\n        if is_coroutine:",
+        "after": "    if False:\n        if is_coroutine:"
+      },
+      "codeslicer_review": {
+        "wall_seconds": 23.220919,
+        "schema_version": "ReviewReport/v2",
+        "risk": {
+          "level": "UNKNOWN",
+          "score": 0,
+          "confidence": "low",
+          "reasons": [
+            "graph is stale; high-confidence claims are suppressed"
+          ],
+          "reason": "graph freshness is not verified"
+        },
+        "risk_confidence": null,
+        "top_impacts": 3,
+        "test_recommendations": 0,
+        "errors": 0,
+        "diff_file": "fastapi/routing.py",
+        "changed_symbols": [
+          {
+            "id": "method:fastapi.routing.serialize_response",
+            "kind": "METHOD",
+            "file": "fastapi/routing.py",
+            "line": 301,
+            "changed_lines": [
+              315
+            ]
+          }
+        ],
+        "semantic_diff": {
+          "files": [
+            {
+              "path": "fastapi/routing.py",
+              "status": "runtime_change",
+              "reasons": []
+            }
+          ],
+          "has_runtime_change": true,
+          "has_behavioral_default_change": false
+        },
+        "top_impact_entities": [
+          {
+            "entity_id": "fastapi.routing.serialize_response",
+            "symbol": "serialize_response",
+            "kind": "METHOD",
+            "impact_class": "direct",
+            "impact_tier": "confirmed",
+            "review_confidence": "low",
+            "evidence_confidence": "confirmed",
+            "rank_score": 106.0,
+            "chain": [
+              "serialize_response"
+            ],
+            "evidence": [
+              {
+                "file": "fastapi/routing.py",
+                "line": 301,
+                "kind": "DIFF",
+                "source": "DIFF",
+                "confidence": 1.0,
+                "description": "changed symbol is present in the diff"
+              }
+            ]
+          },
+          {
+            "entity_id": "fastapi.routing.app",
+            "symbol": "app",
+            "kind": "METHOD",
+            "impact_class": "direct",
+            "impact_tier": "confirmed",
+            "review_confidence": "low",
+            "evidence_confidence": "confirmed",
+            "rank_score": 32.0,
+            "chain": [
+              "serialize_response",
+              "app"
+            ],
+            "evidence": [
+              {
+                "file": "fastapi/routing.py",
+                "line": 727,
+                "kind": "CALLS",
+                "source": "EXTRACTED",
+                "confidence": 1.0,
+                "description": "Exact function symbol resolution: serialize_response -> method:fastapi.routing.serialize_response"
+              }
+            ]
+          },
+          {
+            "entity_id": "fastapi.routing.APIRoute.handle",
+            "symbol": "handle",
+            "kind": "METHOD",
+            "impact_class": "transitive",
+            "impact_tier": "confirmed",
+            "review_confidence": "low",
+            "evidence_confidence": "confirmed",
+            "rank_score": 2.0,
+            "chain": [
+              "serialize_response",
+              "app",
+              "handle"
+            ],
+            "evidence": [
+              {
+                "file": "fastapi/routing.py",
+                "line": 727,
+                "kind": "CALLS",
+                "source": "EXTRACTED",
+                "confidence": 1.0,
+                "description": "Exact function symbol resolution: serialize_response -> method:fastapi.routing.serialize_response"
+              },
+              {
+                "file": "fastapi/routing.py",
+                "line": 1279,
+                "kind": "CALLS",
+                "source": "EXTRACTED",
+                "confidence": 1.0,
+                "description": "Exact function symbol resolution: app -> method:fastapi.routing.app"
+              }
+            ]
+          }
+        ],
+        "recommended_tests": [],
+        "limitations": [
+          {
+            "kind": "stale_graph",
+            "message": "The analysis graph may not match the current project.",
+            "action": "Refresh the graph, then run the review again."
+          },
+          {
+            "kind": "bounded_semantic_coverage",
+            "message": "fastapi/routing.py has exact import-call coverage, but full type/data-flow resolution was bounded for scale.",
+            "action": "Treat shown chains as proven; use Potential impact and focused tests for unresolved dynamic consumers."
+          }
+        ]
+      },
+      "observed_test": {
+        "baseline": {
+          "command": [
+            "python",
+            "-m",
+            "pytest",
+            "-q",
+            "tests/test_custom_schema_fields.py",
+            "-k",
+            "test_response"
+          ],
+          "exit_code": 0,
+          "wall_seconds": 3.373002,
+          "mentions_expected_test": false
+        },
+        "broken_change": {
+          "command": [
+            "python",
+            "-m",
+            "pytest",
+            "-q",
+            "tests/test_custom_schema_fields.py",
+            "-k",
+            "test_response"
+          ],
+          "exit_code": 1,
+          "wall_seconds": 3.081651,
+          "mentions_expected_test": true
+        },
+        "restored": {
+          "command": [
+            "python",
+            "-m",
+            "pytest",
+            "-q",
+            "tests/test_custom_schema_fields.py",
+            "-k",
+            "test_response"
+          ],
+          "exit_code": 0,
+          "wall_seconds": 2.330524,
+          "mentions_expected_test": false
+        }
+      },
+      "validation": {
+        "status": "passed",
+        "gates": {
+          "pinned_commit": true,
+          "baseline_target_test_passed": true,
+          "review_ok": true,
+          "broken_behavior_detected": true,
+          "restored_behavior_passed": true
         }
       }
     }

@@ -139,6 +139,12 @@ def build_review_report(
     if changed_files and not semantic_diff["has_runtime_change"]:
         warnings.append("no runtime change detected: the diff contains only comments or docstrings")
     scope_prefix = (scope or "").replace("\\", "/").strip("/")
+    # CLI callers use ``--scope .`` for the repository root.  Treat it as no
+    # path filter; otherwise it would only retain paths beginning with ``./``
+    # while Git diffs correctly use repository-relative paths such as
+    # ``src/service.py``.  That silently emptied every root-scoped review.
+    if scope_prefix == ".":
+        scope_prefix = ""
     if scope_prefix:
         changed_files = [
             item for item in changed_files

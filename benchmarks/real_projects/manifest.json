@@ -50,5 +50,27 @@
         "comment": "    // CodeSlicer benchmark: bounded composition-root change."
       }
     }
+  ],
+  "proof_cases": [
+    {
+      "id": "gin-bindxml-regression",
+      "project": "gin",
+      "file": "context.go",
+      "symbol": "(*Context).BindXML",
+      "before": "return c.MustBindWith(obj, binding.XML)",
+      "after": "return c.MustBindWith(obj, binding.JSON)",
+      "test_command": ["go", "test", ".", "-run", "^TestContextBindWithXML$"],
+      "expected_test": "TestContextBindWithXML"
+    },
+    {
+      "id": "fastapi-response-serialization-regression",
+      "project": "fastapi",
+      "file": "fastapi/routing.py",
+      "symbol": "serialize_response",
+      "before": "    if field:\n        if is_coroutine:",
+      "after": "    if False:\n        if is_coroutine:",
+      "test_command": ["python", "-m", "pytest", "-q", "tests/test_custom_schema_fields.py", "-k", "test_response"],
+      "expected_test": "test_response"
+    }
   ]
 }

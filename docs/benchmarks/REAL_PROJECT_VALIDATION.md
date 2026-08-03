@@ -1,73 +1,66 @@
-# Real-project CLI validation
+# Real-project change-impact validation
 
-This page is the human-readable companion to the versioned
-[`real-project-cli-validation-2026-08-03.json`](real-project-cli-validation-2026-08-03.json)
-snapshot. It records one reproducible Windows x64 run of CodeSlicer `0.5.3`,
-not a cross-machine performance promise.
+This report answers a useful question: when a real function changes, what did CodeSlicer identify, and did a real project test observe the regression? The machine-readable source of truth is [`real-project-cli-validation-2026-08-03.json`](real-project-cli-validation-2026-08-03.json).
 
-## What was executed
+## Evidence model
 
-Each repository was obtained at the pinned SHA in
-[`benchmarks/real_projects/manifest.json`](../../benchmarks/real_projects/manifest.json).
-The runner creates a disposable working copy and performs:
+Each proof case uses a pinned public repository and a disposable copy. It builds the baseline graph, applies one reversible behavior-changing edit, reviews the exact diff against the baseline graph, then runs one explicit target test three times: baseline must pass, the deliberate regression must fail, and restoring the exact source must pass.
 
-1. CLI `analyze --use-scan-plan` from a cold project state.
-2. A second CLI `analyze` to verify a persistent cache hit.
-3. CLI `review` of the repository's actual `HEAD~1..HEAD` diff.
-4. CLI `review --refresh auto` after a minimal source-anchored comment change.
+The test is an independent oracle. This proves that the stated test catches the stated regression and that restoration fixes it. It does **not** prove that no other behavior is affected or that this is the only required test. A baseline graph correctly reads `UNKNOWN` for overall risk after a working-tree edit; individual diff and call edges keep their evidence attribution.
 
-The final step is a negative control: a comment-only change must not create
-invented impact edges. Project dependencies were not installed and the
-projects' own test suites were not run; this is a CodeSlicer CLI validation,
-not a claim about third-party build health.
+## Proof 1 — FastAPI response serialization
 
-## Snapshot — 2026-08-03
+| Item | Observed result |
+| --- | --- |
+| Source | [FastAPI](https://github.com/fastapi/fastapi) `4ef68e8` |
+| Intentional edit | `fastapi/routing.py`: `serialize_response` changed from `if field:` to `if False:`, disabling response-model serialization. |
+| CodeSlicer found | Changed method `serialize_response` (line 301), then `serialize_response → app` (exact `CALLS`, line 727) → `APIRoute.handle` (exact `CALLS`, line 1279). |
+| Target test | `python -m pytest -q tests/test_custom_schema_fields.py -k test_response` |
+| Baseline → broken → restored | exit `0` (3.37 s) → exit `1` (3.08 s) → exit `0` (2.33 s) |
 
-| Public project | Pinned revision | Scope | Files / LOC | Graph nodes / edges | Cold / warm analysis | Real-diff review | Freshness control |
-| --- | --- | --- | ---: | ---: | ---: | --- | --- |
-| [FastAPI](https://github.com/fastapi/fastapi) | `4ef68e8` | `.` | 3,099 / 98,269 | 35,819 / 40,374 | 75.96 s / 12.86 s | Low, high confidence; 0 impacts | Low, high confidence; 0 impacts; 63.54 s |
-| [Gin](https://github.com/gin-gonic/gin) | `34dac20` | `.` | 119 / 20,415 | 10,498 / 11,752 | 11.92 s / 2.98 s | Low, high confidence; 0 impacts | Low, high confidence; 0 impacts; 11.93 s |
-| [Express](https://github.com/expressjs/express) | `a371447` | `.` | 202 / 17,629 | 9,156 / 1,514 | 10.91 s / 2.63 s | Low, high confidence; 0 impacts | Low, high confidence; 0 impacts; 7.83 s |
-| [Cruxa](https://github.com/contr4s/Cruxa) | `13ff4a0` | `backend` | 564 / 33,752 | 5,739 / 8,202 | 23.15 s / 3.48 s | Unknown / limited coverage; 10 impact entities from a 7-file diff | Unknown / limited coverage; no invented impact for comment-only edit; 5.26 s |
+Disabling serialization breaks the response-model contract; restoring only that source expression makes the same API test pass again. The JSON records the symbol, chain, file:line, edge source and confidence.
 
-All mechanical gates passed: pinned revision, non-empty cold graph, warm cache
-hit, review schema/no-error contract, and expected language detection. The raw
-JSON contains the exact schema, full reason strings and timings.
+## Proof 2 — Gin XML binding
 
-The Cruxa result is deliberately not upgraded to a success claim for C#
-semantic precision: it reports `UNKNOWN` when cross-file closure cannot be
-proven. This is the intended evidence-gated behavior. Likewise, the zero-impact
-results in the other three controls mean that a comment-only change did not
-manufacture a risk finding.
+| Item | Observed result |
+| --- | --- |
+| Source | [Gin](https://github.com/gin-gonic/gin) `34dac20` |
+| Intentional edit | `context.go`: `(*Context).BindXML` changed from `binding.XML` to `binding.JSON`. |
+| CodeSlicer found | Changed method `gin.Context.BindXML` (line 791); direct typed-receiver callers `Render`, `Negotiate`, `File`, plus bounded transitive `JSON`. |
+| Target test | `go test . -run ^TestContextBindWithXML$` |
+| Baseline → broken → restored | exit `0` (11.63 s) → exit `1` (5.92 s) → exit `0` (0.71 s) |
 
-## Real browser E2E — Local Hub
+The broken code parses XML as JSON, so the real Gin test fails. Reverting only that expression makes the same test pass. This is a behavior-level proof, not a source-similarity claim.
 
-On the same date, the browser path was run on a fresh clone of
-[Spring PetClinic](https://github.com/spring-projects/spring-petclinic) at
-`88e37c15cf6fc8490b01bc3e8e2c800cec1ac272`. CodeSlicer built its canonical
-graph, then Chromium opened Local Hub's map and selected `HTTP GET /owners`.
-The UI rendered the graph and preserved the confirmed outgoing
-`processFindForm · ROUTE_HANDLES` edge. The scenario passed. It is a focused
-end-to-end assertion for the served browser UI and its real Java project graph;
-it does not run PetClinic itself.
+## What this run changed
+
+The proof corpus exposed a real bug: `--scope .` was treated as a literal `./` prefix, while Git paths are repository-relative. It silently dropped changed files and produced false `0 impacts`. The root scope is now normalized and has a regression test.
+
+The report also exposes a remaining gap: automatic test recommendations were empty in both proof cases. The commands above are declared test oracles in the manifest, not falsely presented as automatic recommendations.
+
+## Throughput and controls
+
+All six mechanical gates passed: pinned revision, non-empty cold graph, warm cache hit, historical review, comment-only control and language detection. Historical upstream diffs are mostly docs/dependency edits; they are controls, not advertised as behavioral proof.
+
+| Project | Pin | Cold / warm | Meaning |
+| --- | --- | ---: | --- |
+| [FastAPI](https://github.com/fastapi/fastapi) | `4ef68e8` | 67.01 s / 12.39 s | 3,099 files; proof above exercises a real request-handler path. |
+| [Gin](https://github.com/gin-gonic/gin) | `34dac20` | 12.09 s / 3.37 s | 119 files; proof above exercises a real public API method. |
+| [Express](https://github.com/expressjs/express) | `a371447` | 9.49 s / 2.46 s | 202 files; front-end inventory and cache validated. |
+| [Cruxa](https://github.com/contr4s/Cruxa) | `13ff4a0` | 20.77 s / 2.94 s | C# remains `UNKNOWN` when cross-file closure is not proven. |
+
+Project dependencies were not installed for throughput controls. The two proof commands are the explicit exception: they execute real target tests in disposable copies.
 
 ## Reproduce
-
-The command below clones the pinned public repositories. To avoid network use,
-first prepare a directory with `fastapi`, `gin`, `express`, and `cruxa`
-subdirectories at the manifest SHAs, then provide `--source-root`.
 
 ```powershell
 $env:PYTHONPATH = "src"
 python scripts/run_real_project_benchmarks.py `
   --output docs/benchmarks/local-real-project-validation.json
 
-# Offline/reused clones:
 python scripts/run_real_project_benchmarks.py `
   --source-root C:\corpora\codeslicer-real-projects `
   --output docs/benchmarks/local-real-project-validation.json
 ```
 
-The output includes only public repository URLs, pinned revisions, aggregate
-counts and timings. It omits local paths, source contents, tokens and project
-dependency installation state beyond the explicit `false` flag.
+The manifest contains public pins and reversible proof cases. The runner uses argv commands (no shell interpolation), emits compact evidence without local paths, and measures this Windows 10 x64 / Python 3.11.9 run only.

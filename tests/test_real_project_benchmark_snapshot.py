@@ -27,7 +27,7 @@ def test_checked_in_real_project_snapshot_is_pinned_sanitized_and_complete():
     assert snapshot["codeslicer_version"] == "0.5.3"
     assert snapshot["status"] == "passed"
     assert snapshot["method"]["project_dependencies_installed"] is False
-    assert snapshot["method"]["project_tests_executed"] is False
+    assert snapshot["method"]["project_tests_executed"] is True
     expected = {item["id"]: item for item in manifest["projects"]}
     observed = {item["id"]: item for item in snapshot["results"]}
     assert observed.keys() == expected.keys()
@@ -42,4 +42,14 @@ def test_checked_in_real_project_snapshot_is_pinned_sanitized_and_complete():
         assert result["analysis"]["edges"] > 0
         assert result["review"]["historical_commit"]["errors"] == 0
         assert result["review"]["freshness_control"]["errors"] == 0
+    assert {item["id"] for item in snapshot["proof_cases"]} == {
+        "gin-bindxml-regression", "fastapi-response-serialization-regression"
+    }
+    for proof in snapshot["proof_cases"]:
+        assert proof["validation"]["status"] == "passed"
+        assert all(proof["validation"]["gates"].values())
+        assert proof["observed_test"]["baseline"]["exit_code"] == 0
+        assert proof["observed_test"]["broken_change"]["exit_code"] != 0
+        assert proof["observed_test"]["restored"]["exit_code"] == 0
+        assert proof["codeslicer_review"]["changed_symbols"]
     assert not any("C:\\Users\\" in item or "/Users/" in item or "<local-corpus>" in item for item in _strings(snapshot))

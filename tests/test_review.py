@@ -46,6 +46,16 @@ def test_review_is_bounded_and_suppresses_low_value_nodes(tmp_path: Path):
     assert report["graph_freshness"]["fingerprint"] == "fixture-fp"
 
 
+def test_review_root_scope_keeps_repository_relative_changed_files(tmp_path: Path):
+    graph_path = _graph(tmp_path)
+    graph = GraphDocument.from_json(graph_path.read_text())
+
+    report = build_review_report(str(tmp_path), graph=graph, diff_text=_diff(), refresh="never", scope=".")
+
+    assert report["changed"]["symbols"][0]["id"] == "app/service.py:create_order"
+    assert report["top_impacts"]
+
+
 def test_review_excludes_its_own_tracked_artifacts_from_changed_files(tmp_path: Path):
     graph_path = _graph(tmp_path)
     graph = GraphDocument.from_json(graph_path.read_text())
