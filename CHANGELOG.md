@@ -2,6 +2,15 @@
 
 Все заметные изменения CodeSlicer фиксируются в этом файле.
 
+## [0.6.40] — 2026-08-03
+
+### Semantic enrichment profiles
+
+- Added explicit, never-download local semantic-server profiles for Go, C/C++, Rust, Java, Kotlin, PHP, Ruby, TypeScript/JavaScript, HTML/CSS, Vue, Svelte, and Astro.
+- Preflight now reports available local profiles and the required compiler/project context; `configure-profile` records only the selected local command, while `probe` remains the explicit process-start boundary.
+- Public language capability metadata reports optional compiler/LSP enrichment separately from the deterministic canonical baseline, including cache hits.
+- Bundled analyzer runtime is `0.5.2`; VS Code extension and runtime-manifest compatibility are `0.6.40`.
+
 ## [0.6.39] — 2026-08-03
 
 ### VS Code cockpit polish

@@ -655,7 +655,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: reviewing local changes", cancellable: true }, async (progress, token) => {
         const controller = new AbortController();
         token.onCancellationRequested(() => controller.abort());
-        // The bundled 0.5.0 runtime supports progress for analysis, not review.
+        // The bundled runtime reports analysis progress, not review progress.
         // Keep this notification indeterminate rather than repeatedly reporting a
         // fictitious 0%, which otherwise survives beside a completed result.
         progress.report({ message: "Reviewing changes" });

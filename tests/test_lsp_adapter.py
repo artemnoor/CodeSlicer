@@ -9,7 +9,7 @@ from urllib.error import HTTPError
 
 import pytest
 
-from impact_engine.adapters.lsp import LSP_OVERLAY_SCHEMA, configure_lsp, disable_lsp, lsp_status, map_lsp_overlay, probe_lsp, query_lsp
+from impact_engine.adapters.lsp import LSP_OVERLAY_SCHEMA, _language_id, configure_lsp, configure_lsp_profile, disable_lsp, lsp_status, map_lsp_overlay, preflight_lsp, probe_lsp, query_lsp
 from impact_engine.adapters.registry import AdapterRegistry
 from impact_engine.approvals import ApprovalStore
 from impact_engine.local_api import LocalApiState, create_server
@@ -117,6 +117,42 @@ def test_lsp_disabled_by_default_and_config_state_is_local(tmp_path):
     executable, _ = _server(tmp_path, "normal")
     with pytest.raises(ValueError, match="URL or network"):
         configure_lsp(configured, executable, [configured], arguments=["https://example.invalid/lsp"])
+
+
+def test_lsp_preflight_discovers_language_specific_semantic_profiles_without_starting_them(tmp_path, monkeypatch):
+    project = tmp_path / "rust-project"; project.mkdir()
+    (project / "Cargo.toml").write_text("[package]\nname = 'demo'\nversion = '0.1.0'\n", encoding="utf-8")
+    (project / "src").mkdir(); (project / "src" / "lib.rs").write_text("pub fn source() {}\n", encoding="utf-8")
+    import impact_engine.adapters.lsp_profiles as profiles
+    monkeypatch.setattr(profiles, "which", lambda name: str(Path(sys.executable).resolve()) if name == "rust-analyzer" else None)
+    result = preflight_lsp(project)
+    profile = next(item for item in result["semantic_server_profiles"] if item["id"] == "rust-analyzer")
+    assert profile["status"] == "available"
+    assert profile["semantic_source"] == "rust-analyzer semantic model"
+    assert profile["install_policy"] == "never installed or downloaded by CodeSlicer"
+    assert any("configure-profile" in step for step in result["next_steps"])
+
+
+def test_lsp_profile_configuration_uses_known_arguments_but_never_runs_or_downloads(tmp_path, monkeypatch):
+    project = tmp_path / "project"; project.mkdir(); (project / "main.rs").write_text("fn main() {}\n", encoding="utf-8")
+    executable = Path(sys.executable).resolve()
+    import impact_engine.adapters.lsp_profiles as profiles
+    monkeypatch.setattr(profiles, "which", lambda name: str(executable) if name == "rust-analyzer" else None)
+    configured = configure_lsp_profile(project, "rust-analyzer", [project])
+    assert configured["server_family"] == "rust-analyzer"
+    state = json.loads((project / ".codeslicer" / "adapters" / "lsp.json").read_text(encoding="utf-8"))
+    assert state["arguments"] == []
+    assert state["executable"] == str(executable)
+
+
+def test_lsp_language_identifiers_cover_compiled_and_frontend_profiles():
+    assert _language_id(Path("service.rs")) == "rust"
+    assert _language_id(Path("handler.kt")) == "kotlin"
+    assert _language_id(Path("component.vue")) == "vue"
+    assert _language_id(Path("page.svelte")) == "svelte"
+    assert _language_id(Path("layout.astro")) == "astro"
+    assert _language_id(Path("styles.scss")) == "scss"
+    assert _language_id(Path("styles.less")) == "less"
 
 
 def test_lsp_probe_and_definition_reference_implementation_are_bounded(tmp_path):

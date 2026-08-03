@@ -18,6 +18,7 @@ PYTHON_SEMANTICS = LanguageSemanticProvider(
         endpoint_resolution=True,
         framework_rules=True,
         production_semantic_baseline=True,
+        semantic_enrichment="none",
         notes=(
             "Production-supported semantic baseline.",
             "Supports Python AST facts, DI/self.attr/call receiver resolution, and support-pack framework hooks.",
@@ -37,6 +38,7 @@ JAVASCRIPT_SEMANTICS = LanguageSemanticProvider(
         endpoint_resolution=True,
         framework_rules=True,
         production_semantic_baseline=False,
+        semantic_enrichment="optional_local_lsp:typescript-language-server",
         notes=(
             "Evidence-first local semantic provider.",
             "Resolves explicit local imports, re-exports, direct calls, bounded endpoint wrappers and React/client patterns.",
@@ -57,6 +59,7 @@ TYPESCRIPT_SEMANTICS = LanguageSemanticProvider(
         endpoint_resolution=True,
         framework_rules=True,
         production_semantic_baseline=False,
+        semantic_enrichment="optional_local_lsp:typescript-language-server",
         notes=(
             "Evidence-first local semantic provider.",
             "Resolves explicit local imports, re-exports, direct calls, tsconfig-style aliases and endpoint wrappers.",
@@ -77,6 +80,7 @@ GO_SEMANTICS = LanguageSemanticProvider(
         endpoint_resolution=True,
         framework_rules=True,
         production_semantic_baseline=False,
+        semantic_enrichment="optional_local_lsp:gopls",
         notes=(
             "Local typed receiver and struct-field semantic resolution.",
             "Literal Gin route registrations are resolved without a network dependency.",
@@ -97,6 +101,7 @@ JAVA_SEMANTICS = LanguageSemanticProvider(
         endpoint_resolution=True,
         framework_rules=True,
         production_semantic_baseline=False,
+        semantic_enrichment="optional_local_lsp:jdtls",
         notes=(
             "Local typed receiver, field and constructor-injection resolution.",
             "Literal Spring route annotations are resolved locally.",
@@ -117,6 +122,7 @@ CSHARP_SEMANTICS = LanguageSemanticProvider(
         endpoint_resolution=True,
         framework_rules=True,
         production_semantic_baseline=False,
+        semantic_enrichment="optional_local_roslyn_semantic_model",
         notes=(
             "Local deterministic C# semantic provider; no SDK, Roslyn restore, or network is required.",
             "Supports namespaces, declarations, typed member calls, project references and ASP.NET/DI/MediatR/EF evidence packs.",
@@ -137,6 +143,7 @@ CPP_SEMANTICS = LanguageSemanticProvider(
         endpoint_resolution=False,
         framework_rules=False,
         production_semantic_baseline=False,
+        semantic_enrichment="optional_local_lsp:clangd",
         notes=(
             "Structural C/C++ facts are local and deliberately limited.",
             "Compiler-accurate navigation requires a fresh compilation database, selected toolchain, generated headers, and an explicitly configured language server.",
@@ -147,7 +154,7 @@ CPP_SEMANTICS = LanguageSemanticProvider(
 )
 
 
-def _generic_tree_sitter_semantics(language_id: str, display_name: str) -> LanguageSemanticProvider:
+def _generic_tree_sitter_semantics(language_id: str, display_name: str, semantic_enrichment: str = "none") -> LanguageSemanticProvider:
     return LanguageSemanticProvider(
         language_id=language_id,
         provider_id=f"{language_id}_tree_sitter_generic_structural",
@@ -158,6 +165,7 @@ def _generic_tree_sitter_semantics(language_id: str, display_name: str) -> Langu
             endpoint_resolution=False,
             framework_rules=False,
             production_semantic_baseline=False,
+            semantic_enrichment=semantic_enrichment,
             notes=(
                 f"Native Tree-sitter structural extraction for {display_name}.",
                 "Reports declarations, source ranges, imports and direct calls; type-aware and framework-specific resolution is explicitly unavailable.",
@@ -168,15 +176,15 @@ def _generic_tree_sitter_semantics(language_id: str, display_name: str) -> Langu
     )
 
 
-RUST_SEMANTICS = _generic_tree_sitter_semantics("rust", "Rust")
-KOTLIN_SEMANTICS = _generic_tree_sitter_semantics("kotlin", "Kotlin")
-PHP_SEMANTICS = _generic_tree_sitter_semantics("php", "PHP")
-RUBY_SEMANTICS = _generic_tree_sitter_semantics("ruby", "Ruby")
-HTML_SEMANTICS = _generic_tree_sitter_semantics("html", "HTML")
-CSS_SEMANTICS = _generic_tree_sitter_semantics("css", "CSS and stylesheet sources")
-VUE_SEMANTICS = _generic_tree_sitter_semantics("vue", "Vue single-file components")
-SVELTE_SEMANTICS = _generic_tree_sitter_semantics("svelte", "Svelte components")
-ASTRO_SEMANTICS = _generic_tree_sitter_semantics("astro", "Astro components")
+RUST_SEMANTICS = _generic_tree_sitter_semantics("rust", "Rust", "optional_local_lsp:rust-analyzer")
+KOTLIN_SEMANTICS = _generic_tree_sitter_semantics("kotlin", "Kotlin", "optional_local_lsp:kotlin-language-server")
+PHP_SEMANTICS = _generic_tree_sitter_semantics("php", "PHP", "optional_local_lsp:phpactor")
+RUBY_SEMANTICS = _generic_tree_sitter_semantics("ruby", "Ruby", "optional_local_lsp:ruby-lsp")
+HTML_SEMANTICS = _generic_tree_sitter_semantics("html", "HTML", "optional_local_lsp:vscode-html-language-server")
+CSS_SEMANTICS = _generic_tree_sitter_semantics("css", "CSS and stylesheet sources", "optional_local_lsp:vscode-css-language-server")
+VUE_SEMANTICS = _generic_tree_sitter_semantics("vue", "Vue single-file components", "optional_local_lsp:vue-language-server")
+SVELTE_SEMANTICS = _generic_tree_sitter_semantics("svelte", "Svelte components", "optional_local_lsp:svelte-language-server")
+ASTRO_SEMANTICS = _generic_tree_sitter_semantics("astro", "Astro components", "optional_local_lsp:astro-language-server")
 
 PROVIDERS = {
     provider.language_id: provider

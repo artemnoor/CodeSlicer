@@ -11,6 +11,7 @@ class LanguageSemanticCapabilities:
     endpoint_resolution: bool = False
     framework_rules: bool = False
     production_semantic_baseline: bool = False
+    semantic_enrichment: str = "none"
     notes: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
@@ -21,6 +22,7 @@ class LanguageSemanticCapabilities:
             "endpoint_resolution": self.endpoint_resolution,
             "framework_rules": self.framework_rules,
             "production_semantic_baseline": self.production_semantic_baseline,
+            "semantic_enrichment": self.semantic_enrichment,
             "notes": list(self.notes),
         }
 

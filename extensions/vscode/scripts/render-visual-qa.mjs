@@ -8,7 +8,7 @@ mkdirSync(output, { recursive: true });
 
 const ready = {
   ...INITIAL_STATE,
-  runtime: { ...INITIAL_STATE.runtime, status: "found", version: "CodeSlicer runtime 0.5.0", diagnostic: "Ready" },
+  runtime: { ...INITIAL_STATE.runtime, status: "found", version: "CodeSlicer runtime 0.5.2", diagnostic: "Ready" },
   project: { ...INITIAL_STATE.project, workspace: "C:/work/shop-api", readiness: "project", gitStatus: "ready", gitMessage: "Working tree has 4 changes.", branch: "feature/checkout", freshness: "Current" }
 };
 const results = {

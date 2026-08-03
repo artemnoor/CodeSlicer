@@ -152,7 +152,7 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                 sys.exit(1)
             return
         if args.adapter_command == "lsp":
-            from impact_engine.adapters.lsp import configure_lsp, disable_lsp, lsp_status, preflight_lsp, probe_lsp, query_lsp
+            from impact_engine.adapters.lsp import configure_lsp, configure_lsp_profile, disable_lsp, lsp_status, preflight_lsp, probe_lsp, query_lsp
             try:
                 if args.lsp_command == "status":
                     result = {"status": "ok", "adapter": lsp_status(args.project), "privacy": {"mode": "local-only", "network_used": False}}
@@ -160,6 +160,8 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                     result = {"status": "ok", "preflight": preflight_lsp(args.project, compile_commands=args.compile_commands), "privacy": {"mode": "local-only", "network_used": False}}
                 elif args.lsp_command == "configure":
                     result = {"status": "ok", "adapter": configure_lsp(args.project, args.executable, args.workspace_roots, arguments=args.arguments, timeout_ms=args.timeout_ms, backend=args.backend, server_family=args.server_family, compile_commands=args.compile_commands), "privacy": {"mode": "local-only", "network_used": False}}
+                elif args.lsp_command == "configure-profile":
+                    result = {"status": "ok", "adapter": configure_lsp_profile(args.project, args.profile, args.workspace_roots, executable=args.executable, timeout_ms=args.timeout_ms, compile_commands=args.compile_commands), "privacy": {"mode": "local-only", "network_used": False}}
                 elif args.lsp_command == "probe":
                     result = {"status": "ok", "adapter": probe_lsp(args.project), "privacy": {"mode": "local-only", "network_used": False}}
                 elif args.lsp_command == "start":

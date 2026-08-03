@@ -25,6 +25,7 @@ from impact_engine.build_context import inspect_build_context
 from impact_engine.languages.registry import detect_languages
 from impact_engine.persistence import git_context
 from impact_engine.project_storage import ensure_project_storage
+from impact_engine.adapters.lsp_profiles import get_lsp_server_profile, lsp_server_profiles
 
 
 LSP_OVERLAY_SCHEMA = "CodeSlicerLspEvidenceOverlay/v1"
@@ -182,7 +183,11 @@ def _language_id(path: Path) -> str:
         ".py": "python", ".pyi": "python", ".ts": "typescript", ".tsx": "typescriptreact",
         ".js": "javascript", ".jsx": "javascriptreact", ".cs": "csharp",
         ".java": "java", ".c": "c", ".h": "c", ".cc": "cpp", ".cpp": "cpp",
-        ".cxx": "cpp", ".hpp": "cpp",
+        ".cxx": "cpp", ".hpp": "cpp", ".hxx": "cpp", ".hh": "cpp",
+        ".go": "go", ".rs": "rust", ".kt": "kotlin", ".kts": "kotlin",
+        ".php": "php", ".rb": "ruby", ".vue": "vue", ".svelte": "svelte",
+        ".astro": "astro", ".html": "html", ".htm": "html", ".xhtml": "html",
+        ".css": "css", ".scss": "scss", ".sass": "sass", ".less": "less",
     }.get(path.suffix.lower(), "plaintext")
 
 
@@ -714,6 +719,23 @@ def configure_lsp(project_path: str | Path, executable: str | Path, workspace_ro
     return lsp_status(project)
 
 
+def configure_lsp_profile(project_path: str | Path, profile_id: str, workspace_roots: list[str | Path], *, executable: str | Path | None = None, timeout_ms: int = DEFAULT_LSP_TIMEOUT_MS, compile_commands: str | Path | None = None) -> dict[str, Any]:
+    """Configure one known local server without downloading or probing it.
+
+    A profile only supplies a documented local stdio command contract.  The
+    explicit follow-up ``probe``/``query`` retains the approval boundary before
+    CodeSlicer starts the selected process.
+    """
+    profile = get_lsp_server_profile(profile_id)
+    if profile is None:
+        known = ", ".join(item.profile_id for item in lsp_server_profiles(("go", "cpp", "rust", "java", "kotlin", "php", "ruby", "typescript", "vue", "svelte", "astro")))
+        raise ValueError(f"unknown local semantic-server profile {profile_id!r}; choose one of: {known}")
+    selected = Path(executable).expanduser().resolve() if executable else profile.discover()
+    if selected is None:
+        raise FileNotFoundError(f"No local executable was found for {profile.profile_id}. CodeSlicer never downloads it; install it separately or pass --executable.")
+    return configure_lsp(project_path, selected, workspace_roots, arguments=list(profile.arguments), timeout_ms=timeout_ms, backend="native_stdio", server_family=profile.profile_id, compile_commands=compile_commands)
+
+
 def preflight_lsp(project_path: str | Path, *, compile_commands: str | Path | None = None) -> dict[str, Any]:
     """Inspect semantic readiness without starting a server or changing files."""
     project = Path(project_path).expanduser().resolve()
@@ -729,12 +751,16 @@ def preflight_lsp(project_path: str | Path, *, compile_commands: str | Path | No
     available = bool(executable and executable.is_absolute() and executable.is_file())
     server_family = "agent-lsp" if state.get("backend") == "agent_lsp" else (state.get("server_family") or ("clangd" if "cpp" in languages else "unconfigured"))
     quality = dict(build_context["semantic_quality"])
+    profiles = lsp_server_profiles(languages, configured_family=server_family)
     if "cpp" in languages and not available:
         quality["reasons"] = [*quality.get("reasons", []), "a local clangd executable has not been configured"]
     index_status = _overlay_freshness(project, state).get("status", "cold") if state.get("overlay_path") else "cold"
     next_steps: list[str] = []
+    available_profiles = [profile for profile in profiles if profile["status"] in {"available", "configured"}]
     if not available:
         next_steps.append("Configure an already installed local language server")
+    if available_profiles and not available:
+        next_steps.append("Use `impact-engine adapters lsp configure-profile` with one discovered semantic-server profile")
     if "cpp" in languages and build_context["compile_commands"].get("status") != "available":
         next_steps.append("Generate or provide a fresh compilation database")
     if not next_steps and state.get("backend") == "agent_lsp":
@@ -745,6 +771,7 @@ def preflight_lsp(project_path: str | Path, *, compile_commands: str | Path | No
         "write_policy": "read_only",
         "languages": languages,
         "server": {"family": server_family, "status": "available" if available else "not_configured", "executable": str(executable) if executable else None},
+        "semantic_server_profiles": profiles,
         "backend": {"selected": state.get("backend", "native_stdio"), "status": "available", "reason": "official Agent-LSP MCP runtime" if state.get("backend") == "agent_lsp" else state.get("backend_selection_reason", "native stdio is the safe local default")},
         "build_context": build_context,
         "index": {"status": index_status, "last_warm": state.get("last_warm")},

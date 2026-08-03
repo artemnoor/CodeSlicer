@@ -9,11 +9,11 @@ Windows package is valid only when this tuple agrees:
 
 | Artifact | Expected version |
 | --- | --- |
-| VS Code extension folder and `package.json` | `0.6.39` |
-| `runtime/win32-x64/manifest.json` → `extensionCompatibility` | `0.6.39` |
-| bundled CodeSlicer analyzer (`runtimeVersion`) | `0.5.1` |
+| VS Code extension folder and `package.json` | `0.6.40` |
+| `runtime/win32-x64/manifest.json` → `extensionCompatibility` | `0.6.40` |
+| bundled CodeSlicer analyzer (`runtimeVersion`) | `0.5.2` |
 
-`0.5.1` is the analyzer release, not the extension release. The manifest is
+`0.5.2` is the analyzer release, not the extension release. The manifest is
 the compatibility boundary; a mismatched extension folder, package manifest,
 or `extensionCompatibility` must be treated as an invalid installation.
 

@@ -150,7 +150,17 @@ class AnalysisPipeline:
             and not self.options.enable_remote_registry
         ):
             cached_graph = self.cache_load.artifacts.get("graph.json", {})
-            cached_graph.setdefault("metadata", {})["cache"] = {
+            cached_metadata = cached_graph.setdefault("metadata", {})
+            # Capability declarations are executable-version metadata, not a
+            # source-derived fact.  Refresh them on a cache hit so a newer
+            # runtime never reports an obsolete support level merely because
+            # the workspace itself did not change.
+            cached_capabilities = build_language_capability_diagnostics(self.selection_plan.languages)
+            cached_metadata["language_semantic_capabilities"] = cached_capabilities
+            cached_diagnostics = cached_metadata.setdefault("analysis_diagnostics", {"items": []})
+            if isinstance(cached_diagnostics, dict):
+                cached_diagnostics["language_semantic_capabilities"] = cached_capabilities
+            cached_metadata["cache"] = {
                 "status": "hit",
                 "reason": "cache_hit",
                 "cache_status": "hit",
@@ -180,8 +190,8 @@ class AnalysisPipeline:
                 graph_path=graph_path, inventory=inventory_data,
                 languages=self.selection_plan.languages,
                 extractors_used=list(cached_graph.get("metadata", {}).get("extractors_used", [])) + ["persistent_cache"],
-                diagnostics=cached_graph.get("metadata", {}).get("analysis_diagnostics", {"items": [], "normal_analyze_requires_internet": False}),
-                support_pack_load_errors=list(cached_graph.get("metadata", {}).get("support_pack_load_errors", [])),
+                diagnostics=cached_metadata.get("analysis_diagnostics", {"items": [], "normal_analyze_requires_internet": False}),
+                support_pack_load_errors=list(cached_metadata.get("support_pack_load_errors", [])),
                 nodes=len(cached_graph.get("nodes", [])), edges=len(cached_graph.get("edges", [])), graph=cached_graph, progress=progress,
                 profiling=self.profiler.snapshot(),
             )
@@ -618,13 +628,21 @@ class AnalysisPipeline:
             self.options.progress_callback(event)
         progress = {"status": "completed", "events": [event], "current": event}
         graph_metadata["analysis_progress"] = progress
-        with self.profiler.measure("serialization"):
-            graph_path = self._write_graph_payload(graph_payload)
         selected = metadata.get("selected_plugins", [])
         languages = sorted({
             str(item.get("language") or str(item.get("id", "")).removeprefix("language."))
             for item in selected if item.get("kind") == "language"
         })
+        # See the non-fast cache path above: profiles evolve with the runtime
+        # and must be reflected even when the immutable graph facts are
+        # correctly reused.
+        cached_capabilities = build_language_capability_diagnostics(languages)
+        graph_metadata["language_semantic_capabilities"] = cached_capabilities
+        cached_diagnostics = graph_metadata.setdefault("analysis_diagnostics", {"items": []})
+        if isinstance(cached_diagnostics, dict):
+            cached_diagnostics["language_semantic_capabilities"] = cached_capabilities
+        with self.profiler.measure("serialization"):
+            graph_path = self._write_graph_payload(graph_payload)
         return AnalysisResult(
             status="ok", path=self.project_path, project_path=self.project_path, graph_path=graph_path,
             inventory=inventory, languages=languages,

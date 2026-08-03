@@ -2,8 +2,8 @@
 
 <p align="center">
   <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/core_runtime-v0.5.1-7c3aed?style=flat-square" alt="Core runtime v0.5.1">
-  <img src="https://img.shields.io/badge/VS_Code_extension-v0.6.39-007acc?style=flat-square" alt="VS Code extension v0.6.39">
+  <img src="https://img.shields.io/badge/core_runtime-v0.5.2-7c3aed?style=flat-square" alt="Core runtime v0.5.2">
+  <img src="https://img.shields.io/badge/VS_Code_extension-v0.6.40-007acc?style=flat-square" alt="VS Code extension v0.6.40">
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/regression-824%20passed-22c55e?style=flat-square" alt="824 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
@@ -65,8 +65,8 @@ GitHub PR review не требует и не хранит PAT: он исполь
 
 Номера у cockpit и Python runtime намеренно независимы: они отвечают за разные
 артефакты. Для текущего Windows VSIX совместимая тройка — **VS Code extension
-`0.6.39`**, **runtime `0.5.1`**, **`extensionCompatibility: 0.6.39`** в
-runtime manifest. Runtime `0.5.1` — не признак устаревшего расширения: это
+`0.6.40`**, **runtime `0.5.2`**, **`extensionCompatibility: 0.6.40`** в
+runtime manifest. Runtime `0.5.2` — не признак устаревшего расширения: это
 версия анализатора, который проверяется manifest и запускается как отдельный
 локальный процесс. Не устанавливайте VSIX, если версия его папки,
 `package.json` и `extensionCompatibility` не совпадают.
@@ -513,7 +513,7 @@ pip install -e .
 ```bash
 python -m pip install build
 python -m build --wheel
-python -m pip install dist/impact_engine-0.5.1-py3-none-any.whl
+python -m pip install dist/impact_engine-0.5.2-py3-none-any.whl
 ```
 
 ### Linux или macOS
@@ -1044,6 +1044,18 @@ impact-engine --json adapters lsp preflight /path/to/project
 impact-engine --json adapters lsp probe /path/to/project
 ```
 
+Для Go, C/C++, Rust, Java, Kotlin, PHP, Ruby, TypeScript/JavaScript и
+Vue/Svelte/Astro preflight теперь показывает обнаруженные локальные semantic
+server profiles. Настройка не скачивает и не запускает сервер; явный профиль
+выбирается отдельно:
+
+```bash
+impact-engine --json adapters lsp configure-profile /path/to/project rust-analyzer \
+  --workspace-root /path/to/project
+```
+
+Смотрите [каталог профилей и границы доказательств](docs/SEMANTIC_SERVER_PROFILES.md).
+
 `agent_lsp` — optional thin integration с официальным `agent-lsp` по MCP stdio.
 Agent-LSP владеет warm sessions, skills, hierarchy и semantic navigation;
 CodeSlicer хранит только отдельный provenance-bearing overlay и применяет
@@ -1058,6 +1070,7 @@ Joern также не устанавливается и не запускает�
 ## Дополнительная документация
 
 - [Getting Started](docs/GETTING_STARTED.md)
+- [Local semantic-server profiles](docs/SEMANTIC_SERVER_PROFILES.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [MCP](docs/MCP.md)
 - [Support Packs](docs/SUPPORT_PACKS.md)
