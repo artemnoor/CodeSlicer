@@ -9,8 +9,8 @@ Windows package is valid only when this tuple agrees:
 
 | Artifact | Expected version |
 | --- | --- |
-| VS Code extension folder and `package.json` | `0.6.42` |
-| `runtime/win32-x64/manifest.json` → `extensionCompatibility` | `0.6.42` |
+| VS Code extension folder and `package.json` | `0.6.43` |
+| `runtime/win32-x64/manifest.json` → `extensionCompatibility` | `0.6.43` |
 | bundled CodeSlicer analyzer (`runtimeVersion`) | `0.5.3` |
 
 `0.5.3` is the analyzer release, not the extension release. The manifest is

@@ -51,11 +51,20 @@ test("presents an unknown review as limited confidence instead of a misleading l
 });
 
 test("shows a persistent accessible percentage while the project is being analyzed", () => {
-  const html = renderCockpit({ ...INITIAL_STATE, analysis: { status: "running", percent: 42, message: "Extracting relationships" } }, "en");
+  const html = renderCockpit({ ...INITIAL_STATE, analysis: { status: "running", percent: 67, message: "Extracting relationships", processed: 760, total: 1131, elapsedSeconds: 92, etaSeconds: 40 } }, "en");
   assert.match(html, /Project analysis/);
-  assert.match(html, />42%<\/b>/);
-  assert.match(html, /role="progressbar"[^>]*aria-valuenow="42"/);
+  assert.match(html, />67%<\/b>/);
+  assert.match(html, /760 of 1131 files/);
+  assert.match(html, /elapsed: 1 min 32 sec · remaining: ~40 sec/);
+  assert.match(html, /role="progressbar"[^>]*aria-valuenow="67"/);
   assert.match(html, /analysis-progress__track/);
+});
+
+test("keeps long test paths readable and translates known runtime fallbacks in Russian", () => {
+  const html = renderCockpit({ ...INITIAL_STATE, review: { ...INITIAL_STATE.review, tests: [{ file: "frontend/src/__tests__/very-long-order-flow.test.tsx", symbol: "test", category: "fallback", confidence: "likely", reason: "no exact targeted test was found", argv: ["npm", "test"] }] } }, "ru");
+  assert.match(html, /frontend\/src\/__tests__\/very-long-order-flow\.test\.tsx/);
+  assert.match(html, /Точный целевой тест не найден/);
+  assert.match(html, /overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere/);
 });
 
 test("cockpit separates review, results, tests, technologies, history, architecture, and Git", () => {

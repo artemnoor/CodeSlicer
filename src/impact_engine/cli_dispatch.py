@@ -8,6 +8,20 @@ def _error_message(exc: BaseException) -> str:
     return message or f"{type(exc).__name__} was raised without a diagnostic message"
 
 
+def _resolve_graph_input(value: str | Path) -> Path:
+    """Accept either a graph file or a previously analysed project directory."""
+    candidate = Path(value).expanduser()
+    if candidate.is_dir():
+        graph = candidate / ".impact_engine" / "graph.json"
+        if graph.is_file():
+            return graph
+        raise FileNotFoundError(
+            f"No CodeSlicer graph was found at '{graph}'. "
+            f"Run `codeslicer analyze \"{candidate}\"` first."
+        )
+    return candidate
+
+
 def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, raw_argv: list[str]) -> None:
     if args.command == "daemon":
         from impact_engine.persistence import daemon_status, start_daemon, stop_daemon
@@ -377,8 +391,9 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
                 output = render_graph_comparison_html(args.impact_graph, args.graphify_graph, args.out)
                 result = {"status": "ok", "impact_graph": args.impact_graph, "graphify_graph": args.graphify_graph, "html": str(output.as_posix())}
             else:
-                output = render_graph_html(args.graph, args.out)
-                result = {"status": "ok", "graph": args.graph, "html": str(output.as_posix())}
+                graph = _resolve_graph_input(args.graph)
+                output = render_graph_html(graph, args.out)
+                result = {"status": "ok", "graph": str(graph), "html": str(output.as_posix())}
         except Exception as exc:
             result = {"status": "error", "graph": args.graph, "error": str(exc)}
         if args.json:
@@ -666,7 +681,8 @@ def dispatch_command(args: argparse.Namespace, parser: argparse.ArgumentParser, 
         if not graph_path:
             print("Error: Missing graph path", file=sys.stderr)
             sys.exit(1)
-        graph_text = Path(graph_path).read_text(encoding="utf-8")
+        graph_path = _resolve_graph_input(graph_path)
+        graph_text = graph_path.read_text(encoding="utf-8")
         graph = GraphDocument.from_json(graph_text)
 
         result = impact_query(

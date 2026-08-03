@@ -103,6 +103,25 @@ def test_cli_impact_outputs_json(tmp_path):
     assert "repositories.OrderRepository.save" in result["downstream"]
 
 
+def test_cli_accepts_project_directories_and_json_after_the_subcommand(tmp_path):
+    project = tmp_path / "проект"
+    project.mkdir()
+    (project / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+    run_cli(["--json", "analyze", str(project), "--no-research-requests"], cwd=tmp_path)
+
+    impact = run_cli(["impact", str(project), "--file", "app.py", "--json"], cwd=tmp_path)
+    payload = json.loads(impact.stdout)
+    assert payload["matched_nodes"]
+
+
+def test_cli_json_keeps_unicode_machine_safe(tmp_path):
+    project = tmp_path / "Артём"
+    project.mkdir()
+    result = run_cli(["--json", "inventory", str(project)], cwd=tmp_path)
+    assert "\\u0410" in result.stdout
+    assert json.loads(result.stdout)["root_path"].endswith("Артём")
+
+
 def test_cli_explain_edge_outputs_evidence(tmp_path):
     graph_path = tmp_path / "graph.json"
     run_cli(["--json", "analyze", str(PROJECT_PATH), "--out", str(graph_path)], cwd=tmp_path)

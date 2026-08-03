@@ -53,6 +53,10 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     view.webview.onDidReceiveMessage(message => this.onMessage(message));
     this.render();
     void this.refreshWorkspaceReadiness();
+    // The initial render stays instant, then validate the immutable bundled
+    // runtime in the background.  A fresh profile therefore moves from
+    // “Preparing runtime…” to Ready without a second click or Git activity.
+    void this.warmRuntimeReadiness();
   }
 
   private workspace(): string | undefined {
@@ -151,12 +155,21 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     this.render();
   }
 
+  private async warmRuntimeReadiness(): Promise<void> {
+    const root = this.workspace();
+    if (!root) return;
+    const runtime = await this.runtime.validate(root, this.config<string>("executable"));
+    this.state = { ...this.state, runtime };
+    this.render();
+  }
+
   /** Surface the analyzer's real JSONL percent in the Cockpit, not only in a transient toast. */
-  private setAnalysisProgress(status: CockpitState["analysis"]["status"], percent: number, message = ""): void {
+  private setAnalysisProgress(status: CockpitState["analysis"]["status"], percent: number, message = "", details: Partial<CockpitState["analysis"]> = {}): void {
     const nextPercent = Math.max(0, Math.min(100, Math.round(percent)));
     const current = this.state.analysis;
-    if (current.status === status && current.percent === nextPercent && current.message === message) return;
-    this.state = { ...this.state, analysis: { status, percent: nextPercent, message } };
+    const next = { ...current, ...details, status, percent: nextPercent, message };
+    if (current.status === next.status && current.percent === next.percent && current.message === next.message && current.processed === next.processed && current.total === next.total && current.elapsedSeconds === next.elapsedSeconds && current.etaSeconds === next.etaSeconds) return;
+    this.state = { ...this.state, analysis: next };
     this.render();
   }
 
@@ -619,7 +632,12 @@ class CockpitProvider implements vscode.WebviewViewProvider {
             const next = Math.max(previous, Math.min(100, event.overall_percent ?? previous));
             progress.report({ message: event.message, increment: Math.max(0, next - previous) });
             previous = next;
-            this.setAnalysisProgress("running", next, event.message);
+            this.setAnalysisProgress("running", next, event.message, {
+              processed: Number.isFinite(event.processed) ? event.processed : undefined,
+              total: Number.isFinite(event.total) ? event.total : undefined,
+              elapsedSeconds: Number.isFinite(event.elapsed_seconds) ? event.elapsed_seconds : undefined,
+              etaSeconds: typeof event.eta_seconds === "number" && Number.isFinite(event.eta_seconds) ? event.eta_seconds : undefined,
+            });
           })
         });
         this.log(result);

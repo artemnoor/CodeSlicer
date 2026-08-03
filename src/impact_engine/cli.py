@@ -16,6 +16,15 @@ def main(argv: list[str] | None = None) -> None:
         runtime_test_command = raw_argv[separator_index + 1:]
         raw_argv = raw_argv[:separator_index]
 
+    # ``--json`` is a global output switch, but people naturally place it
+    # beside the command they are automating (``codeslicer impact ... --json``).
+    # Normalize that spelling before argparse sees a subcommand.  This keeps a
+    # single machine-output contract across every command without duplicating
+    # the flag in each nested parser.
+    if "--json" in raw_argv:
+        raw_argv = [value for value in raw_argv if value != "--json"]
+        raw_argv.insert(0, "--json")
+
     args = parser.parse_args(raw_argv)
     if getattr(args, "command", None) == "runtime-trace" and runtime_test_command is not None:
         args.test_command = runtime_test_command

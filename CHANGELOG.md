@@ -2,6 +2,21 @@
 
 Все заметные изменения CodeSlicer фиксируются в этом файле.
 
+## [0.6.43] — 2026-08-04
+
+### Fixed
+
+- `visualize <project>` and `impact <project>` now resolve the canonical
+  `.impact_engine/graph.json`; `--json` works before or after every CLI
+  subcommand, while ASCII-safe JSON remains reliable in legacy Windows consoles.
+- Windows cache-lock owner checks decode localized `tasklist` output safely
+  and compare whole PID values.
+- VS Code analysis progress now shows the real percentage, processed/total
+  files, elapsed time, and the backend ETA. First-run runtime validation
+  completes in the background without requiring a second readiness click.
+- Narrow test cards wrap complete paths instead of truncating them; known
+  fallback copy and confidence labels are localized in Russian.
+
 ## [0.6.41] — 2026-08-03
 
 ### Compiler-backed semantic readiness

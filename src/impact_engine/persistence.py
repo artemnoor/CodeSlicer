@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import locale
 import os
 import platform
 import signal
@@ -480,15 +481,23 @@ class CacheLock:
             try:
                 completed = subprocess.run(
                     ["tasklist", "/FI", f"PID eq {pid}"],
-                    capture_output=True, text=True, timeout=3,
+                    capture_output=True, text=False, timeout=3,
                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
-                # ``tasklist`` can emit non-UTF output on localized Windows
-                # installations.  A decoding fallback may leave stdout as
-                # None; that must mean "cannot prove the owner is alive", not
-                # a TypeError which leaves the caller with a stale lock.
-                return str(pid) in (completed.stdout or "")
-            except (OSError, subprocess.SubprocessError):
+                raw = completed.stdout or b""
+                # ``tasklist`` follows the active Windows code page, not a
+                # stable UTF-8 contract.  PID digits themselves are locale
+                # independent; decode defensively and compare whole numbers
+                # so pid 12 is not mistaken for pid 123.
+                text = ""
+                for encoding in (locale.getpreferredencoding(False), "utf-8", "cp866", "cp1251"):
+                    try:
+                        text = raw.decode(encoding)
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                return any(token == str(pid) for token in __import__("re").findall(r"\d+", text))
+            except (OSError, UnicodeError, subprocess.SubprocessError):
                 return False
         try:
             os.kill(pid, 0)

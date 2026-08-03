@@ -1,4 +1,4 @@
-export interface JsonLineProgress { type: "progress"; stage?: string; message?: string; overall_percent?: number; processed?: number; total?: number }
+export interface JsonLineProgress { type: "progress"; stage?: string; message?: string; overall_percent?: number; processed?: number; total?: number; elapsed_seconds?: number; eta_seconds?: number | null }
 
 /** Tolerant parser: unrelated diagnostics never break an ongoing review. */
 export function parseJsonLineProgress(chunk: string): JsonLineProgress[] {

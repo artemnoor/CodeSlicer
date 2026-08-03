@@ -55,3 +55,17 @@ def test_visualize_cli(tmp_path):
     )
     assert result.returncode == 0
     assert json.loads(result.stdout)["status"] == "ok"
+
+
+def test_visualize_cli_accepts_analyzed_project_directory(tmp_path):
+    project = tmp_path / "project"
+    graph_dir = project / ".impact_engine"
+    graph_dir.mkdir(parents=True)
+    (graph_dir / "graph.json").write_text(json.dumps({"nodes": [], "edges": []}), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "-m", "impact_engine.cli", "visualize", str(project), "--json"],
+        capture_output=True, text=True, cwd=Path(__file__).parent.parent, timeout=30,
+    )
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["graph"].endswith(".impact_engine\\graph.json") or payload["graph"].endswith(".impact_engine/graph.json")

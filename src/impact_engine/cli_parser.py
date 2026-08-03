@@ -35,7 +35,7 @@ def build_parser(prog: str = "impact-engine") -> argparse.ArgumentParser:
     scan_plan.add_argument("--json", action="store_true", dest="local_json")
 
     visualize = sub.add_parser("visualize")
-    visualize.add_argument("graph", help="Path to graph.json")
+    visualize.add_argument("graph", help="Path to graph.json or an analysed project directory")
     visualize.add_argument("--out", default=None, help="Output HTML path")
 
     compare = sub.add_parser("visualize-compare")
@@ -284,8 +284,8 @@ def build_parser(prog: str = "impact-engine") -> argparse.ArgumentParser:
     unknown_regions.add_argument("--json", action="store_true", dest="local_json", help="Output JSON")
 
     impact = sub.add_parser("impact")
-    impact.add_argument("graph_positional", nargs="?", default=None, metavar="graph.json")
-    impact.add_argument("--graph", default=None)
+    impact.add_argument("graph_positional", nargs="?", default=None, metavar="graph.json|project")
+    impact.add_argument("--graph", default=None, help="Path to graph.json or an analysed project directory")
     # Old syntax target, or new symbol/file
     impact.add_argument("--target", default=None)
     impact.add_argument("--symbol", default=None)

@@ -19,7 +19,7 @@ export interface GitRemotePreview{name:string;fetchUrl?:string;pushUrl?:string}
 export interface GitPushPreview{source:string;remote:string;target:string;ahead:number;behind:number;canFastForward:boolean;message:string}
 export interface GitGraphState{status:OperationStatus;commits:GitCommitPreview[];branches:GitBranchPreview[];remotes:GitRemotePreview[];push?:GitPushPreview;message:string}
 export interface GraphifyState{status:OperationStatus;message:string;graphPath?:string}
-export interface AnalysisProgressState{status:"idle"|"running"|"ready"|"error";percent:number;message:string}
+export interface AnalysisProgressState{status:"idle"|"running"|"ready"|"error";percent:number;message:string;processed?:number;total?:number;elapsedSeconds?:number;etaSeconds?:number}
 export interface IntegrationState{githubTokenConfigured:boolean;githubAuthenticated?:boolean;githubStatus?:string}
 export interface EvidenceLocation{file?:string;line?:number;text?:string;provenance?:string}
 export type ImpactTier="confirmed"|"likely"|"possible";

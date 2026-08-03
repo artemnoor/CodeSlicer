@@ -25,7 +25,7 @@ const results = {
 };
 const analyzing = {
   ...ready,
-  analysis: { status: "running", percent: 42, message: "Extracting relationships" }
+  analysis: { status: "running", percent: 67, message: "Extracting relationships", processed: 760, total: 1131, elapsedSeconds: 92, etaSeconds: 40 }
 };
 const undetermined = {
   ...ready,

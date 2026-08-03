@@ -14,12 +14,11 @@ from impact_engine.impact import impact_query, explain_edge
 
 def _print_json(data: object) -> None:
     try:
-        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
     except (AttributeError, ValueError):
         pass
-    # Keep machine-readable stdout ASCII-safe on Windows; UTF-8 remains in
-    # graph artifacts and the visual API, while subprocess clients can decode
-    # JSON reliably under the active console code page.
+    # Keep machine-readable stdout ASCII-safe on Windows. This is valid JSON
+    # (clients decode escape sequences) and works with legacy console code pages.
     try:
         print(json.dumps(data, indent=2, ensure_ascii=True))
     except BrokenPipeError:
