@@ -1,0 +1,54 @@
+{
+  "schema_version": "CodeSlicerRealProjectBenchmarkManifest/v1",
+  "purpose": "Pinned public repositories for reproducible local CodeSlicer CLI validation. No project dependency installation is required.",
+  "projects": [
+    {
+      "id": "fastapi",
+      "repository": "https://github.com/fastapi/fastapi.git",
+      "commit": "4ef68e869f01ef96b37b1c5e3c8370f682d5590e",
+      "language": "python",
+      "scope": ".",
+      "mutation": {
+        "file": "fastapi/routing.py",
+        "anchor": "class APIRoute(routing.Route):",
+        "comment": "# CodeSlicer benchmark: bounded route change."
+      }
+    },
+    {
+      "id": "gin",
+      "repository": "https://github.com/gin-gonic/gin.git",
+      "commit": "34dac209ffb6ef85cc78c5d217bbb7ad001d68fd",
+      "language": "go",
+      "scope": ".",
+      "mutation": {
+        "file": "gin.go",
+        "anchor": "func New(opts ...OptionFunc) *Engine {",
+        "comment": "// CodeSlicer benchmark: bounded engine change."
+      }
+    },
+    {
+      "id": "express",
+      "repository": "https://github.com/expressjs/express.git",
+      "commit": "a3714473feb3d2908add734d340e7755fd85e0a3",
+      "language": "javascript",
+      "scope": ".",
+      "mutation": {
+        "file": "lib/application.js",
+        "anchor": "app.init = function init() {",
+        "comment": "// CodeSlicer benchmark: bounded application change."
+      }
+    },
+    {
+      "id": "cruxa",
+      "repository": "https://github.com/contr4s/Cruxa.git",
+      "commit": "13ff4a0f3d3e492c15b5dfe2f7dfe405a76a5fb3",
+      "language": "csharp",
+      "scope": "backend",
+      "mutation": {
+        "file": "backend/src/Cruxa.Api/Program.cs",
+        "anchor": "    var builder = WebApplication.CreateBuilder(args);",
+        "comment": "    // CodeSlicer benchmark: bounded composition-root change."
+      }
+    }
+  ]
+}

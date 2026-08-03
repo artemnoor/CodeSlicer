@@ -1,0 +1,63 @@
+name: Real-project benchmarks
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CodeSlicer
+        run: python -m pip install -e ".[dev]"
+      - name: Run pinned public-project CLI validation
+        run: python scripts/run_real_project_benchmarks.py --output artifacts/real-project-cli-validation.json
+      - name: Upload benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-project-cli-validation
+          path: artifacts/real-project-cli-validation.json
+          if-no-files-found: error
+
+  local-hub-real-browser:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      IMPACT_ENGINE_REQUIRE_BROWSER_E2E: "1"
+      IMPACT_ENGINE_PETCLINIC_ROOT: ${{ github.workspace }}/artifacts/spring-petclinic
+      IMPACT_ENGINE_PETCLINIC_SCREENSHOT: ${{ github.workspace }}/artifacts/spring-petclinic-map.png
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CodeSlicer and Chromium
+        run: |
+          python -m pip install ".[dev,browser]"
+          python -m playwright install --with-deps chromium
+      - name: Fetch pinned Spring PetClinic browser fixture
+        run: |
+          git init artifacts/spring-petclinic
+          git -C artifacts/spring-petclinic remote add origin https://github.com/spring-projects/spring-petclinic.git
+          git -C artifacts/spring-petclinic fetch --depth 1 origin 88e37c15cf6fc8490b01bc3e8e2c800cec1ac272
+          git -C artifacts/spring-petclinic checkout --detach FETCH_HEAD
+      - name: Build graph and verify real Local Hub map in Chromium
+        run: |
+          python -m impact_engine.cli analyze artifacts/spring-petclinic --use-scan-plan --no-daemon --no-research-requests
+          python -m pytest tests/test_frontend_browser_e2e.py::test_browser_petclinic_route_keeps_its_confirmed_handler_edge -q
+      - name: Upload Local Hub browser evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: spring-petclinic-local-hub-browser
+          path: artifacts/spring-petclinic-map.png
+          if-no-files-found: error

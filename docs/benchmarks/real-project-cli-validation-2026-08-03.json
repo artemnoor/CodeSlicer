@@ -1,0 +1,289 @@
+{
+  "schema_version": "CodeSlicerRealProjectBenchmarkReport/v1",
+  "generated_at": "2026-08-03T17:26:16.328507+00:00",
+  "method": {
+    "workflow": [
+      "pinned source snapshot",
+      "CLI analyze with scan plan",
+      "warm cache analyze",
+      "CLI review of the real HEAD~1..HEAD diff",
+      "CLI review with automatic freshness refresh over a minimal source-anchored diff"
+    ],
+    "project_dependencies_installed": false,
+    "project_tests_executed": false,
+    "privacy": "only public repository identity, pinned commit and aggregate metrics are emitted"
+  },
+  "environment": {
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python": "3.11.9"
+  },
+  "results": [
+    {
+      "id": "fastapi",
+      "repository": "https://github.com/fastapi/fastapi.git",
+      "commit": "4ef68e869f01ef96b37b1c5e3c8370f682d5590e",
+      "language": "python",
+      "scope": ".",
+      "validation": {
+        "status": "passed",
+        "gates": {
+          "pinned_commit": true,
+          "cold_analysis_ok": true,
+          "warm_cache_hit": true,
+          "historical_review_ok": true,
+          "freshness_review_ok": true,
+          "language_detected": true
+        }
+      },
+      "analysis": {
+        "cold_wall_seconds": 95.143497,
+        "warm_wall_seconds": 17.037663,
+        "files": 3099,
+        "loc": 98269,
+        "nodes": 35819,
+        "edges": 40374,
+        "languages": [
+          "css",
+          "html",
+          "javascript",
+          "python"
+        ]
+      },
+      "review": {
+        "historical_commit": {
+          "wall_seconds": 7.498788,
+          "schema_version": "ReviewReport/v2",
+          "risk": {
+            "level": "LOW",
+            "score": 0,
+            "confidence": "high",
+            "reasons": []
+          },
+          "risk_confidence": null,
+          "top_impacts": 0,
+          "test_recommendations": 0,
+          "errors": 0,
+          "diff_file": "HEAD~1..HEAD",
+          "changed_files": 1
+        },
+        "freshness_control": {
+          "wall_seconds": 72.308138,
+          "schema_version": "ReviewReport/v2",
+          "risk": {
+            "level": "LOW",
+            "score": 0,
+            "confidence": "high",
+            "reasons": []
+          },
+          "risk_confidence": null,
+          "top_impacts": 0,
+          "test_recommendations": 0,
+          "errors": 0,
+          "diff_file": "fastapi/routing.py"
+        }
+      }
+    },
+    {
+      "id": "gin",
+      "repository": "https://github.com/gin-gonic/gin.git",
+      "commit": "34dac209ffb6ef85cc78c5d217bbb7ad001d68fd",
+      "language": "go",
+      "scope": ".",
+      "validation": {
+        "status": "passed",
+        "gates": {
+          "pinned_commit": true,
+          "cold_analysis_ok": true,
+          "warm_cache_hit": true,
+          "historical_review_ok": true,
+          "freshness_review_ok": true,
+          "language_detected": true
+        }
+      },
+      "analysis": {
+        "cold_wall_seconds": 16.100823,
+        "warm_wall_seconds": 4.23537,
+        "files": 118,
+        "loc": 20415,
+        "nodes": 10498,
+        "edges": 11752,
+        "languages": [
+          "go"
+        ]
+      },
+      "review": {
+        "historical_commit": {
+          "wall_seconds": 1.970093,
+          "schema_version": "ReviewReport/v2",
+          "risk": {
+            "level": "LOW",
+            "score": 0,
+            "confidence": "high",
+            "reasons": []
+          },
+          "risk_confidence": null,
+          "top_impacts": 0,
+          "test_recommendations": 0,
+          "errors": 0,
+          "diff_file": "HEAD~1..HEAD",
+          "changed_files": 1
+        },
+        "freshness_control": {
+          "wall_seconds": 15.240998,
+          "schema_version": "ReviewReport/v2",
+          "risk": {
+            "level": "LOW",
+            "score": 0,
+            "confidence": "high",
+            "reasons": []
+          },
+          "risk_confidence": null,
+          "top_impacts": 0,
+          "test_recommendations": 0,
+          "errors": 0,
+          "diff_file": "gin.go"
+        }
+      }
+    },
+    {
+      "id": "express",
+      "repository": "https://github.com/expressjs/express.git",
+      "commit": "a3714473feb3d2908add734d340e7755fd85e0a3",
+      "language": "javascript",
+      "scope": ".",
+      "validation": {
+        "status": "passed",
+        "gates": {
+          "pinned_commit": true,
+          "cold_analysis_ok": true,
+          "warm_cache_hit": true,
+          "historical_review_ok": true,
+          "freshness_review_ok": true,
+          "language_detected": true
+        }
+      },
+      "analysis": {
+        "cold_wall_seconds": 11.74392,
+        "warm_wall_seconds": 2.929945,
+        "files": 201,
+        "loc": 17629,
+        "nodes": 9156,
+        "edges": 1514,
+        "languages": [
+          "astro",
+          "css",
+          "html",
+          "javascript",
+          "svelte",
+          "typescript",
+          "vue"
+        ]
+      },
+      "review": {
+        "historical_commit": {
+          "wall_seconds": 1.35185,
+          "schema_version": "ReviewReport/v2",
+          "risk": {
+            "level": "LOW",
+            "score": 0,
+            "confidence": "high",
+            "reasons": []
+          },
+          "risk_confidence": null,
+          "top_impacts": 0,
+          "test_recommendations": 0,
+          "errors": 0,
+          "diff_file": "HEAD~1..HEAD",
+          "changed_files": 1
+        },
+        "freshness_control": {
+          "wall_seconds": 10.484593,
+          "schema_version": "ReviewReport/v2",
+          "risk": {
+            "level": "LOW",
+            "score": 0,
+            "confidence": "high",
+            "reasons": []
+          },
+          "risk_confidence": null,
+          "top_impacts": 0,
+          "test_recommendations": 0,
+          "errors": 0,
+          "diff_file": "lib/application.js"
+        }
+      }
+    },
+    {
+      "id": "cruxa",
+      "repository": "https://github.com/contr4s/Cruxa.git",
+      "commit": "13ff4a0f3d3e492c15b5dfe2f7dfe405a76a5fb3",
+      "language": "csharp",
+      "scope": "backend",
+      "validation": {
+        "status": "passed",
+        "gates": {
+          "pinned_commit": true,
+          "cold_analysis_ok": true,
+          "warm_cache_hit": true,
+          "historical_review_ok": true,
+          "freshness_review_ok": true,
+          "language_detected": true
+        }
+      },
+      "analysis": {
+        "cold_wall_seconds": 25.976486,
+        "warm_wall_seconds": 4.192109,
+        "files": 564,
+        "loc": 33752,
+        "nodes": 5739,
+        "edges": 8202,
+        "languages": [
+          "csharp"
+        ]
+      },
+      "review": {
+        "historical_commit": {
+          "wall_seconds": 3.727429,
+          "schema_version": "ReviewReport/v2",
+          "risk": {
+            "level": "UNKNOWN",
+            "score": 0,
+            "confidence": "low",
+            "reason": "incomplete language coverage",
+            "reasons": [
+              "cross-file impact closure was not proven; review the potential area and run focused tests",
+              "graph is stale; high-confidence claims are suppressed",
+              "incomplete language coverage"
+            ]
+          },
+          "risk_confidence": null,
+          "top_impacts": 10,
+          "test_recommendations": 0,
+          "errors": 0,
+          "diff_file": "HEAD~1..HEAD",
+          "changed_files": 7
+        },
+        "freshness_control": {
+          "wall_seconds": 7.127989,
+          "schema_version": "ReviewReport/v2",
+          "risk": {
+            "level": "UNKNOWN",
+            "score": 0,
+            "confidence": "low",
+            "reason": "cross-file impact closure was not proven within the bounded semantic pass",
+            "reasons": [
+              "cross-file impact closure was not proven; review the potential area and run focused tests",
+              "limited compiler coverage; confirmed structural features used"
+            ]
+          },
+          "risk_confidence": null,
+          "top_impacts": 0,
+          "test_recommendations": 0,
+          "errors": 0,
+          "diff_file": "backend/src/Cruxa.Api/Program.cs"
+        }
+      }
+    }
+  ],
+  "status": "passed"
+}

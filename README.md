@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/core_runtime-v0.5.2-7c3aed?style=flat-square" alt="Core runtime v0.5.2">
   <img src="https://img.shields.io/badge/VS_Code_extension-v0.6.40-007acc?style=flat-square" alt="VS Code extension v0.6.40">
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/regression-824%20passed-22c55e?style=flat-square" alt="824 regression tests passed">
+  <img src="https://img.shields.io/badge/regression-855%20passed-22c55e?style=flat-square" alt="855 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
   <img src="https://img.shields.io/badge/agent%20skills-2-f97316?style=flat-square" alt="2 bundled agent skills">
   <img src="https://img.shields.io/badge/MCP-stdio%20JSON--RPC-ec4899?style=flat-square" alt="MCP stdio JSON-RPC">
@@ -81,6 +81,28 @@ CodeSlicer сохраняет точность прежде скорости: pa
 никогда не заменяет canonical graph. Если безопасный merge не доказан,
 локальный review делает полный refresh и явно сообщает об этом, а не скрывает
 маршруты, callers или тесты из результата.
+
+### Проверка на реальных проектах
+
+Ниже — не synthetic fixture, а опубликованный, воспроизводимый CLI snapshot
+на public repositories с pinned SHA. Для каждого проекта выполняются cold
+`analyze --use-scan-plan`, warm cache pass, review настоящего `HEAD~1..HEAD`
+и отдельный comment-only freshness control. Последний обязан **не** создавать
+фиктивный impact. Полная методика, точные причины risk и JSON — в
+[real-project validation report](docs/benchmarks/REAL_PROJECT_VALIDATION.md).
+
+| Проект / язык | Профиль | Cold → warm | Результат review |
+| --- | ---: | ---: | --- |
+| FastAPI / Python | 3,099 files · 98,269 LOC | 95.14 s → 17.04 s | Low/high для однофайлового change-set; comment-control не создал ложного impact |
+| Gin / Go | 118 files · 20,415 LOC | 16.10 s → 4.24 s | Low/high; ложного impact нет |
+| Express / JavaScript | 201 files · 17,629 LOC | 11.74 s → 2.93 s | Low/high; ложного impact нет |
+| Cruxa / C# | 564 files · 33,752 LOC | 25.98 s → 4.19 s | 10 entities для 7-file real diff, но `UNKNOWN` при неполном cross-file closure |
+
+Это измерение на Windows 10 x64 / Python 3.11.9 от 2026-08-03, а не обещание
+скорости для другой машины. Публичные source trees не коммитятся; weekly/manual
+workflow [Real-project benchmarks](.github/workflows/real-project-benchmarks.yml)
+создаёт fresh artifact, а [`manifest`](benchmarks/real_projects/manifest.json)
+фиксирует входные revision.
 
 В release `0.6.30` профиль выполнен на реальном Django commit
 `60121939f6b225c7a719dd561e372e1d8e5e2c4a`: 6&nbsp;958 файлов,
@@ -973,8 +995,11 @@ IMPACT_ENGINE_REQUIRE_BROWSER_E2E=1 python -m pytest tests/test_frontend_browser
 расписанию или вручную, чтобы тяжёлый внешний corpus не становился скрытым
 skipped-тестом обычной регрессии.
 
-Графы, кэши, SQLite и benchmark-отчёты должны оставаться в `.impact_engine`
-или других игнорируемых директориях, а не попадать в продуктовую документацию.
+Графы, кэши, SQLite и полные machine-specific benchmark-отчёты должны
+оставаться в `.impact_engine`, CI artifacts или других игнорируемых
+директориях. Исключение — короткий обезличенный snapshot с pinned public
+revisions в [`docs/benchmarks`](docs/benchmarks/REAL_PROJECT_VALIDATION.md):
+он нужен, чтобы claims в README можно было проверить без копирования corpus.
 
 ## Лицензия
 
