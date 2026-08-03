@@ -1,5 +1,6 @@
 export type RuntimeStatus="unchecked"|"found"|"not-configured"|"install-unavailable"|"incompatible"|"error";
-export interface RuntimeState{status:RuntimeStatus;executable?:string;version:string;diagnostic:string}
+export interface RuntimeCapabilities{jsonProgress:boolean}
+export interface RuntimeState{status:RuntimeStatus;executable?:string;version:string;diagnostic:string;capabilities?:RuntimeCapabilities}
 export type UiLanguage="auto"|"ru"|"en";
 export type ReviewSourceMode="current-changes"|"staged"|"compare"|"diff-file"|"github-pr";
 export interface ReviewSourceState{mode:ReviewSourceMode;diffFile?:string;baseRef?:string;label?:string}
@@ -11,7 +12,7 @@ export type OperationStatus="idle"|"ready"|"running"|"error";
 export interface LocalServerState{status:OperationStatus;url:string;message:string}
 export interface GraphNodePreview{id:string;label:string;kind:string}
 export interface GraphEdgePreview{source:string;target:string}
-export interface CodeGraphState{status:OperationStatus;nodes:GraphNodePreview[];edges:GraphEdgePreview[];totalNodes:number;totalEdges:number;message:string}
+export interface CodeGraphState{status:OperationStatus;nodes:GraphNodePreview[];edges:GraphEdgePreview[];totalNodes:number;totalEdges:number;message:string;qualityWarning?:string}
 export interface GitCommitPreview{id:string;parents:string[];refs:string;subject:string}
 export interface GitBranchPreview{name:string;current:boolean;upstream?:string;tracking?:string}
 export interface GitRemotePreview{name:string;fetchUrl?:string;pushUrl?:string}

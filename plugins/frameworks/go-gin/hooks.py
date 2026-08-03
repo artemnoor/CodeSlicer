@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 from impact_engine.models import Edge, Evidence
-from plugins.frameworks.polyglot_web_common import add_literal_route, add_route, result, source_files
+from plugins.frameworks.polyglot_web_common import add_framework_candidate, add_literal_route, add_route, result, source_files
 
 
 _ROUTE = re.compile(
@@ -14,6 +14,7 @@ _ROUTE = re.compile(
 _DIRECT_HANDLER = re.compile(
     r"\(\s*['\"][^'\"]+['\"]\s*,\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?)\s*[,)]",
 )
+_MIDDLEWARE = re.compile(r"\b([A-Za-z_]\w*)\.Use\s*\(\s*([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?)")
 _ENGINE_FACTORY = re.compile(
     r"\b(?P<instance>[A-Za-z_]\w*)\s*:=\s*(?:(?:gin\.)?(?:New|Default))\s*\(",
 )
@@ -91,6 +92,14 @@ def gin_routes(context, graph):
                     path=path, handler=handler.group(1), file=rel, line=line,
                 )
             routes += 1
+        for match in _MIDDLEWARE.finditer(text):
+            line = text.count("\n", 0, match.start()) + 1
+            receiver = match.group(1)
+            add_framework_candidate(
+                graph, framework="gin", language="go",
+                registration=f"{receiver}.Use (Engine_or_RouterGroup)",
+                handler=match.group(2), file=rel, line=line,
+            )
     linked = _likely_engine_calls(context, graph)
     plugin_result = result(graph, "framework.go.gin", "gin", routes)
     graph.metadata.setdefault("polyglot_framework_features", {}).setdefault("gin", {})["likely_local_engine_calls"] = linked

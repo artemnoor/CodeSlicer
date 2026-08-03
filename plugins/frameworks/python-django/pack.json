@@ -1,0 +1,19 @@
+{
+  "id": "framework.python.django",
+  "kind": "framework",
+  "language": "python",
+  "version": "1.0.0",
+  "file_extensions": [],
+  "manifest_files": ["pyproject.toml", "requirements.txt", "manage.py"],
+  "supported_versions": [],
+  "activation": {"dependencies": ["django"], "imports": ["django"], "compat_source": "support_packs/python/django/support_pack.json"},
+  "capabilities": {"declarative_rules": true, "hook_entrypoints": {"django_candidate_rules": "django_candidates"}, "hook_phases": {"django_candidate_rules": "pre_resolution"}},
+  "phases": ["pre_resolution", "resolve", "validate"],
+  "entrypoint": "impact_engine.plugin_architecture.manifest_runtime:create_framework_plugin",
+  "cache_key": "framework.python.django-candidates-v1",
+  "allowed_edge_kinds": ["MAY_CALL", "ROUTE_HANDLES", "DEPENDS_ON"],
+  "confidence_policy": {"default": "evidence_capped"},
+  "evidence_requirements": {"requires_locations": true},
+  "fixtures": [],
+  "local_first": true
+}

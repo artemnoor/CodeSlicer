@@ -41,7 +41,7 @@ def method_for(graph, *, language: str, name: str, file: str, owner: str | None 
     # extractors rather than copying it to every method node.  Restrict by the
     # exact source file below; requiring a per-node language property would
     # silently discard otherwise exact local symbols.
-    candidates = [node for node in graph.nodes if node.kind == "METHOD" and node.name == name]
+    candidates = [node for node in graph.nodes if node.kind in {"METHOD", "FUNCTION"} and node.name == name]
     in_file = [node for node in candidates if str(node.properties.get("file") or "") == file]
     if in_file:
         candidates = in_file
@@ -118,6 +118,52 @@ def add_route(
             "support_pack_library": framework, "support_pack_id": framework,
             "support_pack_rule_id": f"{framework}-literal-route", "resolver_hook_name": f"{framework}_resolver",
             "provenance": {"plugin_id": f"framework.{language}.{framework}", "rule_id": f"{framework}-literal-route"},
+        },
+    ))
+    return True
+
+
+def add_framework_candidate(
+    graph,
+    *,
+    framework: str,
+    language: str,
+    registration: str,
+    handler: str,
+    file: str,
+    line: int,
+) -> bool:
+    """Record a framework registration as a likely, never-confirmed edge.
+
+    The callsite proves that a registration occurred, but structural parsers
+    alone cannot prove receiver type, factory identity, or runtime ordering.
+    This representation is intentionally consumed by the adaptive candidate
+    layer rather than promoted into the canonical confirmed path.
+    """
+    target = method_for(graph, language=language, name=handler.rsplit(".", 1)[-1], file=file)
+    if target is None:
+        return False
+    node_id = f"FRAMEWORK {framework} {registration} {file}:{line}"
+    if graph.get_node(node_id) is None:
+        graph.add_node(Node(node_id, "ROUTE", registration, {
+            "file": file, "line": line, "language": language,
+            "framework": framework, "boundary_category": "middleware",
+            "candidate_only": True,
+        }))
+    edge_id = f"plugin_{framework.replace('.', '_').replace('-', '_')}__candidate__{node_id}__{target.id}"
+    if any(edge.id == edge_id for edge in graph.edges):
+        return False
+    graph.add_edge(Edge(
+        id=edge_id, kind="MAY_CALL", from_node=node_id, to_node=target.id,
+        source="SUPPORT_PACK", confidence=0.72,
+        evidence=[Evidence(file=file, line=line, description=f"{framework}: {registration} registers {handler}; receiver/runtime ordering not type-validated", source="local-framework-pack")],
+        properties={
+            "status": "likely", "resolution_status": "framework_candidate",
+            "validation_status": "not_validated", "framework": framework,
+            "support_pack_library": framework, "support_pack_id": framework,
+            "support_pack_rule_id": f"{framework}-middleware-registration",
+            "resolver_hook_name": f"{framework}_resolver",
+            "reason_not_confirmed": "framework registration has no full receiver/type validation",
         },
     ))
     return True

@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 from impact_engine.models import Edge, Evidence
-from plugins.frameworks.polyglot_web_common import add_literal_route, add_route, result, source_files
+from plugins.frameworks.polyglot_web_common import add_framework_candidate, add_literal_route, add_route, result, source_files
 
 
 _ROUTE = re.compile(
@@ -14,6 +14,9 @@ _ROUTE = re.compile(
 )
 _DIRECT_HANDLER = re.compile(
     r"\(\s*['\"][^'\"]+['\"]\s*,\s*(?:async\s+)?([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\s*[,)]",
+)
+_MIDDLEWARE = re.compile(
+    r"\b(app|router)\.use\s*\(\s*(?:['\"][^'\"]+['\"]\s*,\s*)?(?:async\s+)?([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)",
 )
 _LOCAL_REQUIRE = re.compile(
     r"\b(?:var|let|const)\s+(?P<name>[A-Za-z_$][\w$]*)\s*=\s*require\(\s*['\"](?P<path>\.{1,2}(?:/[^'\"]*)?)['\"]\s*\)",
@@ -130,6 +133,12 @@ def express_routes(context, graph):
                     path=path, handler=handler.group(1), file=rel, line=line,
                 )
             routes += 1
+        for match in _MIDDLEWARE.finditer(text):
+            line = text.count("\n", 0, match.start()) + 1
+            add_framework_candidate(
+                graph, framework="express", language=language,
+                registration=f"{match.group(1)}.use", handler=match.group(2), file=rel, line=line,
+            )
     linked = _likely_local_instance_calls(context, graph)
     plugin_result = result(graph, "framework.javascript.express", "express", routes)
     graph.metadata.setdefault("polyglot_framework_features", {}).setdefault("express", {})["likely_local_instance_calls"] = linked

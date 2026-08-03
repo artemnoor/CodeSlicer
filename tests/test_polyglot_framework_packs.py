@@ -107,6 +107,46 @@ def test_express_and_gin_inline_callbacks_remain_confirmed_routes_without_invent
     assert not any(edge.kind == "ROUTE_HANDLES" and edge.from_node == route.id for edge in graph.edges)
 
 
+def test_express_app_use_is_a_likely_framework_candidate_not_a_confirmed_call(tmp_path):
+    (tmp_path / "package.json").write_text(json.dumps({"dependencies": {"express": "^5.0.0"}}), encoding="utf-8")
+    (tmp_path / "routes.js").write_text(
+        "import express from 'express';\nfunction auth(req, res, next) { next(); }\nconst app = express();\napp.use('/api', auth);\n",
+        encoding="utf-8",
+    )
+    graph = GraphDocument.from_dict(analyze_project_core(str(tmp_path), create_research_requests=False)["graph"])
+    candidates = [edge for edge in graph.edges if edge.kind == "MAY_CALL" and edge.properties.get("framework") == "express"]
+    assert candidates
+    assert all(edge.properties["status"] == "likely" and edge.properties["validation_status"] == "not_validated" for edge in candidates)
+
+
+def test_gin_use_keeps_engine_or_group_as_a_candidate_until_types_are_available(tmp_path):
+    (tmp_path / "go.mod").write_text("module example.com/gin\nrequire github.com/gin-gonic/gin v1.10.0\n", encoding="utf-8")
+    (tmp_path / "main.go").write_text(
+        "package main\nimport \"github.com/gin-gonic/gin\"\nfunc Auth(c *gin.Context) {}\nfunc main() { engine := gin.Default(); group := engine.Group(\"/api\"); engine.Use(Auth); group.Use(Auth) }\n",
+        encoding="utf-8",
+    )
+    graph = GraphDocument.from_dict(analyze_project_core(str(tmp_path), create_research_requests=False)["graph"])
+    candidates = [edge for edge in graph.edges if edge.kind == "MAY_CALL" and edge.properties.get("framework") == "gin"]
+    assert len(candidates) == 2
+    assert all("Engine_or_RouterGroup" in graph.get_node(edge.from_node).name for edge in candidates)
+
+
+def test_django_url_and_queryset_are_candidate_only(tmp_path):
+    (tmp_path / "requirements.txt").write_text("Django>=5\n", encoding="utf-8")
+    (tmp_path / "views.py").write_text("def orders(request): return None\n", encoding="utf-8")
+    (tmp_path / "urls.py").write_text(
+        "from django.urls import path\nfrom .views import orders\nurlpatterns = [path('orders/', orders)]\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "models.py").write_text("Order.objects.filter(active=True)\n", encoding="utf-8")
+    graph = GraphDocument.from_dict(analyze_project_core(str(tmp_path), create_research_requests=False)["graph"])
+    selected = {item["id"] for item in graph.metadata["plugin_selection_plan"]["selected"]}
+    assert "framework.python.django" in selected
+    candidates = [edge for edge in graph.edges if edge.kind == "MAY_CALL" and edge.properties.get("framework") == "django"]
+    assert candidates and candidates[0].properties["status"] == "likely"
+    assert graph.metadata["polyglot_framework_features"]["django"]["queryset_candidates"] == 1
+
+
 def test_jaxrs_pack_activates_from_a_qualified_import_without_dependency_declaration(tmp_path):
     """BOM-managed projects may expose the API only through source imports."""
     (tmp_path / "build.gradle").write_text("plugins { id 'java' }\n", encoding="utf-8")
