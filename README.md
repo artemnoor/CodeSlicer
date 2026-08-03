@@ -2,7 +2,8 @@
 
 <p align="center">
   <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/artemnoor/CodeSlicer/releases/tag/v0.6.30"><img src="https://img.shields.io/badge/release-v0.6.30-7c3aed?style=flat-square" alt="Release v0.6.30"></a>
+  <img src="https://img.shields.io/badge/core_runtime-v0.5.0-7c3aed?style=flat-square" alt="Core runtime v0.5.0">
+  <img src="https://img.shields.io/badge/VS_Code_extension-v0.6.37-007acc?style=flat-square" alt="VS Code extension v0.6.37">
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/regression-824%20passed-22c55e?style=flat-square" alt="824 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
@@ -59,6 +60,16 @@ GitHub PR review не требует и не хранит PAT: он исполь
 ![Семантический граф CodeSlicer](docs/images/codeslicer-hero.png)
 
 ## VS Code: встроенный runtime
+
+### Версии пакета
+
+Номера у cockpit и Python runtime намеренно независимы: они отвечают за разные
+артефакты. Для текущего Windows VSIX совместимая тройка — **VS Code extension
+`0.6.37`**, **runtime `0.5.0`**, **`extensionCompatibility: 0.6.37`** в
+runtime manifest. Runtime `0.5.0` — не признак устаревшего расширения: это
+версия анализатора, который проверяется manifest и запускается как отдельный
+локальный процесс. Не устанавливайте VSIX, если версия его папки,
+`package.json` и `extensionCompatibility` не совпадают.
 
 Установите VSIX, соответствующий host extension (локальный Windows/macOS/Linux либо Linux в WSL/SSH/container/Codespaces), откройте проект и нажмите **«Проверить изменения»**. VSIX не скачивает source archive, не запускает `pip`, не создаёт `.venv` и не устанавливает Graphify. Проверяется manifest runtime с версией, target и SHA-256 launcher. Все шесть target (`win32-x64`, `win32-arm64`, `darwin-x64`, `darwin-arm64`, `linux-x64`, `linux-arm64`) готовятся отдельной native CI matrix; подробнее — [`extensions/vscode/README.md`](extensions/vscode/README.md).
 

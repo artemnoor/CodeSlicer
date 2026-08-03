@@ -2,6 +2,16 @@
 
 Все заметные изменения CodeSlicer фиксируются в этом файле.
 
+## [0.6.37] — 2026-08-03
+
+### Fixed
+
+- Нормализован version contract Windows VSIX: имя установленного extension,
+  `package.json` и `runtime.manifest.extensionCompatibility` используют
+  `0.6.37`; bundled analyzer остаётся явно обозначенным как `0.5.0`.
+- README и VS Code packaging guide теперь объясняют, почему версии cockpit и
+  runtime различаются и какие значения обязаны совпадать.
+
 ## [0.6.30] — 2026-08-02
 
 ### Changed

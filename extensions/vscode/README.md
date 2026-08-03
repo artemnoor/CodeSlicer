@@ -2,6 +2,21 @@
 
 CodeSlicer is local-first. The TypeScript package supplies the cockpit while the canonical Python Core is bundled as a separate process inside each platform-specific VSIX. Normal users do not install Python, pip, a virtualenv, source code, Graphify, or an executable.
 
+## Version contract
+
+The cockpit and analyzer have intentionally independent versions. The current
+Windows package is valid only when this tuple agrees:
+
+| Artifact | Expected version |
+| --- | --- |
+| VS Code extension folder and `package.json` | `0.6.37` |
+| `runtime/win32-x64/manifest.json` → `extensionCompatibility` | `0.6.37` |
+| bundled CodeSlicer analyzer (`runtimeVersion`) | `0.5.0` |
+
+`0.5.0` is the analyzer release, not the extension release. The manifest is
+the compatibility boundary; a mismatched extension folder, package manifest,
+or `extensionCompatibility` must be treated as an invalid installation.
+
 Install the matching VSIX, open a trusted project, and select **Review current changes**. The extension uses argv-only spawning with `shell: false` and logs argv, cwd, stdout, stderr, and exit status. No process runs during activation.
 
 ## Platform packages
