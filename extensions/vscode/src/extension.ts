@@ -602,7 +602,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       const controller = new AbortController();
       token.onCancellationRequested(() => controller.abort());
       let previous = 0;
-      const result = await runProcess(executable, buildAnalyzeArgs(root), root, { timeoutMs: 900_000, signal: controller.signal, onStderrLine: line => parseJsonLineProgress(line).forEach(event => { const next = event.overall_percent || previous; progress.report({ message: event.message, increment: Math.max(0, next - previous) }); previous = next; }) });
+      const result = await runProcess(executable, buildAnalyzeArgs(root), root, { timeoutMs: 1_800_000, signal: controller.signal, onStderrLine: line => parseJsonLineProgress(line).forEach(event => { const next = event.overall_percent || previous; progress.report({ message: event.message, increment: Math.max(0, next - previous) }); previous = next; }) });
       this.log(result);
       if (result.cancelled) throw new Error("Analysis cancelled. Existing cache and graph were left unchanged.");
       if (result.timedOut) throw new Error("Analysis timed out. CodeSlicer stopped its process tree; the next run will recover any stale analysis lock automatically.");
@@ -652,10 +652,14 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     if (!source.diffFile && (source.mode === "diff-file" || source.mode === "github-pr")) return;
     if (source.mode === "current-changes" || source.mode === "compare") if (!base) return;
     try {
-      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: reviewing local changes", cancellable: true }, async (_progress, token) => {
+      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: reviewing local changes", cancellable: true }, async (progress, token) => {
         const controller = new AbortController();
         token.onCancellationRequested(() => controller.abort());
-        const result = await runProcess(executable, buildReviewArgs(root, source, base, includePotential), root, { timeoutMs: 900_000, signal: controller.signal });
+        // The bundled 0.5.0 runtime supports progress for analysis, not review.
+        // Keep this notification indeterminate rather than repeatedly reporting a
+        // fictitious 0%, which otherwise survives beside a completed result.
+        progress.report({ message: "Reviewing changes" });
+        const result = await runProcess(executable, buildReviewArgs(root, source, base, includePotential), root, { timeoutMs: 1_800_000, signal: controller.signal });
         this.log(result);
         if (result.cancelled) throw new Error("Review cancelled. Existing cache and graph were left unchanged.");
         if (result.timedOut) throw new Error("Review timed out. CodeSlicer stopped its process tree; the next run will recover any stale analysis lock automatically.");
@@ -663,6 +667,7 @@ class CockpitProvider implements vscode.WebviewViewProvider {
         const review = parseReviewJson(result.stdout);
         this.tests = review.tests;
         this.state = withReview(this.state, review);
+        progress.report({ message: "Change review complete", increment: 100 });
         await this.context.workspaceState.update("codeslicer.lastReview", review);
         const entry: ReviewHistoryEntry = { createdAt: new Date().toISOString(), source: source.mode, risk: review.riskLevel, affected: review.impacts.length };
         const history = [entry, ...this.state.history].slice(0, 10);
@@ -671,13 +676,17 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       });
       this.render();
       this.showReviewReport();
+      vscode.window.setStatusBarMessage("CodeSlicer: Change review complete", 5_000);
       // Keep the detailed side-panel result reachable for guides and users who
       // prefer the cockpit, but do not force the main answer into that width.
       setTimeout(() => void this.view?.webview.postMessage({ type: "openTab", tab: "results" }), 0);
     } catch (error) {
-      this.state = withReview(this.state, { ...INITIAL_STATE.review, status: "error", warnings: [String(error)] });
+      this.state = withReview(this.state, { ...INITIAL_STATE.review, status: "error", warnings: ["Review did not complete. See the CodeSlicer Output channel for the technical log."] });
       this.render();
-      await vscode.window.showErrorMessage(`CodeSlicer review failed: ${String(error)}`);
+      // VS Code offers no public API to dismiss an old notification toast. Keep
+      // technical details in Output and use an expiring status-bar message so a
+      // later successful review is never visually contradicted by this failure.
+      vscode.window.setStatusBarMessage("CodeSlicer: review failed — see CodeSlicer Output", 10_000);
     }
   }
 
