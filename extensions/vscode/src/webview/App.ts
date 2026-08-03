@@ -8,7 +8,7 @@ type Language = "ru" | "en";
 const copy = {
   ru: {
     start: "Начать", review: "Проверить изменения", results: "Результат", tests: "Тесты", tech: "Поддержка языков", history: "История", architecture: "Карта кода", git: "Git", guides: "Помощь", settings: "Настройки",
-    workspace: "WORKSPACE", runtime: "RUNTIME", graph: "GRAPH", localOnly: "ЛОКАЛЬНО", ready: "Готово", notChecked: "Не проверено", noWorkspace: "Папка не выбрана",
+    workspace: "WORKSPACE", runtime: "RUNTIME", graph: "GRAPH", localOnly: "ЛОКАЛЬНО", ready: "Готово", notChecked: "Не проверено", runtimePreparing: "Подготовка runtime…", noWorkspace: "Папка не выбрана",
     emptyTitle: "Поймите изменения до отправки на ревью", emptyText: "Сначала откройте проект с исходным кодом. Затем CodeSlicer покажет, что затронуто, где риск и какие тесты стоит запустить.", open: "Открыть проект", import: "Импортировать из Git", guide: "Как это работает",
     noGitTitle: "Подключите Git, когда будете готовы", noGitText: "Инициализация создаст только локальную папку .git. Remote, токены и отправка изменений не появятся сами.", initGit: "Инициализировать Git",
     runtimeTitle: "Проверим готовность проекта", runtimeText: "Проверка убедится, что папка, Git и CodeSlicer готовы. Анализ кода, тесты и сеть не запускаются.", check: "Проверить готовность", advanced: "Открыть настройки",
@@ -24,7 +24,7 @@ const copy = {
   },
   en: {
     start: "Start", review: "Review changes", results: "Result", tests: "Tests", tech: "Language support", history: "History", architecture: "Code map", git: "Git", guides: "Help", settings: "Settings",
-    workspace: "WORKSPACE", runtime: "RUNTIME", graph: "GRAPH", localOnly: "LOCAL ONLY", ready: "Ready", notChecked: "Not checked", noWorkspace: "No folder selected",
+    workspace: "WORKSPACE", runtime: "RUNTIME", graph: "GRAPH", localOnly: "LOCAL ONLY", ready: "Ready", notChecked: "Not checked", runtimePreparing: "Preparing runtime…", noWorkspace: "No folder selected",
     emptyTitle: "Understand changes before you send them for review", emptyText: "First open a source project. CodeSlicer will then show what is affected, where the risk is, and which tests to run.", open: "Open project", import: "Import from Git", guide: "How it works",
     noGitTitle: "Connect Git when you are ready", noGitText: "Initialization creates only a local .git folder. A remote, tokens, and uploads are never created automatically.", initGit: "Initialize Git",
     runtimeTitle: "Check that this project is ready", runtimeText: "This checks the folder, Git, and CodeSlicer. It does not analyze code, run tests, or use the network.", check: "Check readiness", advanced: "Open settings",
@@ -89,7 +89,7 @@ function startScreen(state: CockpitState, t: Text): string {
   const folder = state.project.readiness !== "empty";
   const git = state.project.gitStatus !== "missing";
   const runtime = state.runtime.status === "found";
-  const check = (ok: boolean, label: string, hint: string) => `<li class="readiness-item ${ok ? "is-ready" : "is-pending"}"><span aria-hidden="true">${ok ? "✓" : "!"}</span><div><strong>${esc(label)}</strong><small>${esc(hint)}</small></div></li>`;
+  const check = (ok: boolean, label: string, hint: string, preparing = false) => `<li class="readiness-item ${ok ? "is-ready" : preparing ? "is-preparing" : "is-pending"}"><span aria-hidden="true">${ok ? "✓" : preparing ? "…" : "!"}</span><div><strong>${esc(label)}</strong><small>${esc(hint)}</small></div></li>`;
   const title = state.project.readiness === "empty" ? t.emptyTitle : ready ? t.readyTitle : t.runtimeTitle;
   const text = state.project.readiness === "empty" ? t.emptyText : ready ? t.readyText : t.runtimeText;
   const primary = state.project.readiness === "empty" ? action("openProject", t.open, true, "arrow") : ready ? action("review", t.reviewChanges, true, "review") : action("refresh", t.check, true, "overview");
@@ -100,7 +100,9 @@ function startScreen(state: CockpitState, t: Text): string {
   const runtimeLabel = t.start === "Начать" ? "CodeSlicer готов к запуску" : "CodeSlicer is ready to run";
   const changesLabel = t.start === "Начать" ? "Следующий шаг" : "Next step";
   const changesHint = ready ? (t.start === "Начать" ? "Проверьте текущие изменения перед commit или merge." : "Review current changes before commit or merge.") : (t.start === "Начать" ? "Выполните отмеченный шаг — анализ сам не запускается." : "Complete the marked step. Analysis never starts automatically.");
-  return `<section class="welcome"><div class="welcome__intro"><p class="eyebrow">${t.localOnly} · ${t.status}</p><h1>${title}</h1><p class="lede">${text}</p><div class="action-row">${primary}${secondary}</div><button class="inline-action" data-demo-start>${icon("guide")}<span>${t.guide}</span></button></div><aside class="readiness-card"><header><p class="eyebrow">${t.workspace}</p><h2>${checkTitle}</h2></header><ul>${check(folder, folderLabel, folder ? (t.start === "Начать" ? "Готово" : "Ready") : (t.start === "Начать" ? "Откройте папку с кодом." : "Open a source folder."))}${check(git, gitLabel, git ? esc(state.project.gitMessage || (t.start === "Начать" ? "Готово" : "Ready")) : (t.start === "Начать" ? "Инициализируйте Git, когда проект будет готов." : "Initialize Git when the project is ready."))}${check(runtime, runtimeLabel, runtime ? esc(state.runtime.version) : esc(state.runtime.diagnostic || (t.start === "Начать" ? "Нужно проверить готовность." : "Readiness needs to be checked."))) }${check(ready, changesLabel, changesHint)}</ul></aside></section>`;
+  const runtimePreparing = state.runtime.status === "unchecked";
+  const runtimeHint = runtime ? state.runtime.version : runtimePreparing ? `${t.runtimePreparing} ${t.check}.` : state.runtime.diagnostic || (t.start === "Начать" ? "Нужно проверить готовность." : "Readiness needs to be checked.");
+  return `<section class="welcome"><div class="welcome__intro"><p class="eyebrow">${t.localOnly} · ${t.status}</p><h1>${title}</h1><p class="lede">${text}</p><div class="action-row">${primary}${secondary}</div><button class="inline-action" data-demo-start>${icon("guide")}<span>${t.guide}</span></button></div><aside class="readiness-card"><header><p class="eyebrow">${t.workspace}</p><h2>${checkTitle}</h2></header><ul>${check(folder, folderLabel, folder ? (t.start === "Начать" ? "Готово" : "Ready") : (t.start === "Начать" ? "Откройте папку с кодом." : "Open a source folder."))}${check(git, gitLabel, git ? esc(state.project.gitMessage || (t.start === "Начать" ? "Готово" : "Ready")) : (t.start === "Начать" ? "Инициализируйте Git, когда проект будет готов." : "Initialize Git when the project is ready."))}${check(runtime, runtimeLabel, runtimeHint, runtimePreparing)}${check(ready, changesLabel, changesHint)}</ul></aside></section>`;
 }
 
 function taskCard(step: string, title: string, text: string, helper: string, actionId: string, actionLabel: string, guide: string, iconName: string, guideLabel: string): string {
@@ -525,5 +527,17 @@ button:active { transform: scale(.96); }
 /* Narrow VS Code sidebars scroll as one document: keep navigation reachable
    and favour a readable one-column result summary over dashboard density. */
 @media (max-width: 720px) { .rail { position: sticky; inset-block-start: 0; z-index: 40; height: auto; max-height: none; overflow: visible; }.metric-grid { position: static; grid-template-columns: minmax(0, 1fr); gap: 9px; padding: 0; border: 0; background: transparent; }.metric, .metric small, .metric strong { min-width: 0; min-height: auto; overflow-wrap: normal; word-break: normal; line-height: 1.25; }.test-card code, .test-card small, .result-card code, .result-card small { overflow-wrap: anywhere; word-break: normal; } }
+/* The narrow cockpit is one scrolling document. Keep its actual tab navigation
+   visible, then compact secondary detail without breaking words character-wise. */
+@media (max-width: 720px) {
+  .rail { position: sticky !important; inset-block-start: 0; z-index: 50; max-height: min(52vh, 22rem); overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 8px 18px rgb(0 0 0 / .3); }
+  .rail-nav { scroll-margin-block-start: 8px; }
+  .metric-grid { grid-template-columns: minmax(0, 1fr); }
+  .metric { min-width: 0; min-height: auto; padding: 12px; }
+  .metric small, .metric strong, .result-card__kind, .result-card strong, .result-card__reason { overflow-wrap: normal !important; word-break: normal !important; hyphens: none; }
+  .metric strong { font-size: clamp(1.15rem, 7vw, 1.65rem); letter-spacing: -.025em; }
+  .test-card small, .result-card small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+.readiness-item.is-preparing { background: #202024; }.readiness-item.is-preparing > span { border-color: #7c7c86; background: #28282e; color: #dedee4; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
 `;

@@ -2,6 +2,15 @@
 
 Все заметные изменения CodeSlicer фиксируются в этом файле.
 
+## [0.6.39] — 2026-08-03
+
+### VS Code cockpit polish
+
+- The tab navigation now remains sticky in the narrow VS Code sidebar, including long Help pages.
+- Result summary cards preserve whole words in a narrow pane; long test and source paths truncate predictably with their full value available as a tooltip.
+- An unchecked bundled runtime is shown as `Preparing runtime…` rather than an error-like `!`; real validation failures still remain explicit.
+- The VS Code extension and runtime-manifest compatibility are `0.6.39`; bundled analyzer runtime remains `0.5.1`.
+
 ## [0.6.38] — 2026-08-03
 
 ### Polyglot and frontend coverage

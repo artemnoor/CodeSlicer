@@ -77,7 +77,13 @@ test("cockpit separates review, results, tests, technologies, history, architect
   assert.match(html, /data-guide-handle/);
   assert.match(html, /class="readiness-card"/);
   assert.match(html, /Готовность проекта/);
-  assert.match(renderCockpit(INITIAL_STATE, "en"), /data-language="ru"/);
+  const initial = renderCockpit(INITIAL_STATE, "en");
+  assert.match(initial, /data-language="ru"/);
+  assert.match(initial, /Preparing runtime… Check readiness\./);
+  assert.match(initial, /readiness-item is-preparing/);
+  assert.match(initial, /readiness-item is-preparing"><span aria-hidden="true">…<\/span><div><strong>CodeSlicer is ready to run<\/strong>/);
+  assert.match(initial, /position: sticky !important; inset-block-start: 0; z-index: 50/);
+  assert.match(initial, /text-overflow: ellipsis; white-space: nowrap/);
 });
 
 test("results keep broad discovery collapsed and clearly marked", () => {
