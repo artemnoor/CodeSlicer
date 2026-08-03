@@ -34,6 +34,28 @@ test("marks limited-coverage test recommendations as advisory", () => {
 test("does not present unknown risk as a safe green result", () => {
   assert.equal(riskTone("UNKNOWN"), "neutral");
   assert.equal(riskTone("LOW"), "good");
+  assert.equal(riskTone("Not fully determined"), "neutral");
+});
+
+test("presents an unknown review as limited confidence instead of a misleading low risk", () => {
+  const state = { ...INITIAL_STATE, project: { ...INITIAL_STATE.project, freshness: "Graph file found; freshness is verified by Review." }, review: { ...INITIAL_STATE.review, status: "ready" as const, riskLevel: "UNKNOWN", riskConfidence: "low" } };
+  const cockpit = renderCockpit(state, "en");
+  const report = renderReviewReport(state, "en");
+  const russian = renderCockpit(state, "ru");
+  assert.match(cockpit, />Not fully determined</);
+  assert.doesNotMatch(cockpit, />UNKNOWN</);
+  assert.match(cockpit, /Confidence: Limited/);
+  assert.match(report, /Risk<\/small><strong>Not fully determined<\/strong><span>Confidence: Limited<\/span>/);
+  assert.match(russian, />Не удалось определить полностью</);
+  assert.match(russian, /Файл графа найден; актуальность проверяется во время проверки изменений\./);
+});
+
+test("shows a persistent accessible percentage while the project is being analyzed", () => {
+  const html = renderCockpit({ ...INITIAL_STATE, analysis: { status: "running", percent: 42, message: "Extracting relationships" } }, "en");
+  assert.match(html, /Project analysis/);
+  assert.match(html, />42%<\/b>/);
+  assert.match(html, /role="progressbar"[^>]*aria-valuenow="42"/);
+  assert.match(html, /analysis-progress__track/);
 });
 
 test("cockpit separates review, results, tests, technologies, history, architecture, and Git", () => {
@@ -128,7 +150,7 @@ test("router changes real screens and routes only explicit actions to VS Code", 
   const elements = new Map<string, any>(), messages: unknown[] = [], listeners: Record<string, (event: any) => void> = {};
   const makeElement = (): any => ({ hidden: false, dataset: {}, attributes: {}, setAttribute(name: string, value: string) { this.attributes[name] = value; }, focus() {} });
   const get = (id: string) => { if (!elements.has(id)) elements.set(id, makeElement()); return elements.get(id); };
-  const tabs = ["start", "review", "results", "tests", "architecture", "git", "guides", "tech", "history", "settings"].map(tab => ({ ...makeElement(), dataset: { tab } }));
+  const tabs = ["start", "review", "results", "tests", "architecture", "git", "history", "tech", "guides", "settings"].map(tab => ({ ...makeElement(), dataset: { tab } }));
   const documentStub: any = { getElementById: get, querySelectorAll: (selector: string) => selector === "[role=tab]" ? tabs : [], querySelector: (selector: string) => { const match = selector.match(/\[data-tab="([^"]+)"\]/u); return match ? tabs.find(tab => tab.dataset.tab === match[1]) : undefined; }, addEventListener: (type: string, listener: (event: any) => void) => { listeners[type] = listener; } };
   new Function("document", "acquireVsCodeApi", "window", clientRouter)(documentStub, () => ({ getState: () => undefined, setState() {}, postMessage: (message: unknown) => messages.push(message) }), { addEventListener: (type: string, listener: (event: any) => void) => { listeners[type] = listener; } });
   const click = (dataset: Record<string, string>) => listeners.click({ target: { dataset, closest() { return this; } } });
@@ -153,6 +175,8 @@ test("router changes real screens and routes only explicit actions to VS Code", 
   assert.deepEqual(messages.at(-1), { type: "action", action: "showGit", guide: { id: "git", step: 0, expected: "showGit" } });
   click({ guide: "github" });
   assert.equal(tabs[9].attributes["aria-selected"], "true");
+  listeners.keydown({ target: tabs[8], key: "ArrowRight", preventDefault() {} });
+  assert.equal(tabs[9].attributes["aria-selected"], "true");
   click({ language: "en" });
   assert.deepEqual(messages.at(-1), { type: "setLanguage", language: "en" });
 });
@@ -164,6 +188,8 @@ test("extension keeps Graphify optional and separate from the local runtime", ()
   assert.doesNotMatch(source, /pip\s+install|graphifyy/u);
   assert.match(source, /"--code-only"/);
   assert.match(source, /\["--json", "inspect"/);
+  assert.match(source, /setAnalysisProgress/);
+  assert.doesNotMatch(source, /OUTPUT\.show\(/);
 });
 
 test("interactive guides wait for the real result of a user action", () => {

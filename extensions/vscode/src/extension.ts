@@ -151,6 +151,15 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     this.render();
   }
 
+  /** Surface the analyzer's real JSONL percent in the Cockpit, not only in a transient toast. */
+  private setAnalysisProgress(status: CockpitState["analysis"]["status"], percent: number, message = ""): void {
+    const nextPercent = Math.max(0, Math.min(100, Math.round(percent)));
+    const current = this.state.analysis;
+    if (current.status === status && current.percent === nextPercent && current.message === message) return;
+    this.state = { ...this.state, analysis: { status, percent: nextPercent, message } };
+    this.render();
+  }
+
   private async waitForServer(url: URL): Promise<boolean> {
     const health = new URL("api/health", url).toString();
     for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -202,7 +211,6 @@ class CockpitProvider implements vscode.WebviewViewProvider {
       integration: { ...this.state.integration, githubTokenConfigured: false }
     };
     this.render();
-    OUTPUT.show(true);
   }
 
   async configure(): Promise<void> {
@@ -598,17 +606,33 @@ class CockpitProvider implements vscode.WebviewViewProvider {
     if (!root || !await this.trusted()) return;
     const executable = await this.executable(root);
     if (!executable) return;
-    await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: analyzing workspace", cancellable: true }, async (progress, token) => {
-      const controller = new AbortController();
-      token.onCancellationRequested(() => controller.abort());
-      let previous = 0;
-      const result = await runProcess(executable, buildAnalyzeArgs(root), root, { timeoutMs: 1_800_000, signal: controller.signal, onStderrLine: line => parseJsonLineProgress(line).forEach(event => { const next = event.overall_percent || previous; progress.report({ message: event.message, increment: Math.max(0, next - previous) }); previous = next; }) });
-      this.log(result);
-      if (result.cancelled) throw new Error("Analysis cancelled. Existing cache and graph were left unchanged.");
-      if (result.timedOut) throw new Error("Analysis timed out. CodeSlicer stopped its process tree; the next run will recover any stale analysis lock automatically.");
-      if (result.exitCode !== 0) throw new Error(result.stderr || "CodeSlicer analysis failed.");
-    });
-    await this.refresh();
+    this.setAnalysisProgress("running", 0);
+    try {
+      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "CodeSlicer: analyzing workspace", cancellable: true }, async (progress, token) => {
+        const controller = new AbortController();
+        token.onCancellationRequested(() => controller.abort());
+        let previous = 0;
+        const result = await runProcess(executable, buildAnalyzeArgs(root), root, {
+          timeoutMs: 1_800_000,
+          signal: controller.signal,
+          onStderrLine: line => parseJsonLineProgress(line).forEach(event => {
+            const next = Math.max(previous, Math.min(100, event.overall_percent ?? previous));
+            progress.report({ message: event.message, increment: Math.max(0, next - previous) });
+            previous = next;
+            this.setAnalysisProgress("running", next, event.message);
+          })
+        });
+        this.log(result);
+        if (result.cancelled) throw new Error("Analysis cancelled. Existing cache and graph were left unchanged.");
+        if (result.timedOut) throw new Error("Analysis timed out. CodeSlicer stopped its process tree; the next run will recover any stale analysis lock automatically.");
+        if (result.exitCode !== 0) throw new Error(result.stderr || "CodeSlicer analysis failed.");
+      });
+      this.setAnalysisProgress("ready", 100);
+      await this.refresh();
+    } catch (error) {
+      this.setAnalysisProgress("error", this.state.analysis.percent, String(error));
+      throw error;
+    }
   }
 
   async setReviewSource(mode: ReviewSourceMode): Promise<void> {

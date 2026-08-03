@@ -3,7 +3,7 @@
 <p align="center">
   <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/core_runtime-v0.5.3-7c3aed?style=flat-square" alt="Core runtime v0.5.3">
-  <img src="https://img.shields.io/badge/VS_Code_extension-v0.6.41-007acc?style=flat-square" alt="VS Code extension v0.6.41">
+  <img src="https://img.shields.io/badge/VS_Code_extension-v0.6.42-007acc?style=flat-square" alt="VS Code extension v0.6.42">
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/regression-861%20passed-22c55e?style=flat-square" alt="861 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
@@ -48,9 +48,9 @@ CodeSlicer можно использовать без смены привычн�
 
 ### VS Code Cockpit — рекомендуемый старт
 
-Расширение — самый короткий путь к первому review. Для Windows x64 скачайте
-[CodeSlicer 0.6.41 VSIX](extensions/vscode/codeslicer-impact-cockpit-win32-x64-0.6.41.vsix),
-в VS Code откройте **Extensions → ⋯ → Install from VSIX…**, затем откройте
+Расширение — самый короткий путь к первому review. Для Windows x64 возьмите
+VSIX нужной версии из [артефактов workflow VS Code platform runtime](https://github.com/artemnoor/CodeSlicer/actions/workflows/vscode-runtime.yml)
+или опубликованного release, в VS Code откройте **Extensions → ⋯ → Install from VSIX…**, затем откройте
 папку проекта и панель **CodeSlicer** в Activity Bar. Python, `pip`, `.venv`,
 clone репозитория и ручной путь к executable обычному пользователю не нужны:
 в VSIX уже есть проверяемый platform runtime.
@@ -157,7 +157,7 @@ GitHub PR review не требует и не хранит PAT: он исполь
 
 Номера у cockpit и Python runtime намеренно независимы: они отвечают за разные
 артефакты. Для текущего Windows VSIX совместимая тройка — **VS Code extension
-`0.6.41`**, **runtime `0.5.3`**, **`extensionCompatibility: 0.6.41`** в
+`0.6.42`**, **runtime `0.5.3`**, **`extensionCompatibility: 0.6.42`** в
 runtime manifest. Runtime `0.5.3` — не признак устаревшего расширения: это
 версия анализатора, который проверяется manifest и запускается как отдельный
 локальный процесс. Не устанавливайте VSIX, если версия его папки,

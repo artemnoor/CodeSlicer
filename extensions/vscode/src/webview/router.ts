@@ -1,5 +1,5 @@
 export const clientRouter = String.raw`const vscode=typeof acquireVsCodeApi==='function'?acquireVsCodeApi():{getState:()=>undefined,setState:()=>undefined,postMessage:()=>undefined};
-const tabs=['start','review','results','tests','architecture','git','guides','tech','history','settings'];
+const tabs=['start','review','results','tests','architecture','git','history','tech','guides','settings'];
 const savedState=vscode.getState()||{};let currentTab=savedState.tab||'start';let demoStep=Number(savedState.guideStep)||0;let guideId=savedState.guideId||'review';let guideOpen=Boolean(savedState.guideOpen);let dragState;
 function persist(){vscode.setState({tab:currentTab,guideStep:demoStep,guideId,guideOpen})}
 const byId=id=>document.getElementById(id);const isRussian=()=>document.documentElement&&document.documentElement.lang==='ru';

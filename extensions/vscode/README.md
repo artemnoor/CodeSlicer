@@ -9,8 +9,8 @@ Windows package is valid only when this tuple agrees:
 
 | Artifact | Expected version |
 | --- | --- |
-| VS Code extension folder and `package.json` | `0.6.41` |
-| `runtime/win32-x64/manifest.json` → `extensionCompatibility` | `0.6.41` |
+| VS Code extension folder and `package.json` | `0.6.42` |
+| `runtime/win32-x64/manifest.json` → `extensionCompatibility` | `0.6.42` |
 | bundled CodeSlicer analyzer (`runtimeVersion`) | `0.5.3` |
 
 `0.5.3` is the analyzer release, not the extension release. The manifest is
@@ -21,9 +21,10 @@ Install the matching VSIX, open a trusted project, and select **Review current c
 
 ## First review in VS Code
 
-1. Download the matching platform VSIX. Windows x64 users can start with
-   [CodeSlicer 0.6.41](codeslicer-impact-cockpit-win32-x64-0.6.41.vsix), then
-   choose **Extensions → ⋯ → Install from VSIX…** in VS Code.
+1. Download the matching platform VSIX from the [VS Code platform runtime
+   workflow](https://github.com/artemnoor/CodeSlicer/actions/workflows/vscode-runtime.yml)
+   or a published release, then choose **Extensions → ⋯ → Install from VSIX…**
+   in VS Code.
 2. Open a trusted source workspace, select the **CodeSlicer** icon in the
    Activity Bar, and click **Check readiness**. It reports the project and
    bundled runtime before any analysis starts.
