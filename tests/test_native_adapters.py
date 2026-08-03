@@ -22,6 +22,40 @@ def test_native_index_requires_explicit_confirmation(tmp_path) -> None:
     assert result["privacy"]["network_used_by_codeslicer"] is False
 
 
+def test_native_scip_go_contract_writes_only_to_codeslicer_storage(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("impact_engine.adapters.native.shutil.which", lambda value: "C:/tools/scip-go.exe" if value in {"scip-go", "scip-go.exe"} else None)
+    captured = {}
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        output = command[command.index("--output") + 1]
+        from pathlib import Path
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        Path(output).write_bytes(b"SCIP")
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+    monkeypatch.setattr("impact_engine.adapters.native.subprocess.run", fake_run)
+    result = run_native_operation(tmp_path, "scip", "index", confirmed=True)
+    assert captured["command"][:4] == ["C:/tools/scip-go.exe", "index", "--module-root", str(tmp_path.resolve())]
+    assert result["status"] == "completed"
+    assert result["generated_artifact"].endswith(".codeslicer\\generated\\scip\\index.scip")
+
+
+def test_native_scip_index_selects_go_over_typescript_for_a_go_project(tmp_path, monkeypatch) -> None:
+    (tmp_path / "go.mod").write_text("module example.invalid/demo\n", encoding="utf-8")
+    monkeypatch.setattr("impact_engine.adapters.native.detect_languages", lambda project: ["go"])
+    monkeypatch.setattr("impact_engine.adapters.native.shutil.which", lambda value: {"scip-typescript": "C:/tools/scip-typescript.cmd", "scip-go": "C:/tools/scip-go.exe"}.get(value))
+    captured = {}
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        output = command[command.index("--output") + 1]
+        from pathlib import Path
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        Path(output).write_bytes(b"SCIP")
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+    monkeypatch.setattr("impact_engine.adapters.native.subprocess.run", fake_run)
+    assert run_native_operation(tmp_path, "scip", "index", confirmed=True)["status"] == "completed"
+    assert captured["command"][0] == "C:/tools/scip-go.exe"
+
+
 def test_native_codegraph_query_is_allowlisted_and_never_uses_shell(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr("impact_engine.adapters.native.shutil.which", lambda value: "C:/tools/codegraph.exe" if value == "codegraph" else None)
     captured = {}

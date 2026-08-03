@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,6 +42,23 @@ def _sha256(path: Path) -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _local_file_uri_path(value: str) -> Path | None:
+    """Decode both standard and Go SCIP's Windows file URI spellings."""
+    parsed = urlparse(value)
+    if parsed.scheme.lower() != "file":
+        return None
+    if parsed.netloc in {"", "localhost"}:
+        return Path(url2pathname(unquote(parsed.path))).expanduser()
+    # scip-go on Windows emits file://C:%5Cworkspace rather than the more
+    # common file:///C:/workspace. It is still a local absolute path, not a
+    # remote authority. Keep UNC hosts rejected.
+    authority = unquote(parsed.netloc)
+    if os.name == "nt" and re.match(r"^[A-Za-z]:(?:[\\/]|$)", authority):
+        suffix = unquote(parsed.path)
+        return Path(authority + suffix).expanduser()
+    return None
 
 
 class AdapterRegistry:
@@ -130,10 +149,9 @@ class AdapterRegistry:
                 return {"status": "stale", "verified": False, "reason": "artifact belongs to another project"}
             indexed_root = str(state.get("semantic_index_project_root") or "")
             if indexed_root:
-                parsed_root = urlparse(indexed_root)
-                if parsed_root.scheme.lower() != "file" or parsed_root.netloc not in {"", "localhost"}:
+                indexed_path = _local_file_uri_path(indexed_root)
+                if indexed_path is None:
                     return {"status": "unverified", "verified": False, "reason": "SCIP project_root is not a local file URI"}
-                indexed_path = Path(url2pathname(unquote(parsed_root.path))).expanduser()
                 if not indexed_path.is_absolute() or not indexed_path.exists():
                     return {"status": "unverified", "verified": False, "reason": "SCIP file URI project_root cannot be verified locally"}
                 if indexed_path.resolve() != self.project_path:

@@ -130,6 +130,9 @@ def test_lsp_preflight_discovers_language_specific_semantic_profiles_without_sta
     assert profile["status"] == "available"
     assert profile["semantic_source"] == "rust-analyzer semantic model"
     assert profile["install_policy"] == "never installed or downloaded by CodeSlicer"
+    backend = next(item for item in result["semantic_backends"] if item["id"] == "rust-analyzer-scip")
+    assert backend["kind"] == "scip-indexer"
+    assert backend["activation"].startswith("explicit local")
     assert any("configure-profile" in step for step in result["next_steps"])
 
 
@@ -153,6 +156,27 @@ def test_lsp_language_identifiers_cover_compiled_and_frontend_profiles():
     assert _language_id(Path("layout.astro")) == "astro"
     assert _language_id(Path("styles.scss")) == "scss"
     assert _language_id(Path("styles.less")) == "less"
+
+
+def test_semantic_backend_catalog_covers_every_detected_language_profile(tmp_path):
+    project = tmp_path / "polyglot"; project.mkdir()
+    (project / "main.go").write_text("package demo\n", encoding="utf-8")
+    (project / "app.ts").write_text("export const value = 1\n", encoding="utf-8")
+    (project / "service.cs").write_text("class Service {}\n", encoding="utf-8")
+    (project / "view.vue").write_text("<template><main /></template>\n", encoding="utf-8")
+    backends = {language for item in preflight_lsp(project)["semantic_backends"] for language in item["languages"]}
+    assert {"go", "typescript", "csharp", "vue"}.issubset(backends)
+
+
+def test_semantic_backend_catalog_discovers_standard_go_install_path(tmp_path, monkeypatch):
+    import impact_engine.adapters.semantic_backends as backends
+    home = tmp_path / "home"; binary = home / "go" / "bin" / "scip-go.exe"
+    binary.parent.mkdir(parents=True); binary.write_text("", encoding="utf-8")
+    monkeypatch.setattr(backends.Path, "home", staticmethod(lambda: home))
+    monkeypatch.setattr(backends, "which", lambda name: None)
+    item = next(item for item in backends.semantic_backends_for(["go"]) if item["id"] == "scip-go")
+    assert item["status"] == "available"
+    assert item["discovered_executable"] == str(binary.resolve())
 
 
 def test_lsp_probe_and_definition_reference_implementation_are_bounded(tmp_path):

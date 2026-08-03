@@ -26,6 +26,7 @@ from impact_engine.languages.registry import detect_languages
 from impact_engine.persistence import git_context
 from impact_engine.project_storage import ensure_project_storage
 from impact_engine.adapters.lsp_profiles import get_lsp_server_profile, lsp_server_profiles
+from impact_engine.adapters.semantic_backends import semantic_backends_for
 
 
 LSP_OVERLAY_SCHEMA = "CodeSlicerLspEvidenceOverlay/v1"
@@ -772,6 +773,7 @@ def preflight_lsp(project_path: str | Path, *, compile_commands: str | Path | No
         "languages": languages,
         "server": {"family": server_family, "status": "available" if available else "not_configured", "executable": str(executable) if executable else None},
         "semantic_server_profiles": profiles,
+        "semantic_backends": semantic_backends_for(languages),
         "backend": {"selected": state.get("backend", "native_stdio"), "status": "available", "reason": "official Agent-LSP MCP runtime" if state.get("backend") == "agent_lsp" else state.get("backend_selection_reason", "native stdio is the safe local default")},
         "build_context": build_context,
         "index": {"status": index_status, "last_warm": state.get("last_warm")},

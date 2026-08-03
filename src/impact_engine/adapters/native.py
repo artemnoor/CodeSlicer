@@ -22,6 +22,7 @@ import subprocess
 from typing import Any
 
 from .graphify_paths import cache_graphify_viewer, graphify_artifact_root, graphify_graph_path, record_graphify_interpreter, temporary_graphify_ignore
+from impact_engine.languages.registry import detect_languages
 
 
 MAX_OUTPUT_CHARS = 24_000
@@ -112,11 +113,11 @@ _TOOLS: dict[str, NativeTool] = {
         ),
     ),
     "scip": NativeTool(
-        "scip", ("scip-typescript", "scip-typescript.cmd", "scip-python", "scip-python.cmd"), "https://github.com/sourcegraph/scip", "Choose an installed language indexer explicitly; generated index remains local.",
+        "scip", ("scip-typescript", "scip-typescript.cmd", "scip-go", "scip-go.exe", "scip-python", "scip-python.cmd", "scip-java", "scip-java.cmd", "scip-dotnet", "scip-dotnet.exe", "scip-clang", "scip-clang.exe", "scip-ruby", "scip-ruby.exe", "scip-php", "scip-php.exe"), "https://github.com/scip-code/scip", "Choose an installed language indexer explicitly; generated index remains local.",
         ("offline compiler/indexer symbol facts", "stable symbol occurrences", "import a generated .scip index as a separate symbols graph"),
         (
             NativeOperation("probe", "Проверить SCIP indexer", "Показывает версию обнаруженного language-specific indexer.", "probe", False),
-            NativeOperation("index", "Построить SCIP index", "Строит .codeslicer/generated/scip/index.scip для TypeScript indexer.", "index"),
+            NativeOperation("index", "Построить SCIP index", "Строит локальный compiler/indexer artifact; поддерживаются безопасно проверенные contracts TypeScript и Go.", "index"),
         ),
     ),
     "cyclonedx": NativeTool(
@@ -171,6 +172,19 @@ def _configured_executable(value: str | Path | None) -> str | None:
     return str(path.resolve())
 
 
+def _scip_executable(names: tuple[str, ...]) -> str | None:
+    for name in names:
+        if found := shutil.which(name):
+            return found
+    if any(name.startswith("scip-go") for name in names):
+        root = Path(os.environ.get("GOPATH") or Path.home() / "go") / "bin"
+        for name in names:
+            candidate = root / name
+            if candidate.is_file():
+                return str(candidate.resolve())
+    return None
+
+
 def _platform_status(adapter_id: str) -> dict[str, str]:
     if adapter_id == "gortex" and platform.system().lower() == "windows":
         return {
@@ -213,7 +227,7 @@ def native_profile(adapter_id: str, configured_executable: str | Path | None = N
             "local_only": True,
         }
     configured = _configured_executable(configured_executable)
-    executable = configured or next((resolved for candidate in tool.executables if (resolved := shutil.which(candidate))), None)
+    executable = configured or (_scip_executable(tool.executables) if adapter_id == "scip" else next((resolved for candidate in tool.executables if (resolved := shutil.which(candidate))), None))
     platform_info = _platform_status(adapter_id)
     return {
         "mode": "native-local-tool",
@@ -265,6 +279,29 @@ def _generated_artifact(project: Path, adapter_id: str, filename: str) -> Path:
 def _command(adapter_id: str, operation_id: str, project: Path, query: str, configured_executable: str | Path | None = None) -> list[str]:
     profile = native_profile(adapter_id, configured_executable)
     executable = profile.get("discovered_executable")
+    # A machine can have several SCIP indexers installed. The generic native
+    # profile is project-agnostic, but an index operation must not select
+    # scip-typescript for a Go-only workspace.
+    if adapter_id == "scip" and operation_id == "index" and configured_executable is None:
+        languages = set(detect_languages(project))
+        candidates: list[tuple[str, tuple[str, ...]]] = []
+        # Build manifests outrank incidental source files in examples/docs.
+        # A Go project often contains browser fixtures, but its canonical
+        # package/type model is still the go.mod workspace.
+        if "go" in languages and (project / "go.mod").is_file():
+            candidates.append(("go", ("scip-go", "scip-go.exe")))
+        else:
+            if languages.intersection({"typescript", "javascript"}):
+                candidates.append(("typescript", ("scip-typescript", "scip-typescript.cmd", "scip-typescript.ps1")))
+            if "go" in languages:
+                candidates.append(("go", ("scip-go", "scip-go.exe")))
+        discovered = [(language, _scip_executable(names)) for language, names in candidates]
+        available = [(language, path) for language, path in discovered if path]
+        if len(available) > 1:
+            names = ", ".join(language for language, _ in available)
+            raise ValueError(f"multiple local SCIP indexers match this project ({names}); configure one explicit executable")
+        if available:
+            executable = available[0][1]
     if not executable:
         raise FileNotFoundError(f"No local executable for {adapter_id}; install it separately or configure a local artifact")
     if adapter_id == "graphify":
@@ -318,9 +355,13 @@ def _command(adapter_id: str, operation_id: str, project: Path, query: str, conf
     if adapter_id == "scip":
         if operation_id == "probe": return [executable, "--version"]
         if operation_id == "index":
-            if "typescript" not in Path(executable).name.lower():
-                raise ValueError("SCIP native index currently supports the configured scip-typescript executable; configure it explicitly for a TypeScript project")
-            return [executable, "index", "--cwd", str(project), "--infer-tsconfig", "--output", str(_generated_artifact(project, adapter_id, "index.scip")), "--no-progress-bar"]
+            name = Path(executable).name.lower()
+            output = _generated_artifact(project, adapter_id, "index.scip")
+            if "typescript" in name:
+                return [executable, "index", "--cwd", str(project), "--infer-tsconfig", "--output", str(output), "--no-progress-bar"]
+            if "scip-go" in name:
+                return [executable, "index", "--module-root", str(project), "--output", str(output)]
+            raise ValueError("The selected SCIP indexer has no verified safe output-path contract yet. Import its explicitly generated local .scip artifact instead of running an unverified command template.")
     if adapter_id == "cyclonedx":
         if operation_id == "probe": return [executable, "--version"]
         if operation_id == "generate":

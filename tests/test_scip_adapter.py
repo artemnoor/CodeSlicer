@@ -184,6 +184,17 @@ def test_scip_project_root_is_validated_as_file_uri(tmp_path):
     assert registry.status("scip")["freshness"]["status"] == "stale"
 
 
+def test_scip_project_root_accepts_go_windows_file_uri(tmp_path):
+    data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    encoded = str(tmp_path.resolve()).replace("\\", "%5C")
+    data.setdefault("index", {})["project_root"] = f"file://{encoded}"
+    source = tmp_path / "index.scip"
+    source.write_text(json.dumps(data), encoding="utf-8")
+    registry = AdapterRegistry(tmp_path)
+    registry.import_artifact("scip", source)
+    assert registry.status("scip")["freshness"]["status"] == "fresh"
+
+
 def test_api_scip_import_enable_disable_inspect_and_bounded_investigate(tmp_path):
     _write_graph(tmp_path, _graph(tmp_path))
     state = LocalApiState(str(tmp_path), "support_packs")

@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/core_runtime-v0.5.2-7c3aed?style=flat-square" alt="Core runtime v0.5.2">
   <img src="https://img.shields.io/badge/VS_Code_extension-v0.6.40-007acc?style=flat-square" alt="VS Code extension v0.6.40">
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/regression-855%20passed-22c55e?style=flat-square" alt="855 regression tests passed">
+  <img src="https://img.shields.io/badge/regression-860%20passed-22c55e?style=flat-square" alt="860 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
   <img src="https://img.shields.io/badge/agent%20skills-2-f97316?style=flat-square" alt="2 bundled agent skills">
   <img src="https://img.shields.io/badge/MCP-stdio%20JSON--RPC-ec4899?style=flat-square" alt="MCP stdio JSON-RPC">
@@ -81,6 +81,16 @@ CodeSlicer сохраняет точность прежде скорости: pa
 никогда не заменяет canonical graph. Если безопасный merge не доказан,
 локальный review делает полный refresh и явно сообщает об этом, а не скрывает
 маршруты, callers или тесты из результата.
+
+### Семантика компиляторов и language servers
+
+Python остаётся встроенным зрелым baseline. Для остальных языков CodeSlicer
+не подменяет компилятор эвристикой: он даёт explicit local путь к официальным
+SCIP indexer’ам и LSP. Уже проверены native SCIP contracts для TypeScript /
+JavaScript и Go; остальные backend’ы принимаются как проверяемые локальные
+SCIP-artifact’ы до прохождения собственного real-project admission. Полная
+матрица upstream-инструментов, prerequisites и реальные результаты — в
+[semantic backend guide](docs/semantics/UPSTREAM_BACKENDS.md).
 
 ### Проверка на реальных проектах
 
