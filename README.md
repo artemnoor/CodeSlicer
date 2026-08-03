@@ -2,10 +2,10 @@
 
 <p align="center">
   <a href="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml"><img src="https://github.com/artemnoor/CodeSlicer/actions/workflows/cli-installation.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/core_runtime-v0.5.2-7c3aed?style=flat-square" alt="Core runtime v0.5.2">
-  <img src="https://img.shields.io/badge/VS_Code_extension-v0.6.40-007acc?style=flat-square" alt="VS Code extension v0.6.40">
+  <img src="https://img.shields.io/badge/core_runtime-v0.5.3-7c3aed?style=flat-square" alt="Core runtime v0.5.3">
+  <img src="https://img.shields.io/badge/VS_Code_extension-v0.6.41-007acc?style=flat-square" alt="VS Code extension v0.6.41">
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/regression-860%20passed-22c55e?style=flat-square" alt="860 regression tests passed">
+  <img src="https://img.shields.io/badge/regression-861%20passed-22c55e?style=flat-square" alt="861 regression tests passed">
   <img src="https://img.shields.io/badge/AI%20clients-16-0891b2?style=flat-square" alt="16 AI clients">
   <img src="https://img.shields.io/badge/agent%20skills-2-f97316?style=flat-square" alt="2 bundled agent skills">
   <img src="https://img.shields.io/badge/MCP-stdio%20JSON--RPC-ec4899?style=flat-square" alt="MCP stdio JSON-RPC">
@@ -65,8 +65,8 @@ GitHub PR review не требует и не хранит PAT: он исполь
 
 Номера у cockpit и Python runtime намеренно независимы: они отвечают за разные
 артефакты. Для текущего Windows VSIX совместимая тройка — **VS Code extension
-`0.6.40`**, **runtime `0.5.2`**, **`extensionCompatibility: 0.6.40`** в
-runtime manifest. Runtime `0.5.2` — не признак устаревшего расширения: это
+`0.6.41`**, **runtime `0.5.3`**, **`extensionCompatibility: 0.6.41`** в
+runtime manifest. Runtime `0.5.3` — не признак устаревшего расширения: это
 версия анализатора, который проверяется manifest и запускается как отдельный
 локальный процесс. Не устанавливайте VSIX, если версия его папки,
 `package.json` и `extensionCompatibility` не совпадают.
@@ -103,10 +103,10 @@ SCIP-artifact’ы до прохождения собственного real-pro
 
 | Проект / язык | Профиль | Cold → warm | Результат review |
 | --- | ---: | ---: | --- |
-| FastAPI / Python | 3,099 files · 98,269 LOC | 95.14 s → 17.04 s | Low/high для однофайлового change-set; comment-control не создал ложного impact |
-| Gin / Go | 118 files · 20,415 LOC | 16.10 s → 4.24 s | Low/high; ложного impact нет |
-| Express / JavaScript | 201 files · 17,629 LOC | 11.74 s → 2.93 s | Low/high; ложного impact нет |
-| Cruxa / C# | 564 files · 33,752 LOC | 25.98 s → 4.19 s | 10 entities для 7-file real diff, но `UNKNOWN` при неполном cross-file closure |
+| FastAPI / Python | 3,099 files · 98,269 LOC | 75.96 s → 12.86 s | Low/high для однофайлового change-set; comment-control не создал ложного impact |
+| Gin / Go | 119 files · 20,415 LOC | 11.92 s → 2.98 s | Low/high; ложного impact нет |
+| Express / JavaScript | 202 files · 17,629 LOC | 10.91 s → 2.63 s | Low/high; ложного impact нет |
+| Cruxa / C# | 564 files · 33,752 LOC | 23.15 s → 3.48 s | 10 entities для 7-file real diff, но `UNKNOWN` при неполном cross-file closure |
 
 Это измерение на Windows 10 x64 / Python 3.11.9 от 2026-08-03, а не обещание
 скорости для другой машины. Публичные source trees не коммитятся; weekly/manual
@@ -545,7 +545,7 @@ pip install -e .
 ```bash
 python -m pip install build
 python -m build --wheel
-python -m pip install dist/impact_engine-0.5.2-py3-none-any.whl
+python -m pip install dist/impact_engine-0.5.3-py3-none-any.whl
 ```
 
 ### Linux или macOS

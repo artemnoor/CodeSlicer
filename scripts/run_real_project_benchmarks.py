@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from impact_engine import __version__
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "benchmarks" / "real_projects" / "manifest.json"
@@ -194,6 +196,7 @@ def run_benchmarks(manifest_path: Path, *, source_root: Path | None = None) -> d
                 results.append({"id": spec.get("id", "unknown"), "repository": spec.get("repository"), "language": spec.get("language"), "validation": {"status": "failed", "gates": {}}, "error": str(exc)})
     return {
         "schema_version": "CodeSlicerRealProjectBenchmarkReport/v1",
+        "codeslicer_version": __version__,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "method": {
             "workflow": ["pinned source snapshot", "CLI analyze with scan plan", "warm cache analyze", "CLI review of the real HEAD~1..HEAD diff", "CLI review with automatic freshness refresh over a minimal source-anchored diff"],

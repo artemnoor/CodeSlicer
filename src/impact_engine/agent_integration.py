@@ -479,7 +479,7 @@ def install(client_ids: Iterable[str], *, scope: str = "project", project_path: 
     plan = plan_install(client_ids, scope=scope, project_path=project_path, home=home, skills_only=skills_only, mcp_only=mcp_only, server_name=server_name)
     project = Path(plan["project"]); user_home = _home(home); assets = bundled_skills(); state_file = _state_path(project, scope, user_home)
     if dry_run: return {"command": "agent.install", "status": "ok", "changed": False, "result": plan, "warnings": plan["warnings"], "errors": []}
-    state = _read_state(state_file); state.update({"schema_version": STATE_VERSION, "installer_version": "0.5.2", "scope": scope, "project_path": str(project), "installed_at": _now()})
+    state = _read_state(state_file); state.update({"schema_version": STATE_VERSION, "installer_version": "0.5.3", "scope": scope, "project_path": str(project), "installed_at": _now()})
     changed = False; warnings = list(plan["warnings"]); errors: list[str] = []; backups: list[dict[str, str]] = []
     selected = [resolve_client(value) for value in client_ids]
     skill_destinations = {

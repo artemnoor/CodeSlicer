@@ -1,6 +1,7 @@
 {
   "schema_version": "CodeSlicerRealProjectBenchmarkReport/v1",
-  "generated_at": "2026-08-03T17:26:16.328507+00:00",
+  "codeslicer_version": "0.5.3",
+  "generated_at": "2026-08-03T18:22:20.816079+00:00",
   "method": {
     "workflow": [
       "pinned source snapshot",
@@ -36,8 +37,8 @@
         }
       },
       "analysis": {
-        "cold_wall_seconds": 95.143497,
-        "warm_wall_seconds": 17.037663,
+        "cold_wall_seconds": 75.960943,
+        "warm_wall_seconds": 12.863783,
         "files": 3099,
         "loc": 98269,
         "nodes": 35819,
@@ -51,7 +52,7 @@
       },
       "review": {
         "historical_commit": {
-          "wall_seconds": 7.498788,
+          "wall_seconds": 5.126004,
           "schema_version": "ReviewReport/v2",
           "risk": {
             "level": "LOW",
@@ -67,7 +68,7 @@
           "changed_files": 1
         },
         "freshness_control": {
-          "wall_seconds": 72.308138,
+          "wall_seconds": 63.54204,
           "schema_version": "ReviewReport/v2",
           "risk": {
             "level": "LOW",
@@ -101,19 +102,20 @@
         }
       },
       "analysis": {
-        "cold_wall_seconds": 16.100823,
-        "warm_wall_seconds": 4.23537,
-        "files": 118,
+        "cold_wall_seconds": 11.918952,
+        "warm_wall_seconds": 2.979025,
+        "files": 119,
         "loc": 20415,
         "nodes": 10498,
         "edges": 11752,
         "languages": [
-          "go"
+          "go",
+          "typescript"
         ]
       },
       "review": {
         "historical_commit": {
-          "wall_seconds": 1.970093,
+          "wall_seconds": 1.558601,
           "schema_version": "ReviewReport/v2",
           "risk": {
             "level": "LOW",
@@ -129,7 +131,7 @@
           "changed_files": 1
         },
         "freshness_control": {
-          "wall_seconds": 15.240998,
+          "wall_seconds": 11.925994,
           "schema_version": "ReviewReport/v2",
           "risk": {
             "level": "LOW",
@@ -163,9 +165,9 @@
         }
       },
       "analysis": {
-        "cold_wall_seconds": 11.74392,
-        "warm_wall_seconds": 2.929945,
-        "files": 201,
+        "cold_wall_seconds": 10.910247,
+        "warm_wall_seconds": 2.628437,
+        "files": 202,
         "loc": 17629,
         "nodes": 9156,
         "edges": 1514,
@@ -181,7 +183,7 @@
       },
       "review": {
         "historical_commit": {
-          "wall_seconds": 1.35185,
+          "wall_seconds": 1.157251,
           "schema_version": "ReviewReport/v2",
           "risk": {
             "level": "LOW",
@@ -197,7 +199,7 @@
           "changed_files": 1
         },
         "freshness_control": {
-          "wall_seconds": 10.484593,
+          "wall_seconds": 7.826997,
           "schema_version": "ReviewReport/v2",
           "risk": {
             "level": "LOW",
@@ -231,8 +233,8 @@
         }
       },
       "analysis": {
-        "cold_wall_seconds": 25.976486,
-        "warm_wall_seconds": 4.192109,
+        "cold_wall_seconds": 23.150318,
+        "warm_wall_seconds": 3.483547,
         "files": 564,
         "loc": 33752,
         "nodes": 5739,
@@ -243,7 +245,7 @@
       },
       "review": {
         "historical_commit": {
-          "wall_seconds": 3.727429,
+          "wall_seconds": 2.473499,
           "schema_version": "ReviewReport/v2",
           "risk": {
             "level": "UNKNOWN",
@@ -264,7 +266,7 @@
           "changed_files": 7
         },
         "freshness_control": {
-          "wall_seconds": 7.127989,
+          "wall_seconds": 5.259735,
           "schema_version": "ReviewReport/v2",
           "risk": {
             "level": "UNKNOWN",

@@ -48,6 +48,7 @@ def test_real_project_benchmark_runner_exercises_cli_analyze_warm_cache_and_revi
     assert result.returncode == 0, result.stderr or result.stdout
     report = json.loads(output.read_text(encoding="utf-8"))
     assert report["status"] == "passed"
+    assert report["codeslicer_version"] == "0.5.3"
     item = report["results"][0]
     assert item["validation"]["gates"] == {
         "pinned_commit": True, "cold_analysis_ok": True, "warm_cache_hit": True,

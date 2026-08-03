@@ -45,6 +45,27 @@ def project_version(root: Path) -> str:
     return value
 
 
+def third_party_notice_lines(core_version: str) -> list[str]:
+    """Render notices without leaking stale editable Core metadata.
+
+    The frozen executable is built from the checkout via ``--paths``, while
+    the long-lived build interpreter may still expose an older editable
+    ``impact-engine`` distribution.  Its notice must identify the bundled
+    checkout, just like the runtime manifest does.
+    """
+    lines = []
+    for item in sorted(metadata.distributions(), key=lambda d: d.metadata["Name"].lower() if d.metadata["Name"] else ""):
+        name = item.metadata["Name"]
+        if not name:
+            continue
+        license_value = item.metadata.get("License") or ""
+        license_summary = " ".join(license_value.strip().splitlines()[0].split()) if license_value.strip() else "see installed distribution metadata"
+        normalized_name = name.lower().replace("_", "-")
+        version = core_version if normalized_name == "impact-engine" else item.version
+        lines.append(f"- {name} {version} — {license_summary}")
+    return lines
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", required=True, choices=sorted(TARGETS))
@@ -108,14 +129,12 @@ def main() -> int:
             executable.chmod(executable.stat().st_mode | 0o111)
 
     notices = runtime / "THIRD_PARTY_NOTICES_RUNTIME.md"
-    distributions = []
-    for item in sorted(metadata.distributions(), key=lambda d: d.metadata["Name"].lower() if d.metadata["Name"] else ""):
-        name = item.metadata["Name"]
-        if name:
-            license_value = item.metadata.get("License") or ""
-            license_summary = " ".join(license_value.strip().splitlines()[0].split()) if license_value.strip() else "see installed distribution metadata"
-            distributions.append(f"- {name} {item.version} — {license_summary}")
-    notices.write_text("# CodeSlicer bundled runtime notices\n\nEmbedded Python and dependency notices:\n\n" + "\n".join(distributions) + "\n", encoding="utf-8")
+    notices.write_text(
+        "# CodeSlicer bundled runtime notices\n\nEmbedded Python and dependency notices:\n\n"
+        + "\n".join(third_party_notice_lines(project_version(root)))
+        + "\n",
+        encoding="utf-8",
+    )
     shutil.copy2(root / "LICENSE", runtime / "LICENSE")
     files = {str(path.relative_to(runtime)).replace("\\", "/"): sha256(path) for path in runtime.rglob("*") if path.is_file()}
     manifest = {

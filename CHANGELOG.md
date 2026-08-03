@@ -2,6 +2,15 @@
 
 Все заметные изменения CodeSlicer фиксируются в этом файле.
 
+## [0.6.41] — 2026-08-03
+
+### Compiler-backed semantic readiness
+
+- Added a single, explicit local semantic-backend catalogue for every detected language: official SCIP indexers for compiler languages and official LSP tooling for frontend component languages.
+- Added a verified native `scip-go` contract alongside TypeScript/JavaScript; automatic selection respects `go.mod` instead of incidental documentation JavaScript.
+- Fixed Windows `file://C:%5C...` SCIP project-root freshness verification and standard `GOPATH/bin` discovery.
+- Bundled analyzer runtime is `0.5.3`; VS Code extension and runtime-manifest compatibility are `0.6.41`.
+
 ## [0.6.40] — 2026-08-03
 
 ### Semantic enrichment profiles

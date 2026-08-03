@@ -7,7 +7,7 @@ Embedded Python and dependency notices:
 - certifi 2026.7.22 — MPL-2.0
 - charset-normalizer 3.4.9 — MIT
 - idna 3.18 — see installed distribution metadata
-- impact-engine 0.5.2 — see installed distribution metadata
+- impact-engine 0.5.3 — see installed distribution metadata
 - jsonschema 4.26.0 — see installed distribution metadata
 - jsonschema-specifications 2025.9.1 — see installed distribution metadata
 - orjson 3.11.9 — see installed distribution metadata

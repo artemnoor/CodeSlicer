@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_import_impact_engine():
     import impact_engine
-    assert impact_engine.__version__ == "0.5.2"
+    assert impact_engine.__version__ == "0.5.3"
 
 
 def test_import_key_modules():

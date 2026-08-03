@@ -24,6 +24,7 @@ def test_checked_in_real_project_snapshot_is_pinned_sanitized_and_complete():
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     snapshot = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
     assert snapshot["schema_version"] == "CodeSlicerRealProjectBenchmarkReport/v1"
+    assert snapshot["codeslicer_version"] == "0.5.3"
     assert snapshot["status"] == "passed"
     assert snapshot["method"]["project_dependencies_installed"] is False
     assert snapshot["method"]["project_tests_executed"] is False

@@ -2,8 +2,8 @@
 
 This page is the human-readable companion to the versioned
 [`real-project-cli-validation-2026-08-03.json`](real-project-cli-validation-2026-08-03.json)
-snapshot. It records one reproducible Windows x64 run of the installed
-CodeSlicer source checkout, not a cross-machine performance promise.
+snapshot. It records one reproducible Windows x64 run of CodeSlicer `0.5.3`,
+not a cross-machine performance promise.
 
 ## What was executed
 
@@ -25,10 +25,10 @@ not a claim about third-party build health.
 
 | Public project | Pinned revision | Scope | Files / LOC | Graph nodes / edges | Cold / warm analysis | Real-diff review | Freshness control |
 | --- | --- | --- | ---: | ---: | ---: | --- | --- |
-| [FastAPI](https://github.com/fastapi/fastapi) | `4ef68e8` | `.` | 3,099 / 98,269 | 35,819 / 40,374 | 95.14 s / 17.04 s | Low, high confidence; 0 impacts | Low, high confidence; 0 impacts; 72.31 s |
-| [Gin](https://github.com/gin-gonic/gin) | `34dac20` | `.` | 118 / 20,415 | 10,498 / 11,752 | 16.10 s / 4.24 s | Low, high confidence; 0 impacts | Low, high confidence; 0 impacts; 15.24 s |
-| [Express](https://github.com/expressjs/express) | `a371447` | `.` | 201 / 17,629 | 9,156 / 1,514 | 11.74 s / 2.93 s | Low, high confidence; 0 impacts | Low, high confidence; 0 impacts; 10.48 s |
-| [Cruxa](https://github.com/contr4s/Cruxa) | `13ff4a0` | `backend` | 564 / 33,752 | 5,739 / 8,202 | 25.98 s / 4.19 s | Unknown / limited coverage; 10 impact entities from a 7-file diff | Unknown / limited coverage; no invented impact for comment-only edit; 7.13 s |
+| [FastAPI](https://github.com/fastapi/fastapi) | `4ef68e8` | `.` | 3,099 / 98,269 | 35,819 / 40,374 | 75.96 s / 12.86 s | Low, high confidence; 0 impacts | Low, high confidence; 0 impacts; 63.54 s |
+| [Gin](https://github.com/gin-gonic/gin) | `34dac20` | `.` | 119 / 20,415 | 10,498 / 11,752 | 11.92 s / 2.98 s | Low, high confidence; 0 impacts | Low, high confidence; 0 impacts; 11.93 s |
+| [Express](https://github.com/expressjs/express) | `a371447` | `.` | 202 / 17,629 | 9,156 / 1,514 | 10.91 s / 2.63 s | Low, high confidence; 0 impacts | Low, high confidence; 0 impacts; 7.83 s |
+| [Cruxa](https://github.com/contr4s/Cruxa) | `13ff4a0` | `backend` | 564 / 33,752 | 5,739 / 8,202 | 23.15 s / 3.48 s | Unknown / limited coverage; 10 impact entities from a 7-file diff | Unknown / limited coverage; no invented impact for comment-only edit; 5.26 s |
 
 All mechanical gates passed: pinned revision, non-empty cold graph, warm cache
 hit, review schema/no-error contract, and expected language detection. The raw
