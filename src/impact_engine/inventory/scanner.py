@@ -312,7 +312,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
             files.append(rel_path)
 
             suffix = p.suffix.lower()
-            if suffix in [".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".cs"]:
+            if suffix in [".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".go", ".java", ".cs", ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx", ".rs", ".kt", ".kts", ".php", ".rb", ".html", ".htm", ".xhtml", ".css", ".scss", ".sass", ".less", ".vue", ".svelte", ".astro"]:
                 try:
                     content_for_counts = p.read_text(encoding="utf-8")
                     source_contents[p] = content_for_counts
@@ -341,13 +341,13 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
                                 methods_count += 1
                     except Exception:
                         pass
-            elif suffix in [".js", ".jsx"]:
+            elif suffix in [".js", ".jsx", ".mjs", ".cjs"]:
                 js_files.append(p)
                 if parts:
                     _add_map_value(local_modules_by_ecosystem, "javascript", parts[0].rsplit(".", 1)[0])
                 classes_count += len(re.findall(r"\bclass\s+[A-Za-z_$][\w$]*", content_for_counts))
                 methods_count += len(re.findall(r"\bfunction\s+[A-Za-z_$][\w$]*\s*\(", content_for_counts))
-            elif suffix in [".ts", ".tsx"]:
+            elif suffix in [".ts", ".tsx", ".mts", ".cts"]:
                 ts_files.append(p)
                 if parts:
                     _add_map_value(local_modules_by_ecosystem, "typescript", parts[0].rsplit(".", 1)[0])
@@ -380,7 +380,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
             # Determine local modules
             if parts:
                 top_part = parts[0]
-                if top_part.endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".cs")):
+                if top_part.endswith((".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".go", ".java", ".cs", ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx", ".rs", ".kt", ".kts", ".php", ".rb", ".html", ".htm", ".xhtml", ".css", ".scss", ".sass", ".less", ".vue", ".svelte", ".astro")):
                     local_modules.add(top_part.rsplit(".", 1)[0])
                 else:
                     local_modules.add(top_part)
@@ -517,7 +517,7 @@ def scan_project_inventory(project_path: str | Path) -> ProjectInventory:
     for f in js_files + ts_files:
         try:
             content = source_contents[f] if f in source_contents else f.read_text(encoding="utf-8")
-            ecosystem = "typescript" if f.suffix.lower() in [".ts", ".tsx"] else "javascript"
+            ecosystem = "typescript" if f.suffix.lower() in [".ts", ".tsx", ".mts", ".cts"] else "javascript"
             for match in js_ts_import_regex.finditer(content):
                 imp = match.group(1) or match.group(2) or match.group(3)
                 if imp and not imp.startswith("."):

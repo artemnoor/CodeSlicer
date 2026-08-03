@@ -14,6 +14,11 @@ from impact_engine.languages.semantics import (
     KOTLIN_SEMANTICS,
     PHP_SEMANTICS,
     RUBY_SEMANTICS,
+    HTML_SEMANTICS,
+    CSS_SEMANTICS,
+    VUE_SEMANTICS,
+    SVELTE_SEMANTICS,
+    ASTRO_SEMANTICS,
 )
 
 # Pre-defined profiles
@@ -34,7 +39,7 @@ PYTHON_PROFILE = LanguageProfile(
 JAVASCRIPT_PROFILE = LanguageProfile(
     language_id="javascript",
     display_name="JavaScript",
-    file_extensions={".js", ".jsx"},
+    file_extensions={".js", ".jsx", ".mjs", ".cjs"},
     package_manifest_files={"package.json"},
     standard_library_modules={"fs", "path", "os", "crypto", "http", "https"},
     default_extractor_id="tree_sitter",
@@ -44,7 +49,7 @@ JAVASCRIPT_PROFILE = LanguageProfile(
 TYPESCRIPT_PROFILE = LanguageProfile(
     language_id="typescript",
     display_name="TypeScript",
-    file_extensions={".ts", ".tsx"},
+    file_extensions={".ts", ".tsx", ".mts", ".cts"},
     package_manifest_files={"package.json", "tsconfig.json"},
     standard_library_modules={"fs", "path", "os", "crypto", "http", "https"},
     default_extractor_id="tree_sitter",
@@ -115,6 +120,36 @@ RUBY_PROFILE = LanguageProfile(
     default_extractor_id="tree_sitter", semantic_provider=RUBY_SEMANTICS,
 )
 
+HTML_PROFILE = LanguageProfile(
+    language_id="html", display_name="HTML", file_extensions={".html", ".htm", ".xhtml"},
+    package_manifest_files=set(), standard_library_modules=set(), default_extractor_id="tree_sitter",
+    semantic_provider=HTML_SEMANTICS,
+)
+
+CSS_PROFILE = LanguageProfile(
+    language_id="css", display_name="CSS", file_extensions={".css", ".scss", ".sass", ".less"},
+    package_manifest_files=set(), standard_library_modules=set(), default_extractor_id="tree_sitter",
+    semantic_provider=CSS_SEMANTICS,
+)
+
+VUE_PROFILE = LanguageProfile(
+    language_id="vue", display_name="Vue", file_extensions={".vue"},
+    package_manifest_files={"package.json"}, standard_library_modules=set(), default_extractor_id="tree_sitter",
+    semantic_provider=VUE_SEMANTICS,
+)
+
+SVELTE_PROFILE = LanguageProfile(
+    language_id="svelte", display_name="Svelte", file_extensions={".svelte"},
+    package_manifest_files={"package.json"}, standard_library_modules=set(), default_extractor_id="tree_sitter",
+    semantic_provider=SVELTE_SEMANTICS,
+)
+
+ASTRO_PROFILE = LanguageProfile(
+    language_id="astro", display_name="Astro", file_extensions={".astro"},
+    package_manifest_files={"package.json"}, standard_library_modules=set(), default_extractor_id="tree_sitter",
+    semantic_provider=ASTRO_SEMANTICS,
+)
+
 PROFILES = {
     "python": PYTHON_PROFILE,
     "javascript": JAVASCRIPT_PROFILE,
@@ -127,6 +162,11 @@ PROFILES = {
     "kotlin": KOTLIN_PROFILE,
     "php": PHP_PROFILE,
     "ruby": RUBY_PROFILE,
+    "html": HTML_PROFILE,
+    "css": CSS_PROFILE,
+    "vue": VUE_PROFILE,
+    "svelte": SVELTE_PROFILE,
+    "astro": ASTRO_PROFILE,
 }
 
 

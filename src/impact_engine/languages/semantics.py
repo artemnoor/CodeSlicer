@@ -172,6 +172,11 @@ RUST_SEMANTICS = _generic_tree_sitter_semantics("rust", "Rust")
 KOTLIN_SEMANTICS = _generic_tree_sitter_semantics("kotlin", "Kotlin")
 PHP_SEMANTICS = _generic_tree_sitter_semantics("php", "PHP")
 RUBY_SEMANTICS = _generic_tree_sitter_semantics("ruby", "Ruby")
+HTML_SEMANTICS = _generic_tree_sitter_semantics("html", "HTML")
+CSS_SEMANTICS = _generic_tree_sitter_semantics("css", "CSS and stylesheet sources")
+VUE_SEMANTICS = _generic_tree_sitter_semantics("vue", "Vue single-file components")
+SVELTE_SEMANTICS = _generic_tree_sitter_semantics("svelte", "Svelte components")
+ASTRO_SEMANTICS = _generic_tree_sitter_semantics("astro", "Astro components")
 
 PROVIDERS = {
     provider.language_id: provider
@@ -187,6 +192,11 @@ PROVIDERS = {
         KOTLIN_SEMANTICS,
         PHP_SEMANTICS,
         RUBY_SEMANTICS,
+        HTML_SEMANTICS,
+        CSS_SEMANTICS,
+        VUE_SEMANTICS,
+        SVELTE_SEMANTICS,
+        ASTRO_SEMANTICS,
     )
 }
 

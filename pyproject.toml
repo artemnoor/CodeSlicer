@@ -1,6 +1,6 @@
 [project]
 name = "impact-engine"
-version = "0.5.0"
+version = "0.5.1"
 description = "DI-aware impact analysis engine with MCP and AI-generated library support packs"
 readme = "README.md"
 requires-python = ">=3.10"

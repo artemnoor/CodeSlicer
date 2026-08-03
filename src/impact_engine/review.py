@@ -37,7 +37,7 @@ from impact_engine.review_source import review_source
 
 SCHEMA_VERSION = "ReviewReport/v2"
 SUPPRESSED_KINDS = {"ASSIGNMENT", "CALL_EXPR", "EXTERNAL_LIBRARY", "CANONICAL_ALIAS", "SUPPORT_PACK"}
-SUPPORTED_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java", ".cs"}
+SUPPORTED_SUFFIXES = {".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".go", ".java", ".cs", ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx", ".rs", ".kt", ".kts", ".php", ".rb", ".html", ".htm", ".xhtml", ".css", ".scss", ".sass", ".less", ".vue", ".svelte", ".astro"}
 
 
 def _raw_graph_cache_path(root: Path, scope: str | None = None) -> Path:
@@ -1094,7 +1094,7 @@ def _coverage(graph: GraphDocument, paths: set[str]) -> list[dict[str, Any]]:
     partial_exact = precision.get("status") == "partial_exact_import_resolution"
     for path in sorted(paths):
         suffix = Path(path).suffix.lower()
-        language = {".py": "python", ".js": "javascript", ".jsx": "javascript", ".ts": "typescript", ".tsx": "typescript", ".go": "go", ".java": "java", ".cs": "csharp"}.get(suffix, "unknown")
+        language = {".py": "python", ".js": "javascript", ".jsx": "javascript", ".mjs": "javascript", ".cjs": "javascript", ".ts": "typescript", ".tsx": "typescript", ".mts": "typescript", ".cts": "typescript", ".go": "go", ".java": "java", ".cs": "csharp", ".c": "cpp", ".h": "cpp", ".cc": "cpp", ".cpp": "cpp", ".cxx": "cpp", ".hh": "cpp", ".hpp": "cpp", ".hxx": "cpp", ".rs": "rust", ".kt": "kotlin", ".kts": "kotlin", ".php": "php", ".rb": "ruby", ".html": "html", ".htm": "html", ".xhtml": "html", ".css": "css", ".scss": "css", ".sass": "css", ".less": "css", ".vue": "vue", ".svelte": "svelte", ".astro": "astro"}.get(suffix, "unknown")
         cap = language_capabilities.get(language, {}) if isinstance(language_capabilities, dict) else {}
         capability_values = cap.get("capabilities", cap) if isinstance(cap, dict) else {}
         production = bool(capability_values.get("production_semantic_baseline"))

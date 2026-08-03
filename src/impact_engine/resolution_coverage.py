@@ -114,7 +114,7 @@ def _with_rates(values: dict[str, int]) -> dict[str, Any]:
 def _node_language(node: Any) -> str:
     file_name = str((node.properties or {}).get("file") or "")
     suffix = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else "unknown"
-    return {"py": "python", "js": "javascript", "jsx": "javascript", "ts": "typescript", "tsx": "typescript", "go": "go", "java": "java", "cs": "csharp"}.get(suffix, "unknown")
+    return {"py": "python", "js": "javascript", "jsx": "javascript", "mjs": "javascript", "cjs": "javascript", "ts": "typescript", "tsx": "typescript", "mts": "typescript", "cts": "typescript", "go": "go", "java": "java", "cs": "csharp", "c": "cpp", "h": "cpp", "cc": "cpp", "cpp": "cpp", "cxx": "cpp", "hh": "cpp", "hpp": "cpp", "hxx": "cpp", "rs": "rust", "kt": "kotlin", "kts": "kotlin", "php": "php", "rb": "ruby", "html": "html", "htm": "html", "xhtml": "html", "css": "css", "scss": "css", "sass": "css", "less": "css", "vue": "vue", "svelte": "svelte", "astro": "astro"}.get(suffix, "unknown")
 
 
 def _is_terminal(call_name: str) -> bool:

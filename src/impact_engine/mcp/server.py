@@ -144,7 +144,7 @@ def server_info() -> Dict[str, Any]:
         "tool": "server_info",
         "status": "ok",
         "name": "impact-engine",
-        "version": "0.5.0",
+        "version": "0.5.1",
         "protocol_version": "2024-11-05"
     }
 
@@ -1658,7 +1658,7 @@ def main():
                     },
                     "serverInfo": {
                         "name": "impact-engine",
-                        "version": "0.5.0"
+                        "version": "0.5.1"
                     }
                 }
             }

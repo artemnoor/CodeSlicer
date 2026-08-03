@@ -50,8 +50,12 @@ from impact_engine.approvals import ApprovalStore
 
 
 _OVERVIEW_LANGUAGE_SUFFIXES = {
-    ".py": "python", ".js": "javascript", ".jsx": "javascript", ".ts": "typescript", ".tsx": "typescript",
-    ".go": "go", ".java": "java", ".cs": "csharp",
+    ".py": "python", ".js": "javascript", ".jsx": "javascript", ".mjs": "javascript", ".cjs": "javascript",
+    ".ts": "typescript", ".tsx": "typescript", ".mts": "typescript", ".cts": "typescript", ".go": "go", ".java": "java", ".cs": "csharp",
+    ".c": "cpp", ".h": "cpp", ".cc": "cpp", ".cpp": "cpp", ".cxx": "cpp", ".hh": "cpp", ".hpp": "cpp", ".hxx": "cpp",
+    ".rs": "rust", ".kt": "kotlin", ".kts": "kotlin", ".php": "php", ".rb": "ruby",
+    ".html": "html", ".htm": "html", ".xhtml": "html", ".css": "css", ".scss": "css", ".sass": "css", ".less": "css",
+    ".vue": "vue", ".svelte": "svelte", ".astro": "astro",
 }
 _PROJECTION_HIGH_LEVEL_KINDS = {"SERVICE", "MODULE", "FILE", "ROUTE", "DATABASE", "QUEUE", "COMPONENT", "CLASS", "PACKAGE"}
 # The browser uses this explicit capability rather than guessing endpoint

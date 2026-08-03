@@ -2,6 +2,15 @@
 
 Все заметные изменения CodeSlicer фиксируются в этом файле.
 
+## [0.6.38] — 2026-08-03
+
+### Polyglot and frontend coverage
+
+- Added manifest-backed native Tree-sitter plugins for C/C++, HTML, CSS/SCSS/Sass/Less, Vue, Svelte, Astro, Rust, Kotlin, PHP, and Ruby.
+- Modern JavaScript/TypeScript module suffixes (`.mjs`, `.cjs`, `.mts`, `.cts`) now stay on the supported path through inventory, extraction, coverage, identity, and review.
+- TypeScript local semantic resolution now covers explicit `const`/arrow exports and their local imports, producing evidence-backed call edges instead of `UNKNOWN` regions.
+- Bundled analyzer runtime is `0.5.1`; the VS Code extension and compatibility manifest are `0.6.38`.
+
 ## [0.6.37] — 2026-08-03
 
 ### Fixed

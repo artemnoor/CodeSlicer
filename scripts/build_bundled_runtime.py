@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from importlib import metadata
 from pathlib import Path
 
@@ -33,6 +34,15 @@ def host_target() -> str:
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def project_version(root: Path) -> str:
+    """Read the version from the checkout, not a possibly stale build host."""
+    with (root / "pyproject.toml").open("rb") as handle:
+        value = tomllib.load(handle).get("project", {}).get("version")
+    if not isinstance(value, str) or not value:
+        raise SystemExit("pyproject.toml is missing project.version")
+    return value
 
 
 def main() -> int:
@@ -109,7 +119,7 @@ def main() -> int:
     shutil.copy2(root / "LICENSE", runtime / "LICENSE")
     files = {str(path.relative_to(runtime)).replace("\\", "/"): sha256(path) for path in runtime.rglob("*") if path.is_file()}
     manifest = {
-        "runtimeVersion": metadata.version("impact-engine"),
+        "runtimeVersion": project_version(root),
         "extensionCompatibility": args.extension_version,
         "platform": args.target.rsplit("-", 1)[0],
         "arch": args.target.rsplit("-", 1)[1],

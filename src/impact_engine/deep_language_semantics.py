@@ -16,7 +16,20 @@ from impact_engine.models import Edge, Evidence, GraphDocument
 
 _IMPORT = re.compile(r"^\s*import\s+(?P<what>.+?)\s+from\s+['\"](?P<path>[^'\"]+)['\"]", re.M)
 _REEXPORT = re.compile(r"^\s*export\s*\{(?P<what>[^}]+)\}\s*from\s*['\"](?P<path>[^'\"]+)['\"]", re.M)
+# JavaScript and TypeScript projects commonly export arrow bindings rather
+# than ``function`` declarations.  The parser already gives those bindings a
+# METHOD node, but the semantic pass previously skipped their bodies entirely
+# and made an otherwise explicit local import look unresolved.
 _FUNCTION = re.compile(r"(?:export\s+)?(?:async\s+)?function\s+(?P<name>[A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{")
+_BOUND_FUNCTION = re.compile(
+    r"(?:export\s+)?(?:const|let|var)\s+(?P<name>[A-Za-z_$][\w$]*)"
+    r"(?:\s*:\s*[^=;\n]+)?\s*=\s*(?:async\s+)?"
+    r"(?:function(?:\s+[A-Za-z_$][\w$]*)?\s*\([^)]*\)\s*\{|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)"
+)
+_METHOD = re.compile(
+    r"(?m)^\s*(?:public\s+|private\s+|protected\s+|static\s+|async\s+|readonly\s+|override\s+)*"
+    r"(?P<name>[A-Za-z_$][\w$]*)\s*\([^)]*\)\s*(?::\s*[^\{=>\n]+)?\s*\{"
+)
 _CALL = re.compile(r"\b(?P<receiver>[A-Za-z_$][\w$]*)?(?:\.(?P<member>[A-Za-z_$][\w$]*))?\s*\(")
 _SKIP = {"if", "for", "while", "switch", "catch", "return", "function", "await", "setTimeout", "fetch"}
 
@@ -24,7 +37,7 @@ _SKIP = {"if", "for", "while", "switch", "catch", "return", "function", "await",
 def apply_js_ts_semantics(graph: GraphDocument, project_path: str | Path, language: str) -> GraphDocument:
     """Add exact local-import call edges for one JS-family language plugin."""
     root = Path(project_path)
-    suffixes = {"javascript": {".js", ".jsx"}, "typescript": {".ts", ".tsx"}}[language]
+    suffixes = {"javascript": {".js", ".jsx", ".mjs", ".cjs"}, "typescript": {".ts", ".tsx", ".mts", ".cts"}}[language]
     sources = _sources(graph, root, suffixes)
     symbols = _symbols(graph, sources)
     exports = _exports(sources)
@@ -32,12 +45,12 @@ def apply_js_ts_semantics(graph: GraphDocument, project_path: str | Path, langua
 
     for rel, text in sources.items():
         imports = _imports(rel, text, sources, exports, symbols)
-        for match in _FUNCTION.finditer(text):
+        for match in _callable_matches(text):
             name = match.group("name")
             callers = symbols.get((rel, name), [])
             if len(callers) != 1:
                 continue
-            body = _body(text, match.end() - 1)
+            body = _callable_body(text, match)
             base_line = text.count("\n", 0, match.start()) + 1
             for call in _CALL.finditer(body):
                 raw = call.group(0).strip()
@@ -75,6 +88,33 @@ def apply_js_ts_semantics(graph: GraphDocument, project_path: str | Path, langua
     return graph
 
 
+def _callable_matches(text: str):
+    """Yield unique named function/arrow/method bodies in source order.
+
+    The resolver deliberately requires a corresponding parser declaration
+    below, so a permissive source regex cannot create a speculative edge.
+    """
+    seen: set[tuple[str, int]] = set()
+    for pattern in (_FUNCTION, _BOUND_FUNCTION, _METHOD):
+        for match in pattern.finditer(text):
+            key = (match.group("name"), match.start())
+            if key not in seen:
+                seen.add(key)
+                yield match
+
+
+def _callable_body(text: str, match: re.Match[str]) -> str:
+    """Return a block body, or the bounded expression of an arrow binding."""
+    prefix = match.group(0).rstrip()
+    if prefix.endswith("{"):
+        return _body(text, match.end() - 1)
+    # Expression arrows are a declaration with an explicit, single-statement
+    # body.  Stop at the statement terminator rather than scanning into the
+    # next declaration.
+    end = text.find(";", match.end())
+    return text[match.end() : end if end >= 0 else len(text)]
+
+
 def _sources(graph: GraphDocument, root: Path, suffixes: set[str]) -> dict[str, str]:
     paths = {str(node.properties.get("file") or node.properties.get("path") or "").replace("\\", "/") for node in graph.nodes}
     result: dict[str, str] = {}
@@ -102,12 +142,13 @@ def _module_candidates(rel: str, raw: str, sources: dict[str, str]) -> list[str]
         # ``@/`` is the conventional tsconfig baseUrl=src alias.  Only accept
         # a unique source candidate; ambiguity remains unresolved.
         tail = raw[2:]
-        candidates = [path for path in sources if path.endswith("/src/" + tail + ".ts") or path.endswith("/src/" + tail + "/index.ts")]
+        candidates = [path for path in sources if any(path.endswith("/src/" + tail + ext) or path.endswith("/src/" + tail + "/index" + ext) for ext in (".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"))]
         return candidates
     if not raw.startswith("."):
         return []
     base = (Path(rel).parent / raw).as_posix()
-    return [candidate for candidate in sources if candidate in {base + ext for ext in (".ts", ".tsx", ".js", ".jsx")} or candidate in {base + "/index" + ext for ext in (".ts", ".tsx", ".js", ".jsx")}]
+    extensions = (".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")
+    return [candidate for candidate in sources if candidate in {base + ext for ext in extensions} or candidate in {base + "/index" + ext for ext in extensions}]
 
 
 def _exports(sources: dict[str, str]) -> dict[tuple[str, str], tuple[str, str]]:

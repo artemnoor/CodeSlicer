@@ -1,0 +1,1 @@
+"""Ruby language plugin."""

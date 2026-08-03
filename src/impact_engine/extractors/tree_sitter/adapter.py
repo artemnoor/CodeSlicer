@@ -14,6 +14,29 @@ except ImportError:
     HAS_TREE_SITTER = False
 
 
+# This is the single source of truth for parser-backed source extensions.  It
+# deliberately includes modern module suffixes and single-file components: an
+# unrecognised extension used to bypass plugin selection and surface as
+# ``unknown`` in review even though the bundled grammar could parse it.
+TREE_SITTER_LANGUAGE_EXTENSIONS = {
+    "javascript": [".js", ".jsx", ".mjs", ".cjs"],
+    "typescript": [".ts", ".tsx", ".mts", ".cts"],
+    "go": [".go"],
+    "java": [".java"],
+    "rust": [".rs"],
+    "csharp": [".cs"],
+    "cpp": [".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx"],
+    "kotlin": [".kt", ".kts"],
+    "php": [".php"],
+    "ruby": [".rb"],
+    "html": [".html", ".htm", ".xhtml"],
+    "css": [".css", ".scss", ".sass", ".less"],
+    "vue": [".vue"],
+    "svelte": [".svelte"],
+    "astro": [".astro"],
+}
+
+
 def is_tree_sitter_available() -> bool:
     if not HAS_TREE_SITTER:
         return False
@@ -31,7 +54,16 @@ def get_supported_tree_sitter_languages() -> List[str]:
     # These names are validated by tree-sitter-language-pack at parse time.
     # Keeping the list explicit makes capability reporting deterministic while
     # the pack supplies the maintained grammar binaries.
-    return ["javascript", "typescript", "go", "java", "rust", "csharp", "kotlin", "php", "ruby"]
+    supported = []
+    for language in TREE_SITTER_LANGUAGE_EXTENSIONS:
+        try:
+            tree_sitter_language_pack.get_language(language)
+            supported.append(language)
+        except Exception:
+            # A distribution can be built with a reduced grammar pack.  Do
+            # not advertise an unavailable parser as supported.
+            continue
+    return supported
 
 
 def get_node_text(node) -> str:
@@ -1029,19 +1061,9 @@ def extract_tree_sitter_project(
     if languages is None:
         languages = get_supported_tree_sitter_languages()
         if not languages:
-            languages = ["javascript", "typescript", "go", "java", "rust", "csharp", "kotlin", "php", "ruby"]
+            languages = list(TREE_SITTER_LANGUAGE_EXTENSIONS)
 
-    lang_ext_map = {
-        "javascript": [".js", ".jsx"],
-        "typescript": [".ts", ".tsx"],
-        "go": [".go"],
-        "java": [".java"],
-        "rust": [".rs"],
-        "csharp": [".cs"],
-        "kotlin": [".kt", ".kts"],
-        "php": [".php"],
-        "ruby": [".rb"],
-    }
+    lang_ext_map = TREE_SITTER_LANGUAGE_EXTENSIONS
     selected = set()
     for item in files or []:
         candidate = Path(str(item).replace("\\", "/"))
