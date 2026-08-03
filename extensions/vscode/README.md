@@ -19,6 +19,34 @@ or `extensionCompatibility` must be treated as an invalid installation.
 
 Install the matching VSIX, open a trusted project, and select **Review current changes**. The extension uses argv-only spawning with `shell: false` and logs argv, cwd, stdout, stderr, and exit status. No process runs during activation.
 
+## First review in VS Code
+
+1. Download the matching platform VSIX. Windows x64 users can start with
+   [CodeSlicer 0.6.41](codeslicer-impact-cockpit-win32-x64-0.6.41.vsix), then
+   choose **Extensions → ⋯ → Install from VSIX…** in VS Code.
+2. Open a trusted source workspace, select the **CodeSlicer** icon in the
+   Activity Bar, and click **Check readiness**. It reports the project and
+   bundled runtime before any analysis starts.
+3. Select **Review current changes**. Choose a source on the Review tab, then
+   use **Results** for risk/evidence and **Tests** to inspect an exact command.
+   A test is never started until you confirm that command in a fresh modal.
+
+![CodeSlicer Cockpit: a review result with risk, affected route and evidence](../../docs/images/codeslicer-vscode-cockpit.png)
+
+The **Help** tab contains task-oriented guides for review, tests, Git, map,
+GitHub PR and Graphify. A guide only navigates and highlights the real Cockpit
+controls; it never starts the runtime, Git, network access or a test.
+
+### When to open Local Hub
+
+Use **CodeSlicer: Open Local Hub** from the Command Palette when the browser
+is more convenient for a large map or a longer review. The command starts the
+bundled runtime only after that explicit request and opens
+`http://127.0.0.1:8001/` by default. The server is loopback-only; it is not a
+publicly deployed website or a remote code-analysis backend. The same Hub can
+be started from the Core with `impact-engine-local-api --default-project
+<project>`. See the repository [Local Hub guide](../../README.md#local-hub--тот-же-анализ-в-браузере).
+
 ## Platform packages
 
 | Target | Build method |

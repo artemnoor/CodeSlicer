@@ -32,6 +32,94 @@ frontend-клиента и теста. Graphify отвечает за свой, 
 
 Внутреннее имя Python-пакета и команд — `impact_engine`.
 
+## Выберите удобный интерфейс
+
+CodeSlicer можно использовать без смены привычного способа работы. Во всех
+вариантах анализ остаётся локальным: система строит граф, показывает риск,
+доказательства и целевые тесты, но не отправляет исходный код в облачный
+сервис.
+
+| Если вы хотите… | Откройте | Первый шаг |
+| --- | --- | --- |
+| Проверять свои правки, не выходя из редактора | **VS Code Cockpit** | Установите VSIX, откройте trusted workspace и выберите **CodeSlicer: Review current changes** |
+| Смотреть большую карту и review в браузере | **Local Hub** | Запустите локальный сервер и откройте `http://127.0.0.1:8001/` |
+| Дать coding agent структурированный workflow | **Skills + optional MCP** | Выполните `codeslicer agent install` |
+| Автоматизировать CI или скрипт | **CLI** | Выполните `codeslicer review <project>` |
+
+### VS Code Cockpit — рекомендуемый старт
+
+Расширение — самый короткий путь к первому review. Для Windows x64 скачайте
+[CodeSlicer 0.6.41 VSIX](extensions/vscode/codeslicer-impact-cockpit-win32-x64-0.6.41.vsix),
+в VS Code откройте **Extensions → ⋯ → Install from VSIX…**, затем откройте
+папку проекта и панель **CodeSlicer** в Activity Bar. Python, `pip`, `.venv`,
+clone репозитория и ручной путь к executable обычному пользователю не нужны:
+в VSIX уже есть проверяемый platform runtime.
+
+1. Нажмите **Проверить готовность**, чтобы увидеть статус runtime и проекта.
+2. На вкладке **Проверить изменения** выберите рабочее дерево, staged diff,
+   сравнение с базовой веткой, локальный patch или — отдельно — GitHub PR.
+3. На **Результате** изучите risk, затронутые сущности и evidence; на
+   **Тестах** просмотрите точную команду. Запуск теста всегда требует нового
+   подтверждения.
+
+![CodeSlicer Cockpit: результат локального review с риском, затронутой route и evidence](docs/images/codeslicer-vscode-cockpit.png)
+
+*Снимок собран текущим visual-QA рендерером расширения: это реальный экран
+Cockpit с детерминированными демонстрационными данными. Вкладка **Помощь**
+проводит по тем же экранам и подсвечивает нужные действия; сам гид не запускает
+runtime, Git, сеть или тесты.*
+
+Cockpit также хранит локальную историю review, показывает ограниченный
+канонический slice карты кода, помогает с ветками и push с явными
+подтверждениями. Graphify, если он установлен отдельно, остаётся отдельной
+архитектурной картой и не меняет risk или evidence CodeSlicer. Полный список
+команд, платформ и границ безопасности — в
+[руководстве по расширению](extensions/vscode/README.md).
+
+### Local Hub — тот же анализ в браузере
+
+Local Hub удобен для большой карты, review и глубокого просмотра evidence. В
+VS Code вызовите из Command Palette **CodeSlicer: Open Local Hub**: расширение
+по явному действию запустит свой runtime и откроет loopback-адрес. Либо
+запустите Hub из установленного Core:
+
+```powershell
+codeslicer onboard C:\work\my-project
+impact-engine-local-api --host 127.0.0.1 --port 8001 --default-project C:\work\my-project
+```
+
+После этого откройте <http://127.0.0.1:8001/>. Это не публичный сайт и не
+удалённый backend: API принимает подключения только на loopback по умолчанию,
+а граф и результаты остаются в проекте. На странице доступны проверка
+изменений, карта проекта, локальные источники и отдельный optional Graphify.
+
+![Local Hub: экран review с риском, ограничениями и предложенными тестами](docs/images/codeslicer-current-ui.png)
+
+### AI agents и MCP
+
+Команда `codeslicer agent install` ставит два упакованных skills:
+`codeslicer-impact-analysis` для доказуемого impact/review и
+`graphify-architecture-analysis` для отдельного архитектурного обзора. Агент
+может работать через CLI уже после установки skills; MCP не является
+обязательным условием.
+
+```powershell
+# Найти поддерживаемые локальные AI-клиенты и установить skills
+codeslicer agent detect
+codeslicer agent install
+
+# Проверить установленные assets и настоящий локальный MCP handshake
+codeslicer agent doctor
+```
+
+Optional MCP запускается локально через stdio (`impact-engine-mcp` или
+`python -m impact_engine.mcp.server`) и говорит по JSON-RPC 2.0. Это не hosted
+MCP-сервис: ему не нужны база данных, токен или сеть. `tools/list` выдаёт
+точные схемы; потенциально исполняемые semantic-запросы сначала возвращают
+`pending_approval`. Поддерживаемые пути, статусы клиентов и конфигурация — в
+[матрице AI-клиентов](docs/AGENT_CLIENT_COMPATIBILITY.md) и
+[документации MCP](docs/MCP.md).
+
 ## Проверка изменений перед merge
 
 Для обычной проверки нужен один локальный путь: **установите extension → откройте проект → проверьте изменения → изучите риск, влияние, доказательства и тесты**. Команда для новых установок — `codeslicer`; `impact-engine` остаётся compatibility alias.
@@ -60,6 +148,10 @@ GitHub PR review не требует и не хранит PAT: он исполь
 ![Семантический граф CodeSlicer](docs/images/codeslicer-hero.png)
 
 ## VS Code: встроенный runtime
+
+Если вы устанавливаете расширение впервые, начните с раздела
+[«VS Code Cockpit — рекомендуемый старт»](#vs-code-cockpit--рекомендуемый-старт):
+там есть VSIX, три шага первого review, скриншот и описание безопасного гида.
 
 ### Версии пакета
 
@@ -306,9 +398,10 @@ codeslicer agent uninstall
 
 ## Локальный UI и MCP
 
-Веб-интерфейс работает только на localhost и отображает настоящий
-`GraphDocument`. Graphify — отдельная, optional-карта: без явного index её нет,
-и UI не подставляет вместо неё данные CodeSlicer.
+Для быстрого старта используйте [Local Hub](#local-hub--тот-же-анализ-в-браузере)
+выше: там есть команда, адрес и граница local-only. Веб-интерфейс отображает
+настоящий `GraphDocument`. Graphify — отдельная optional-карта: без явного
+index её нет, и UI не подставляет вместо неё данные CodeSlicer.
 
 ![Текущий экран Review в локальном UI](docs/images/codeslicer-current-ui.png)
 
@@ -328,6 +421,10 @@ python -m impact_engine.mcp.server
 
 ## Содержание
 
+- [Выберите удобный интерфейс](#выберите-удобный-интерфейс)
+- [VS Code Cockpit — рекомендуемый старт](#vs-code-cockpit--рекомендуемый-старт)
+- [Local Hub — тот же анализ в браузере](#local-hub--тот-же-анализ-в-браузере)
+- [AI agents и MCP](#ai-agents-и-mcp)
 - [Возможности](#возможности)
 - [Система целиком](docs/PRODUCT_GUIDE.md)
 - [Первый запуск на Windows, macOS и Linux](docs/GETTING_STARTED.md)
