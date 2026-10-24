@@ -113,6 +113,25 @@ def _js_binding_name(node) -> str:
     return ""
 
 
+_FUNCTION_NODE_TYPES = {"function_expression", "generator_function", "arrow_function"}
+
+
+def _first_inline_function_argument(call_node):
+    """Return the first inline function argument of a call, or ``None``.
+
+    Only real function nodes count (``throttle(fn, 100)`` stays unresolved);
+    the search covers direct arguments and the ``arguments`` wrapper node.
+    """
+    for child in call_node.named_children:
+        if child.type in _FUNCTION_NODE_TYPES:
+            return child
+        if child.type == "arguments":
+            for argument in child.named_children:
+                if argument.type in _FUNCTION_NODE_TYPES:
+                    return argument
+    return None
+
+
 def _js_bound_callable(node):
     """Recognise declarations such as ``const f = () =>`` and ``app.f = function``.
 
@@ -120,6 +139,10 @@ def _js_bound_callable(node):
     named function node.  Handling them at the binding site makes the result
     independent of framework conventions (Express, React handlers, Node
     exports, TypeScript class fields, and ordinary callbacks all use it).
+    Factory-bound functions (``const f = wrapper(function* () {})`` — Effect-TS
+    ``Effect.fnUntraced`` and similar higher-order factories) keep the binding
+    name while the behaviour sits in the inline function argument; unwrap that
+    argument so the binding still yields a named callable.
     """
     if node.type == "assignment_expression":
         binding = node.child_by_field_name("left")
@@ -135,17 +158,27 @@ def _js_bound_callable(node):
         value = node.child_by_field_name("value")
     else:
         return None
-    if value is None or value.type not in {"function_expression", "generator_function", "arrow_function"}:
+    if value is None:
         return None
+    factory_call = None
+    if value.type not in _FUNCTION_NODE_TYPES:
+        if value.type != "call_expression":
+            return None
+        factory_call = value
+        value = _first_inline_function_argument(value)
+        if value is None:
+            return None
     name = _js_binding_name(binding)
-    return (name, value) if name else None
+    return (name, value, factory_call) if name else None
 
 
-def _add_js_bound_callable(graph, node, rel_path, scope, imports) -> None:
+def _add_js_bound_callable(graph, node, rel_path, scope, imports) -> Node | None:
+    """Add the bound callable.  Returns the factory call whose extraction must
+    continue on the generic path (``None`` for direct function bindings)."""
     binding = _js_bound_callable(node)
     if binding is None:
-        return
-    name, function_node = binding
+        return None
+    name, function_node, factory_call = binding
     method_id = f"js_method:{rel_path}:{name}"
     graph.add_node(Node(
         id=method_id,
@@ -181,6 +214,7 @@ def _add_js_bound_callable(graph, node, rel_path, scope, imports) -> None:
     body_scope = scope or method_id
     for child in function_node.children:
         walk_js_ts(child, None, rel_path, graph, scope=body_scope, imports=imports)
+    return factory_call
 
 
 def walk_js_ts(node, file_path, rel_path, graph, scope="", imports=None):
@@ -223,8 +257,13 @@ def walk_js_ts(node, file_path, rel_path, graph, scope="", imports=None):
     # 3. Bound functions and arrows.  This must precede generic function
     # handling because the RHS has no name of its own.
     elif _js_bound_callable(node) is not None:
-        _add_js_bound_callable(graph, node, rel_path, scope, imports)
-        return
+        factory_call = _add_js_bound_callable(graph, node, rel_path, scope, imports)
+        if factory_call is None:
+            return
+        # Factory-bound binding: continue on the generic path so the factory
+        # call itself and its remaining arguments keep their extraction.  The
+        # inline function body was already attributed above; re-walking it is
+        # idempotent (stable node/edge ids merged by add_node/add_edge).
 
     # 4. Functions
     elif node_type in ("function_declaration", "generator_function_declaration"):

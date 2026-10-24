@@ -62,6 +62,50 @@ def test_extract_ts_project():
     assert json.loads(graph.to_json()) is not None
 
 
+def test_factory_bound_function_gets_named_method(tmp_path: Path):
+    """`const f = factory(function* () {})` (Effect-TS style) yields a named METHOD."""
+    source = tmp_path / "config.ts"
+    source.write_text(
+        """import { Effect, Schema } from "effect";
+
+const fetchRemoteJson = Effect.fnUntraced(function* <S extends Schema.Top>(url: string, schema: S) {
+  const response = yield* performRequest(url);
+  return decodeSchema(response, schema);
+});
+
+const throttled = throttle(fn, 100);
+
+export function run() {
+  return fetchRemoteJson("https://example.test", Schema.Json);
+}
+""",
+        encoding="utf-8",
+    )
+
+    graph = extract_tree_sitter_project(tmp_path, languages=["typescript"])
+    nodes = {node.id: node for node in graph.nodes}
+
+    method = nodes["js_method:config.ts:fetchRemoteJson"]
+    assert method.kind == "METHOD"
+    assert method.properties["file"] == "config.ts"
+    assert method.properties["line"] == 3
+
+    # Body calls are attributed to the bound callable.
+    perform = next(
+        node for node in graph.nodes
+        if node.kind == "CALL_EXPR" and node.properties.get("call_name") == "performRequest"
+    )
+    assert any(edge.kind == "CALLS" and edge.from_node == method.id and edge.to_node == perform.id for edge in graph.edges)
+
+    # The factory call itself keeps its generic extraction.
+    assert any(
+        node.kind == "CALL_EXPR" and node.properties.get("call_name") == "Effect.fnUntraced"
+        for node in graph.nodes
+    )
+    # A call whose arguments hold no inline function stays unresolved.
+    assert not any(node.kind == "METHOD" and node.name == "throttled" for node in graph.nodes)
+
+
 @pytest.mark.parametrize("fallback", [False, True])
 def test_extract_js_bound_callable_with_source_range(tmp_path: Path, monkeypatch, fallback: bool):
     """Assignment/arrow bindings must be diff-addressable in both parser paths."""
